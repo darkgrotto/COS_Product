@@ -1,0 +1,12 @@
+using CountOrSell.Domain.Models;
+
+namespace CountOrSell.Data.Repositories;
+
+public interface ISealedInventoryRepository
+{
+    Task<SealedInventoryEntry?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<List<SealedInventoryEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default);
+    Task<SealedInventoryEntry> CreateAsync(SealedInventoryEntry entry, CancellationToken ct = default);
+    Task<SealedInventoryEntry> UpdateAsync(SealedInventoryEntry entry, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
+}
