@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<PendingSchemaUpdate> PendingSchemaUpdates => Set<PendingSchemaUpdate>();
     public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<UserExportFile> UserExportFiles => Set<UserExportFile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,6 +46,7 @@ public class AppDbContext : DbContext
         ConfigurePendingSchemaUpdates(modelBuilder);
         ConfigureAdminNotifications(modelBuilder);
         ConfigureAppSettings(modelBuilder);
+        ConfigureUserExportFiles(modelBuilder);
         SeedGradingAgencies(modelBuilder);
     }
 
@@ -384,6 +386,23 @@ public class AppDbContext : DbContext
             e.HasKey(s => s.Key);
             e.Property(s => s.Key).HasColumnName("key").HasMaxLength(100);
             e.Property(s => s.Value).HasColumnName("value").HasMaxLength(500).IsRequired();
+        });
+    }
+
+    private static void ConfigureUserExportFiles(ModelBuilder b)
+    {
+        b.Entity<UserExportFile>(e =>
+        {
+            e.ToTable("user_export_files");
+            e.HasKey(f => f.Id);
+            e.Property(f => f.Id).HasColumnName("id");
+            e.Property(f => f.UserId).HasColumnName("user_id").IsRequired();
+            e.Property(f => f.Username).HasColumnName("username").HasMaxLength(100).IsRequired();
+            e.Property(f => f.RemovedAt).HasColumnName("removed_at").IsRequired();
+            e.Property(f => f.FilePath).HasColumnName("file_path").HasMaxLength(1000).IsRequired();
+            e.Property(f => f.FileSizeBytes).HasColumnName("file_size_bytes").IsRequired();
+            e.Property(f => f.CreatedAt).HasColumnName("created_at").IsRequired();
+            e.HasIndex(f => f.UserId);
         });
     }
 

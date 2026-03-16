@@ -9,4 +9,5 @@ public interface ISerializedRepository
     Task<SerializedEntry> CreateAsync(SerializedEntry entry, CancellationToken ct = default);
     Task<SerializedEntry> UpdateAsync(SerializedEntry entry, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default);
 }

@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain.Dtos.Requests;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,7 +9,6 @@ namespace CountOrSell.Api.Controllers;
 
 [ApiController]
 [Route("api/users")]
-[Authorize(Roles = "Admin")]
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
@@ -19,7 +20,11 @@ public class UsersController : ControllerBase
         _users = users;
     }
 
+    private Guid CurrentUserId =>
+        Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
     [HttpGet]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
         var users = await _users.GetAllAsync(ct);
@@ -31,6 +36,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("{id}/disable")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Disable(Guid id, CancellationToken ct)
     {
         var result = await _userService.DisableUserAsync(id, ct);
@@ -40,6 +46,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("{id}/remove")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Remove(Guid id, CancellationToken ct)
     {
         var result = await _userService.RemoveUserAsync(id, ct);
@@ -49,6 +56,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("{id}/demote")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Demote(Guid id, CancellationToken ct)
     {
         var result = await _userService.DemoteUserAsync(id, ct);
@@ -58,6 +66,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("{id}/promote")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Promote(Guid id, CancellationToken ct)
     {
         var result = await _userService.PromoteUserAsync(id, ct);
@@ -67,11 +76,55 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("{id}/reenable")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> ReEnable(Guid id, CancellationToken ct)
     {
         var result = await _userService.ReEnableUserAsync(id, ct);
         if (!result.Success)
             return Conflict(new { error = result.Error });
+        return Ok();
+    }
+
+    [HttpGet("{id}/exports")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetExports(Guid id, CancellationToken ct)
+    {
+        var files = await _userService.GetExportFilesAsync(id, ct);
+        return Ok(files.Select(f => new
+        {
+            f.Id, f.UserId, f.Username, f.RemovedAt,
+            f.FileSizeBytes, f.CreatedAt
+        }));
+    }
+
+    [HttpDelete("{id}/exports/{exportId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteExport(Guid id, Guid exportId, CancellationToken ct)
+    {
+        await _userService.DeleteExportFileAsync(exportId, ct);
+        return NoContent();
+    }
+
+    [HttpGet("me/preferences")]
+    [Authorize]
+    public async Task<IActionResult> GetMyPreferences(CancellationToken ct)
+    {
+        var prefs = await _userService.GetPreferencesAsync(CurrentUserId, ct);
+        if (prefs == null)
+            return Ok(new { setCompletionRegularOnly = false, defaultPage = (string?)null });
+
+        return Ok(new
+        {
+            prefs.SetCompletionRegularOnly,
+            prefs.DefaultPage
+        });
+    }
+
+    [HttpPatch("me/preferences")]
+    [Authorize]
+    public async Task<IActionResult> PatchMyPreferences([FromBody] UserPreferencesRequest request, CancellationToken ct)
+    {
+        await _userService.UpdatePreferencesAsync(CurrentUserId, request.SetCompletionRegularOnly, request.DefaultPage, ct);
         return Ok();
     }
 }

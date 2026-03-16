@@ -3,8 +3,10 @@ using CountOrSell.Data;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
+using CountOrSell.Domain.Services;
 using CountOrSell.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -14,6 +16,7 @@ namespace CountOrSell.Tests.Integration.Auth;
 /// Tests that verify the last local admin cannot be removed, disabled, or demoted.
 /// Each test creates its own isolated PostgreSQL container to avoid state accumulation.
 /// </summary>
+[Trait("Category", "RequiresDocker")]
 public class LastLocalAdminBlockedTests
 {
     private static User MakeLocalAdmin() => new()
@@ -49,6 +52,22 @@ public class LastLocalAdminBlockedTests
         return (db, container);
     }
 
+    private static UserService BuildUserService(AppDbContext db)
+    {
+        var mockExport = new Mock<IExportService>();
+        mockExport.Setup(e => e.ExportUserDataAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserExportFile { Id = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, RemovedAt = DateTime.UtcNow });
+        return new UserService(
+            new UserRepository(db),
+            mockExport.Object,
+            new CollectionRepository(db),
+            new SerializedRepository(db),
+            new SlabRepository(db),
+            new SealedInventoryRepository(db),
+            new WishlistRepository(db),
+            db);
+    }
+
     [Fact]
     public async Task LastLocalAdmin_CannotBeRemoved_WhenOnlyOneExists()
     {
@@ -60,7 +79,7 @@ public class LastLocalAdminBlockedTests
         db.Users.Add(onlyAdmin);
         await db.SaveChangesAsync();
 
-        var service = new UserService(new UserRepository(db));
+        var service = BuildUserService(db);
         var result = await service.RemoveUserAsync(onlyAdmin.Id);
 
         Assert.False(result.Success);
@@ -78,7 +97,7 @@ public class LastLocalAdminBlockedTests
         db.Users.Add(onlyAdmin);
         await db.SaveChangesAsync();
 
-        var service = new UserService(new UserRepository(db));
+        var service = BuildUserService(db);
         var result = await service.DisableUserAsync(onlyAdmin.Id);
 
         Assert.False(result.Success);
@@ -96,7 +115,7 @@ public class LastLocalAdminBlockedTests
         db.Users.Add(onlyAdmin);
         await db.SaveChangesAsync();
 
-        var service = new UserService(new UserRepository(db));
+        var service = BuildUserService(db);
         var result = await service.DemoteUserAsync(onlyAdmin.Id);
 
         Assert.False(result.Success);
@@ -107,6 +126,7 @@ public class LastLocalAdminBlockedTests
 /// <summary>
 /// Tests that verify operations succeed when sufficient local admins exist.
 /// </summary>
+[Trait("Category", "RequiresDocker")]
 public class LastLocalAdminAllowedTests : IClassFixture<PostgreSqlFixture>
 {
     private readonly PostgreSqlFixture _fixture;
@@ -145,6 +165,22 @@ public class LastLocalAdminAllowedTests : IClassFixture<PostgreSqlFixture>
         UpdatedAt = DateTime.UtcNow
     };
 
+    private static UserService BuildUserService(AppDbContext db)
+    {
+        var mockExport = new Mock<IExportService>();
+        mockExport.Setup(e => e.ExportUserDataAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserExportFile { Id = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, RemovedAt = DateTime.UtcNow });
+        return new UserService(
+            new UserRepository(db),
+            mockExport.Object,
+            new CollectionRepository(db),
+            new SerializedRepository(db),
+            new SlabRepository(db),
+            new SealedInventoryRepository(db),
+            new WishlistRepository(db),
+            db);
+    }
+
     [Fact]
     public async Task OAuthAdmin_CanBeRemoved_WhenOneLocalAdminExists()
     {
@@ -154,7 +190,7 @@ public class LastLocalAdminAllowedTests : IClassFixture<PostgreSqlFixture>
         db.Users.AddRange(localAdmin, oauthAdmin);
         await db.SaveChangesAsync();
 
-        var service = new UserService(new UserRepository(db));
+        var service = BuildUserService(db);
         var result = await service.RemoveUserAsync(oauthAdmin.Id);
 
         Assert.True(result.Success);
@@ -169,7 +205,7 @@ public class LastLocalAdminAllowedTests : IClassFixture<PostgreSqlFixture>
         db.Users.AddRange(admin1, admin2);
         await db.SaveChangesAsync();
 
-        var service = new UserService(new UserRepository(db));
+        var service = BuildUserService(db);
         var result = await service.RemoveUserAsync(admin1.Id);
 
         Assert.True(result.Success);

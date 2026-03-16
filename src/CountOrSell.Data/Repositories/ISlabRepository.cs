@@ -9,4 +9,7 @@ public interface ISlabRepository
     Task<SlabEntry> CreateAsync(SlabEntry entry, CancellationToken ct = default);
     Task<SlabEntry> UpdateAsync(SlabEntry entry, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default);
+    Task<int> CountByAgencyCodeAsync(string agencyCode, CancellationToken ct = default);
+    Task RemapAgencyCodeAsync(string oldCode, string newCode, CancellationToken ct = default);
 }

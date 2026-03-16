@@ -7,6 +7,7 @@ using Xunit;
 
 namespace CountOrSell.Tests.Integration.Schema;
 
+[Trait("Category", "RequiresDocker")]
 public class CardIdentifierConstraintTests : IClassFixture<PostgreSqlFixture>
 {
     private readonly PostgreSqlFixture _fixture;

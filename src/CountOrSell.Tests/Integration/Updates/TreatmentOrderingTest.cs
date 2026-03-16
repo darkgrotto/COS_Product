@@ -6,6 +6,7 @@ using Xunit;
 
 namespace CountOrSell.Tests.Integration.Updates;
 
+[Trait("Category", "RequiresDocker")]
 public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
 {
     private readonly PostgreSqlFixture _fixture;

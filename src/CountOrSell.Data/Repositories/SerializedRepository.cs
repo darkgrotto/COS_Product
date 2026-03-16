@@ -37,4 +37,11 @@ public class SerializedRepository : ISerializedRepository
             await _db.SaveChangesAsync(ct);
         }
     }
+
+    public async Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        var entries = await _db.SerializedEntries.Where(e => e.UserId == userId).ToListAsync(ct);
+        _db.SerializedEntries.RemoveRange(entries);
+        await _db.SaveChangesAsync(ct);
+    }
 }

@@ -6,6 +6,7 @@ using Xunit;
 
 namespace CountOrSell.Tests.Integration.Repositories;
 
+[Trait("Category", "RequiresDocker")]
 public class UserRepositoryTests : IClassFixture<PostgreSqlFixture>
 {
     private readonly PostgreSqlFixture _fixture;

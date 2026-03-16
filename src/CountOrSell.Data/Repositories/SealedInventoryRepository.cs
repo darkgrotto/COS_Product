@@ -37,4 +37,11 @@ public class SealedInventoryRepository : ISealedInventoryRepository
             await _db.SaveChangesAsync(ct);
         }
     }
+
+    public async Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        var entries = await _db.SealedInventoryEntries.Where(e => e.UserId == userId).ToListAsync(ct);
+        _db.SealedInventoryEntries.RemoveRange(entries);
+        await _db.SaveChangesAsync(ct);
+    }
 }

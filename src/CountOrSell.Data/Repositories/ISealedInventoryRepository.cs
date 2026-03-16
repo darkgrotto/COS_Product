@@ -9,4 +9,5 @@ public interface ISealedInventoryRepository
     Task<SealedInventoryEntry> CreateAsync(SealedInventoryEntry entry, CancellationToken ct = default);
     Task<SealedInventoryEntry> UpdateAsync(SealedInventoryEntry entry, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default);
 }

@@ -39,6 +39,15 @@ builder.Services.AddScoped<ILocalAuthService, LocalAuthService>();
 builder.Services.AddSingleton<IOAuthConfigService, OAuthConfigService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
+// Card and data repositories
+builder.Services.AddScoped<ICardRepository, CardRepository>();
+builder.Services.AddScoped<IUserExportFileRepository, UserExportFileRepository>();
+
+// Feature services
+builder.Services.AddScoped<IMetricsService, MetricsService>();
+builder.Services.AddScoped<IExportService, ExportService>();
+builder.Services.AddHttpClient<ITcgPlayerService, TcgPlayerService>();
+
 // Image store
 builder.Services.AddSingleton<IImageStore, FileSystemImageStore>();
 

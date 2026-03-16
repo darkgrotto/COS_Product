@@ -8,6 +8,7 @@ using Xunit;
 
 namespace CountOrSell.Tests.Integration.Updates;
 
+[Trait("Category", "RequiresDocker")]
 public class ContentUpdateTransactionRollbackTest : IClassFixture<PostgreSqlFixture>
 {
     private readonly PostgreSqlFixture _fixture;

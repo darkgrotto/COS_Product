@@ -3,12 +3,15 @@ using CountOrSell.Data;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
+using CountOrSell.Domain.Services;
 using CountOrSell.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace CountOrSell.Tests.Integration.Auth;
 
+[Trait("Category", "RequiresDocker")]
 public class BuiltinAdminProtectionTests : IClassFixture<PostgreSqlFixture>
 {
     private readonly PostgreSqlFixture _fixture;
@@ -16,6 +19,22 @@ public class BuiltinAdminProtectionTests : IClassFixture<PostgreSqlFixture>
     public BuiltinAdminProtectionTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+    }
+
+    private static UserService BuildUserService(AppDbContext db)
+    {
+        var mockExport = new Mock<IExportService>();
+        mockExport.Setup(e => e.ExportUserDataAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserExportFile { Id = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, RemovedAt = DateTime.UtcNow });
+        return new UserService(
+            new UserRepository(db),
+            mockExport.Object,
+            new CollectionRepository(db),
+            new SerializedRepository(db),
+            new SlabRepository(db),
+            new SealedInventoryRepository(db),
+            new WishlistRepository(db),
+            db);
     }
 
     private async Task<User> CreateBuiltinAdmin(AppDbContext db)
@@ -43,7 +62,7 @@ public class BuiltinAdminProtectionTests : IClassFixture<PostgreSqlFixture>
     {
         await using var db = _fixture.CreateContext();
         var admin = await CreateBuiltinAdmin(db);
-        var service = new UserService(new UserRepository(db));
+        var service = BuildUserService(db);
 
         var result = await service.DisableUserAsync(admin.Id);
 
@@ -59,7 +78,7 @@ public class BuiltinAdminProtectionTests : IClassFixture<PostgreSqlFixture>
     {
         await using var db = _fixture.CreateContext();
         var admin = await CreateBuiltinAdmin(db);
-        var service = new UserService(new UserRepository(db));
+        var service = BuildUserService(db);
 
         var result = await service.RemoveUserAsync(admin.Id);
 
@@ -75,7 +94,7 @@ public class BuiltinAdminProtectionTests : IClassFixture<PostgreSqlFixture>
     {
         await using var db = _fixture.CreateContext();
         var admin = await CreateBuiltinAdmin(db);
-        var service = new UserService(new UserRepository(db));
+        var service = BuildUserService(db);
 
         var result = await service.DemoteUserAsync(admin.Id);
 

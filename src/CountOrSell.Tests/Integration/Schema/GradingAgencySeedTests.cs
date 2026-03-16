@@ -5,6 +5,7 @@ using Xunit;
 
 namespace CountOrSell.Tests.Integration.Schema;
 
+[Trait("Category", "RequiresDocker")]
 public class GradingAgencySeedTests : IClassFixture<PostgreSqlFixture>
 {
     private readonly PostgreSqlFixture _fixture;

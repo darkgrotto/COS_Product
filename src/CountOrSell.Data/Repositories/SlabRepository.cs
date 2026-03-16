@@ -37,4 +37,22 @@ public class SlabRepository : ISlabRepository
             await _db.SaveChangesAsync(ct);
         }
     }
+
+    public async Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        var entries = await _db.SlabEntries.Where(e => e.UserId == userId).ToListAsync(ct);
+        _db.SlabEntries.RemoveRange(entries);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public Task<int> CountByAgencyCodeAsync(string agencyCode, CancellationToken ct = default) =>
+        _db.SlabEntries.CountAsync(e => e.GradingAgencyCode == agencyCode, ct);
+
+    public async Task RemapAgencyCodeAsync(string oldCode, string newCode, CancellationToken ct = default)
+    {
+        var entries = await _db.SlabEntries.Where(e => e.GradingAgencyCode == oldCode).ToListAsync(ct);
+        foreach (var entry in entries)
+            entry.GradingAgencyCode = newCode;
+        await _db.SaveChangesAsync(ct);
+    }
 }
