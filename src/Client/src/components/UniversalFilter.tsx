@@ -29,7 +29,7 @@ export function UniversalFilter({ filter, onChange, hideFields = [] }: Props) {
             type="text"
             value={filter.setCode ?? ''}
             onChange={(e) => update({ setCode: e.target.value || undefined })}
-            placeholder="e.g. EOE"
+            placeholder="e.g. MH3 or PW26"
             aria-label="Filter by set"
           />
         </label>
