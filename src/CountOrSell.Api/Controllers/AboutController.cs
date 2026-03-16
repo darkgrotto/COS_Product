@@ -31,7 +31,13 @@ public class AboutController : ControllerBase
             latestReleasedVersion = latestAppVersion ?? ProductVersion.Current,
             updatePending = isPending,
             lastContentUpdate = currentContentVersion,
-            instanceName
+            instanceName,
+            license = new
+            {
+                name = "CC BY-NC-SA 4.0",
+                fullName = "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International",
+                url = "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+            }
         });
     }
 }

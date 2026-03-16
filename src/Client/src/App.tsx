@@ -9,6 +9,7 @@ import { WishlistView } from './Wishlist/WishlistView';
 import { MetricsDashboard } from './Metrics/MetricsDashboard';
 import { GradingAgencyManager } from './Admin/GradingAgencyManager';
 import { UserManagement } from './Admin/UserManagement';
+import { AboutView } from './About/AboutView';
 
 export function App() {
   return (
@@ -23,6 +24,7 @@ export function App() {
         <NavLink to="/metrics">Metrics</NavLink>
         <NavLink to="/admin/agencies">Agencies</NavLink>
         <NavLink to="/admin/users">Users</NavLink>
+        <NavLink to="/about">About</NavLink>
       </nav>
       <main>
         <Routes>
@@ -36,6 +38,7 @@ export function App() {
           <Route path="/metrics" element={<MetricsDashboard />} />
           <Route path="/admin/agencies" element={<GradingAgencyManager />} />
           <Route path="/admin/users" element={<UserManagement />} />
+          <Route path="/about" element={<AboutView />} />
         </Routes>
       </main>
     </BrowserRouter>

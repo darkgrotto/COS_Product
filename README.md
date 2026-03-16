@@ -92,4 +92,6 @@ A local PostgreSQL instance is required to run the API locally. Set the `POSTGRE
 
 ## License
 
-TBD
+CountOrSell is licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+You may use, share, and adapt it for non-commercial purposes provided you give attribution and distribute any adaptations under the same license. See [LICENSE](LICENSE) for the full terms.

@@ -158,7 +158,7 @@ All update endpoints require Admin authentication.
 
 | Method | Path | Auth | Description | Notes |
 |--------|------|------|-------------|-------|
-| `GET` | `/api/about` | Authenticated | Get instance information | Returns `{currentVersion, latestReleasedVersion, updatePending, lastContentUpdate, instanceName}` |
+| `GET` | `/api/about` | Authenticated | Get instance information | Returns `{currentVersion, latestReleasedVersion, updatePending, lastContentUpdate, instanceName, license: {name, fullName, url}}` |
 
 ---
 
