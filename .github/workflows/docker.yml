@@ -5,6 +5,8 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # Skip entirely when registry secrets are not configured
+    if: ${{ secrets.REGISTRY_HOST != '' && secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Login to registry
