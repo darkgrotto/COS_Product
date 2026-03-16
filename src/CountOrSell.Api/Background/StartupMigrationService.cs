@@ -1,0 +1,126 @@
+using CountOrSell.Data;
+using CountOrSell.Domain.Models.Enums;
+using CountOrSell.Domain.Services;
+using Microsoft.EntityFrameworkCore;
+
+namespace CountOrSell.Api.Background;
+
+public class StartupMigrationService : IHostedService
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<StartupMigrationService> _logger;
+    private readonly IHostApplicationLifetime _lifetime;
+
+    public StartupMigrationService(
+        IServiceScopeFactory scopeFactory,
+        ILogger<StartupMigrationService> logger,
+        IHostApplicationLifetime lifetime)
+    {
+        _scopeFactory = scopeFactory;
+        _logger = logger;
+        _lifetime = lifetime;
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var preBackup = scope.ServiceProvider.GetRequiredService<IPreUpdateBackupService>();
+        var restore = scope.ServiceProvider.GetRequiredService<IRestoreService>();
+        var notifications = scope.ServiceProvider.GetRequiredService<IAdminNotificationService>();
+
+        try
+        {
+            // Only attempt migration check for relational databases
+            if (db.Database.IsRelational())
+            {
+                var pendingMigrations = (await db.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
+                if (!pendingMigrations.Any())
+                {
+                    _logger.LogInformation("No pending database migrations");
+                    return;
+                }
+
+                _logger.LogInformation(
+                    "Found {Count} pending migrations, taking pre-update backup...",
+                    pendingMigrations.Count);
+
+                var backupOk = await preBackup.TakeBackupAsync("startup-migration", cancellationToken);
+                if (!backupOk)
+                {
+                    _logger.LogError("Startup migration aborted: pre-update backup failed");
+                    try
+                    {
+                        await notifications.NotifyAsync(
+                            "Startup migration aborted: pre-update backup failed. " +
+                            "Fix backup configuration and restart.",
+                            "schema", cancellationToken);
+                    }
+                    catch (Exception notifyEx)
+                    {
+                        _logger.LogError(notifyEx, "Failed to send notification after backup failure");
+                    }
+                    _lifetime.StopApplication();
+                    return;
+                }
+
+                var latestBackup = await db.BackupRecords
+                    .Where(b => b.BackupType == BackupType.PreUpdate)
+                    .OrderByDescending(b => b.CreatedAt)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                try
+                {
+                    await db.Database.MigrateAsync(cancellationToken);
+                    _logger.LogInformation("Startup migrations applied successfully");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Startup migration failed, attempting restore from backup");
+
+                    if (latestBackup != null)
+                    {
+                        var backupPath = Path.Combine(
+                            AppContext.BaseDirectory,
+                            "backups",
+                            $"{latestBackup.Label}.zip");
+
+                        if (File.Exists(backupPath))
+                        {
+                            try
+                            {
+                                using var stream = File.OpenRead(backupPath);
+                                await restore.RestoreAsync(stream, cancellationToken);
+                                _logger.LogInformation("Restore from pre-update backup succeeded");
+                            }
+                            catch (Exception restoreEx)
+                            {
+                                _logger.LogError(restoreEx,
+                                    "Restore also failed - manual intervention required");
+                            }
+                        }
+                    }
+
+                    try
+                    {
+                        await notifications.NotifyAsync(
+                            $"Startup migration failed: {ex.Message}. Application will not start.",
+                            "schema", cancellationToken);
+                    }
+                    catch (Exception notifyEx)
+                    {
+                        _logger.LogError(notifyEx, "Failed to send notification after migration failure");
+                    }
+                    _lifetime.StopApplication();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Startup migration check failed unexpectedly");
+            // Do not abort startup for unexpected errors - let the app try to start
+        }
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}

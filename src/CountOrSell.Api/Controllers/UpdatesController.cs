@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CountOrSell.Api.Background.Updates;
+using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,11 +14,16 @@ public class UpdatesController : ControllerBase
 {
     private readonly IUpdateRepository _updateRepo;
     private readonly IUpdateCheckTrigger _updateTrigger;
+    private readonly SchemaUpdateCoordinator _schemaCoordinator;
 
-    public UpdatesController(IUpdateRepository updateRepo, IUpdateCheckTrigger updateTrigger)
+    public UpdatesController(
+        IUpdateRepository updateRepo,
+        IUpdateCheckTrigger updateTrigger,
+        SchemaUpdateCoordinator schemaCoordinator)
     {
         _updateRepo = updateRepo;
         _updateTrigger = updateTrigger;
+        _schemaCoordinator = schemaCoordinator;
     }
 
     [HttpGet("status")]
@@ -73,7 +79,17 @@ public class UpdatesController : ControllerBase
         if (pending == null || pending.Id != id)
             return NotFound(new { error = "Pending schema update not found." });
 
-        await _updateRepo.ApprovePendingSchemaUpdateAsync(id, userId, ct);
+        // Record who approved it before executing
+        pending.ApprovedByUserId = userId;
+
+        var success = await _schemaCoordinator.ExecuteSchemaUpdateAsync(pending, ct);
+        if (!success)
+            return UnprocessableEntity(new
+            {
+                error = "Schema update could not be applied. " +
+                        "Check admin notifications for details."
+            });
+
         return Ok();
     }
 

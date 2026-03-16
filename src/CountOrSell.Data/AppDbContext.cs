@@ -2,6 +2,9 @@ using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
+// Backup model configuration is in ConfigureBackupRecords,
+// ConfigureBackupDestinationRecords, ConfigureBackupDestinationConfigs.
+
 namespace CountOrSell.Data;
 
 public class AppDbContext : DbContext
@@ -25,6 +28,9 @@ public class AppDbContext : DbContext
     public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<UserExportFile> UserExportFiles => Set<UserExportFile>();
+    public DbSet<BackupRecord> BackupRecords => Set<BackupRecord>();
+    public DbSet<BackupDestinationRecord> BackupDestinationRecords => Set<BackupDestinationRecord>();
+    public DbSet<BackupDestinationConfig> BackupDestinationConfigs => Set<BackupDestinationConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +53,9 @@ public class AppDbContext : DbContext
         ConfigureAdminNotifications(modelBuilder);
         ConfigureAppSettings(modelBuilder);
         ConfigureUserExportFiles(modelBuilder);
+        ConfigureBackupRecords(modelBuilder);
+        ConfigureBackupDestinationRecords(modelBuilder);
+        ConfigureBackupDestinationConfigs(modelBuilder);
         SeedGradingAgencies(modelBuilder);
     }
 
@@ -403,6 +412,56 @@ public class AppDbContext : DbContext
             e.Property(f => f.FileSizeBytes).HasColumnName("file_size_bytes").IsRequired();
             e.Property(f => f.CreatedAt).HasColumnName("created_at").IsRequired();
             e.HasIndex(f => f.UserId);
+        });
+    }
+
+    private static void ConfigureBackupRecords(ModelBuilder b)
+    {
+        b.Entity<BackupRecord>(e =>
+        {
+            e.ToTable("backup_records");
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Id).HasColumnName("id");
+            e.Property(r => r.Label).HasColumnName("label").HasMaxLength(300).IsRequired();
+            e.Property(r => r.BackupType).HasColumnName("backup_type")
+                .HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.Property(r => r.SchemaVersion).HasColumnName("schema_version").IsRequired();
+            e.Property(r => r.CreatedAt).HasColumnName("created_at").IsRequired();
+            e.Property(r => r.FileSizeBytes).HasColumnName("file_size_bytes").IsRequired();
+            e.Property(r => r.IsAvailable).HasColumnName("is_available").IsRequired();
+            e.HasMany(r => r.Destinations)
+                .WithOne()
+                .HasForeignKey(d => d.BackupRecordId);
+        });
+    }
+
+    private static void ConfigureBackupDestinationRecords(ModelBuilder b)
+    {
+        b.Entity<BackupDestinationRecord>(e =>
+        {
+            e.ToTable("backup_destination_records");
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Id).HasColumnName("id");
+            e.Property(r => r.BackupRecordId).HasColumnName("backup_record_id").IsRequired();
+            e.Property(r => r.DestinationType).HasColumnName("destination_type").HasMaxLength(50).IsRequired();
+            e.Property(r => r.DestinationLabel).HasColumnName("destination_label").HasMaxLength(200).IsRequired();
+            e.Property(r => r.Success).HasColumnName("success").IsRequired();
+            e.Property(r => r.ErrorMessage).HasColumnName("error_message").HasMaxLength(2000);
+            e.Property(r => r.AttemptedAt).HasColumnName("attempted_at").IsRequired();
+        });
+    }
+
+    private static void ConfigureBackupDestinationConfigs(ModelBuilder b)
+    {
+        b.Entity<BackupDestinationConfig>(e =>
+        {
+            e.ToTable("backup_destination_configs");
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Id).HasColumnName("id");
+            e.Property(c => c.DestinationType).HasColumnName("destination_type").HasMaxLength(50).IsRequired();
+            e.Property(c => c.Label).HasColumnName("label").HasMaxLength(200).IsRequired();
+            e.Property(c => c.ConfigurationJson).HasColumnName("configuration_json").HasMaxLength(4000).IsRequired();
+            e.Property(c => c.IsActive).HasColumnName("is_active").IsRequired();
         });
     }
 

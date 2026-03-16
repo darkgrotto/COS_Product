@@ -1,7 +1,10 @@
 using CountOrSell.Api.Auth;
 using CountOrSell.Api.Background.AppVersion;
+using CountOrSell.Api.Background.Backup;
 using CountOrSell.Api.Background.Updates;
+using CountOrSell.Api.Background;
 using CountOrSell.Api.Services;
+using CountOrSell.Api.Services.Destinations;
 using CountOrSell.Data;
 using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
@@ -56,17 +59,27 @@ builder.Services.AddHttpClient<IUpdateManifestClient, UpdateManifestClient>();
 builder.Services.AddHttpClient<IPackageDownloader, PackageDownloader>();
 builder.Services.AddScoped<IPackageVerifier, PackageVerifier>();
 builder.Services.AddScoped<IContentUpdateApplicator, ContentUpdateApplicator>();
-builder.Services.AddScoped<IPreUpdateBackupService, PreUpdateBackupService>();
 builder.Services.AddScoped<IAdminNotificationService, AdminNotificationService>();
 builder.Services.AddScoped<IEmailNotificationService, EmailNotificationService>();
 builder.Services.AddHttpClient<IAppVersionService, AppVersionService>();
 builder.Services.AddScoped<IUpdateRepository, UpdateRepository>();
 
-// Background services
+// Backup and restore services
+builder.Services.AddScoped<IProcessRunner, ProcessRunner>();
+builder.Services.AddScoped<ISchemaVersionService, SchemaVersionService>();
+builder.Services.AddScoped<IBackupDestinationFactory, BackupDestinationFactory>();
+builder.Services.AddScoped<IBackupService, BackupService>();
+builder.Services.AddScoped<IRestoreService, RestoreService>();
+builder.Services.AddScoped<IPreUpdateBackupService, PreUpdateBackupService>();
+builder.Services.AddScoped<SchemaUpdateCoordinator>();
+
+// Background services - StartupMigrationService first so it runs before other hosted services
+builder.Services.AddHostedService<StartupMigrationService>();
 builder.Services.AddSingleton<UpdateCheckService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
 builder.Services.AddSingleton<IUpdateCheckTrigger>(sp => sp.GetRequiredService<UpdateCheckService>());
 builder.Services.AddHostedService<AppVersionCheckService>();
+builder.Services.AddHostedService<BackupScheduleService>();
 
 // Cookie authentication (always available)
 var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
