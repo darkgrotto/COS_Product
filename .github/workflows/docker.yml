@@ -5,17 +5,30 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    # Skip entirely when registry secrets are not configured
-    if: ${{ secrets.REGISTRY_HOST != '' && secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
+      - name: Check registry configuration
+        id: config
+        run: |
+          if [[ -n "$REGISTRY_USERNAME" && -n "$REGISTRY_PASSWORD" && -n "$REGISTRY_HOST" ]]; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "Registry secrets not configured, skipping build and push"
+            echo "configured=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          REGISTRY_HOST: ${{ secrets.REGISTRY_HOST }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       - name: Login to registry
+        if: steps.config.outputs.configured == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ secrets.REGISTRY_HOST }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
       - name: Build and push
+        if: steps.config.outputs.configured == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
