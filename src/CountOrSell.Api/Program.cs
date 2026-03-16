@@ -1,7 +1,11 @@
 using CountOrSell.Api.Auth;
+using CountOrSell.Api.Background.AppVersion;
+using CountOrSell.Api.Background.Updates;
 using CountOrSell.Api.Services;
 using CountOrSell.Data;
+using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,6 +38,26 @@ builder.Services.AddScoped<IGradingAgencyRepository, GradingAgencyRepository>();
 builder.Services.AddScoped<ILocalAuthService, LocalAuthService>();
 builder.Services.AddSingleton<IOAuthConfigService, OAuthConfigService>();
 builder.Services.AddScoped<IUserService, UserService>();
+
+// Image store
+builder.Services.AddSingleton<IImageStore, FileSystemImageStore>();
+
+// Update services
+builder.Services.AddHttpClient<IUpdateManifestClient, UpdateManifestClient>();
+builder.Services.AddHttpClient<IPackageDownloader, PackageDownloader>();
+builder.Services.AddScoped<IPackageVerifier, PackageVerifier>();
+builder.Services.AddScoped<IContentUpdateApplicator, ContentUpdateApplicator>();
+builder.Services.AddScoped<IPreUpdateBackupService, PreUpdateBackupService>();
+builder.Services.AddScoped<IAdminNotificationService, AdminNotificationService>();
+builder.Services.AddScoped<IEmailNotificationService, EmailNotificationService>();
+builder.Services.AddHttpClient<IAppVersionService, AppVersionService>();
+builder.Services.AddScoped<IUpdateRepository, UpdateRepository>();
+
+// Background services
+builder.Services.AddSingleton<UpdateCheckService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
+builder.Services.AddSingleton<IUpdateCheckTrigger>(sp => sp.GetRequiredService<UpdateCheckService>());
+builder.Services.AddHostedService<AppVersionCheckService>();
 
 // Cookie authentication (always available)
 var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

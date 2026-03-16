@@ -13,11 +13,17 @@ public class AppDbContext : DbContext
     public DbSet<Treatment> Treatments => Set<Treatment>();
     public DbSet<GradingAgency> GradingAgencies => Set<GradingAgency>();
     public DbSet<Card> Cards => Set<Card>();
+    public DbSet<Set> Sets => Set<Set>();
+    public DbSet<SealedProduct> SealedProducts => Set<SealedProduct>();
     public DbSet<CollectionEntry> CollectionEntries => Set<CollectionEntry>();
     public DbSet<SerializedEntry> SerializedEntries => Set<SerializedEntry>();
     public DbSet<SlabEntry> SlabEntries => Set<SlabEntry>();
     public DbSet<SealedInventoryEntry> SealedInventoryEntries => Set<SealedInventoryEntry>();
     public DbSet<WishlistEntry> WishlistEntries => Set<WishlistEntry>();
+    public DbSet<UpdateVersion> UpdateVersions => Set<UpdateVersion>();
+    public DbSet<PendingSchemaUpdate> PendingSchemaUpdates => Set<PendingSchemaUpdate>();
+    public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,12 +33,18 @@ public class AppDbContext : DbContext
         ConfigureUserPreferences(modelBuilder);
         ConfigureTreatments(modelBuilder);
         ConfigureGradingAgencies(modelBuilder);
+        ConfigureSets(modelBuilder);
         ConfigureCards(modelBuilder);
+        ConfigureSealedProducts(modelBuilder);
         ConfigureCollectionEntries(modelBuilder);
         ConfigureSerializedEntries(modelBuilder);
         ConfigureSlabEntries(modelBuilder);
         ConfigureSealedInventoryEntries(modelBuilder);
         ConfigureWishlistEntries(modelBuilder);
+        ConfigureUpdateVersions(modelBuilder);
+        ConfigurePendingSchemaUpdates(modelBuilder);
+        ConfigureAdminNotifications(modelBuilder);
+        ConfigureAppSettings(modelBuilder);
         SeedGradingAgencies(modelBuilder);
     }
 
@@ -109,6 +121,39 @@ public class AppDbContext : DbContext
         });
     }
 
+    private static void ConfigureSets(ModelBuilder b)
+    {
+        b.Entity<Set>(e =>
+        {
+            e.ToTable("sets", t =>
+            {
+                t.HasCheckConstraint("CK_sets_code", @"code ~ '^[a-z0-9]{3,4}$'");
+            });
+            e.HasKey(s => s.Code);
+            e.Property(s => s.Code).HasColumnName("code").HasMaxLength(4);
+            e.Property(s => s.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
+            e.Property(s => s.TotalCards).HasColumnName("total_cards").IsRequired();
+            e.Property(s => s.ReleaseDate).HasColumnName("release_date");
+            e.Property(s => s.UpdatedAt).HasColumnName("updated_at").IsRequired();
+        });
+    }
+
+    private static void ConfigureSealedProducts(ModelBuilder b)
+    {
+        b.Entity<SealedProduct>(e =>
+        {
+            e.ToTable("sealed_products");
+            e.HasKey(s => s.Identifier);
+            e.Property(s => s.Identifier).HasColumnName("identifier").HasMaxLength(100);
+            e.Property(s => s.SetCode).HasColumnName("set_code").HasMaxLength(4).IsRequired();
+            e.Property(s => s.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
+            e.Property(s => s.ImagePath).HasColumnName("image_path").HasMaxLength(500);
+            e.Property(s => s.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            e.HasOne<Set>().WithMany().HasForeignKey(s => s.SetCode);
+            e.HasIndex(s => s.SetCode);
+        });
+    }
+
     private static void ConfigureCards(ModelBuilder b)
     {
         b.Entity<Card>(e =>
@@ -131,6 +176,7 @@ public class AppDbContext : DbContext
             e.Property(c => c.CurrentMarketValue).HasColumnName("current_market_value")
                 .HasPrecision(10, 2);
             e.Property(c => c.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            e.HasOne<Set>().WithMany().HasForeignKey(c => c.SetCode);
             e.HasIndex(c => c.SetCode);
         });
     }
@@ -281,6 +327,63 @@ public class AppDbContext : DbContext
             e.HasOne(w => w.User).WithMany().HasForeignKey(w => w.UserId);
             e.HasIndex(w => w.UserId);
             e.HasIndex(w => new { w.UserId, w.CardIdentifier }).IsUnique();
+        });
+    }
+
+    private static void ConfigureUpdateVersions(ModelBuilder b)
+    {
+        b.Entity<UpdateVersion>(e =>
+        {
+            e.ToTable("update_versions");
+            e.HasKey(u => u.Id);
+            e.Property(u => u.Id).HasColumnName("id");
+            e.Property(u => u.ContentVersion).HasColumnName("content_version").HasMaxLength(100).IsRequired();
+            e.Property(u => u.SchemaVersion).HasColumnName("schema_version").HasMaxLength(100);
+            e.Property(u => u.ApplicationVersion).HasColumnName("application_version").HasMaxLength(100);
+            e.Property(u => u.AppliedAt).HasColumnName("applied_at").IsRequired();
+        });
+    }
+
+    private static void ConfigurePendingSchemaUpdates(ModelBuilder b)
+    {
+        b.Entity<PendingSchemaUpdate>(e =>
+        {
+            e.ToTable("pending_schema_updates");
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).HasColumnName("id");
+            e.Property(p => p.SchemaVersion).HasColumnName("schema_version").HasMaxLength(100).IsRequired();
+            e.Property(p => p.Description).HasColumnName("description").HasMaxLength(1000).IsRequired();
+            e.Property(p => p.DownloadUrl).HasColumnName("download_url").HasMaxLength(500).IsRequired();
+            e.Property(p => p.ZipSha256).HasColumnName("zip_sha256").HasMaxLength(64).IsRequired();
+            e.Property(p => p.DetectedAt).HasColumnName("detected_at").IsRequired();
+            e.Property(p => p.IsApproved).HasColumnName("is_approved").IsRequired();
+            e.Property(p => p.ApprovedAt).HasColumnName("approved_at");
+            e.Property(p => p.ApprovedByUserId).HasColumnName("approved_by_user_id");
+        });
+    }
+
+    private static void ConfigureAdminNotifications(ModelBuilder b)
+    {
+        b.Entity<AdminNotification>(e =>
+        {
+            e.ToTable("admin_notifications");
+            e.HasKey(n => n.Id);
+            e.Property(n => n.Id).HasColumnName("id");
+            e.Property(n => n.Message).HasColumnName("message").HasMaxLength(2000).IsRequired();
+            e.Property(n => n.Category).HasColumnName("category").HasMaxLength(50).IsRequired();
+            e.Property(n => n.IsRead).HasColumnName("is_read").IsRequired();
+            e.Property(n => n.CreatedAt).HasColumnName("created_at").IsRequired();
+        });
+    }
+
+    private static void ConfigureAppSettings(ModelBuilder b)
+    {
+        b.Entity<AppSetting>(e =>
+        {
+            e.ToTable("app_settings");
+            e.HasKey(s => s.Key);
+            e.Property(s => s.Key).HasColumnName("key").HasMaxLength(100);
+            e.Property(s => s.Value).HasColumnName("value").HasMaxLength(500).IsRequired();
         });
     }
 
