@@ -12,4 +12,5 @@ public class Card
     public string? OracleRulingUrl { get; set; }
     public decimal? CurrentMarketValue { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public bool IsReserved { get; set; }
 }

@@ -43,6 +43,30 @@ public class CollectionRepository : ICollectionRepository
         return query.Select(x => x.ce).ToListAsync(ct);
     }
 
+    public Task<List<ReservedCollectionEntry>> GetReservedEntriesForUserAsync(Guid userId, CancellationToken ct = default) =>
+        _db.CollectionEntries
+            .Where(e => e.UserId == userId)
+            .Join(_db.Cards.Where(c => c.IsReserved),
+                e => e.CardIdentifier,
+                c => c.Identifier,
+                (e, c) => new ReservedCollectionEntry
+                {
+                    EntryId = e.Id,
+                    CardIdentifier = e.CardIdentifier.ToUpper(),
+                    CardName = c.Name,
+                    SetCode = c.SetCode.ToUpper(),
+                    CardType = c.CardType,
+                    Treatment = e.TreatmentKey,
+                    Quantity = e.Quantity,
+                    Condition = e.Condition.ToString(),
+                    Autographed = e.Autographed,
+                    AcquisitionPrice = e.AcquisitionPrice,
+                    MarketValue = c.CurrentMarketValue
+                })
+            .OrderBy(e => e.SetCode)
+            .ThenBy(e => e.CardIdentifier)
+            .ToListAsync(ct);
+
     public async Task<CollectionEntry> CreateAsync(CollectionEntry entry, CancellationToken ct = default)
     {
         _db.CollectionEntries.Add(entry);

@@ -8,4 +8,5 @@ public interface ICardRepository
     Task<List<Card>> SearchByNameAsync(string query, CancellationToken ct = default);
     Task<Card> UpdateAsync(Card card, CancellationToken ct = default);
     Task<List<Card>> GetBySetCodeAsync(string setCode, CancellationToken ct = default);
+    Task<List<string>> GetReservedIdentifiersAsync(CancellationToken ct = default);
 }

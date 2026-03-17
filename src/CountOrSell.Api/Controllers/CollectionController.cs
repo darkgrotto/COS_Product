@@ -193,6 +193,19 @@ public class CollectionController : ControllerBase
         return Ok(result);
     }
 
+    // GET /api/collection/reserved
+    // Returns all collection entries for cards on the Reserved List, enriched with card data.
+    [HttpGet("reserved")]
+    public async Task<IActionResult> GetReserved([FromQuery] Guid? userId, CancellationToken ct)
+    {
+        if (userId.HasValue && !IsAdmin)
+            return Forbid();
+
+        var targetUserId = ResolveUserId(userId);
+        var entries = await _collection.GetReservedEntriesForUserAsync(targetUserId, ct);
+        return Ok(entries);
+    }
+
     [HttpPost("refresh-price/{cardIdentifier}")]
     public async Task<IActionResult> RefreshPrice(string cardIdentifier, CancellationToken ct)
     {

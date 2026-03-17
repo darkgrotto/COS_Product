@@ -4,6 +4,7 @@ namespace CountOrSell.Data.Repositories;
 
 public interface ICollectionRepository
 {
+    Task<List<ReservedCollectionEntry>> GetReservedEntriesForUserAsync(Guid userId, CancellationToken ct = default);
     Task<CollectionEntry?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<List<CollectionEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default);
     Task<List<CollectionEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default);

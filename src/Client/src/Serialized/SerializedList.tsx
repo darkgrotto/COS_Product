@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { SerializedEntry } from '../types/collection';
 import { serializedApi } from '../api/serialized';
+import { useReservedList } from '../hooks/useReservedList';
+import { ReservedBadge } from '../components/ReservedBadge';
 
 interface Props {
   adminUserId?: string;
@@ -10,6 +12,7 @@ export function SerializedList({ adminUserId }: Props) {
   const [entries, setEntries] = useState<SerializedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const reservedSet = useReservedList();
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +55,10 @@ export function SerializedList({ adminUserId }: Props) {
           <tbody>
             {entries.map((e) => (
               <tr key={e.id}>
-                <td>{e.cardIdentifier.toUpperCase()}</td>
+                <td>
+                  {e.cardIdentifier.toUpperCase()}
+                  {reservedSet.has(e.cardIdentifier.toLowerCase()) && <ReservedBadge />}
+                </td>
                 <td>{e.treatment}</td>
                 <td>{e.serialNumber}</td>
                 <td>{e.printRunTotal}</td>

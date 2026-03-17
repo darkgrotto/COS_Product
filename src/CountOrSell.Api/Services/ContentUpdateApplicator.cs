@@ -136,6 +136,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 Color = d.Color,
                 CardType = d.CardType,
                 CurrentMarketValue = d.MarketValue,
+                IsReserved = d.IsReserved,
                 UpdatedAt = DateTime.UtcNow
             });
         _db.Cards.AddRange(toAdd);
@@ -149,6 +150,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.Color = dto.Color;
                 entity.CardType = dto.CardType;
                 entity.CurrentMarketValue = dto.MarketValue;
+                entity.IsReserved = dto.IsReserved;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }

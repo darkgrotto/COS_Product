@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import { CollectionDashboard } from './Dashboard/CollectionDashboard';
 import { CollectionList } from './Collection/CollectionList';
+import { ReservedListView } from './Collection/ReservedListView';
 import { SetCompletion } from './Collection/SetCompletion';
 import { SerializedList } from './Serialized/SerializedList';
 import { SlabList } from './Slabs/SlabList';
@@ -17,6 +18,7 @@ export function App() {
       <nav aria-label="Main navigation">
         <NavLink to="/">Dashboard</NavLink>
         <NavLink to="/collection">Collection</NavLink>
+        <NavLink to="/collection/reserved-list">Reserved List</NavLink>
         <NavLink to="/serialized">Serialized</NavLink>
         <NavLink to="/slabs">Slabs</NavLink>
         <NavLink to="/sealed">Sealed Product</NavLink>
@@ -30,6 +32,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<CollectionDashboard />} />
           <Route path="/collection" element={<CollectionList />} />
+          <Route path="/collection/reserved-list" element={<ReservedListView />} />
           <Route path="/collection/completion" element={<SetCompletion />} />
           <Route path="/serialized" element={<SerializedList />} />
           <Route path="/slabs" element={<SlabList />} />

@@ -34,7 +34,8 @@ public class CardsController : ControllerBase
             card.CardType,
             card.OracleRulingUrl,
             card.CurrentMarketValue,
-            card.UpdatedAt
+            card.UpdatedAt,
+            card.IsReserved
         });
     }
 
@@ -52,7 +53,8 @@ public class CardsController : ControllerBase
             c.Name,
             c.Color,
             c.CardType,
-            c.CurrentMarketValue
+            c.CurrentMarketValue,
+            c.IsReserved
         }));
     }
 
@@ -68,6 +70,16 @@ public class CardsController : ControllerBase
             card.CurrentMarketValue,
             card.UpdatedAt
         });
+    }
+
+    // GET /api/cards/reserved-identifiers
+    // Returns identifiers of all reserved list cards (for badge rendering in collection views).
+    // Lightweight - identifiers only.
+    [HttpGet("reserved-identifiers")]
+    public async Task<IActionResult> GetReservedIdentifiers(CancellationToken ct)
+    {
+        var identifiers = await _cards.GetReservedIdentifiersAsync(ct);
+        return Ok(identifiers);
     }
 
     [HttpPost("{identifier}/refresh-price")]

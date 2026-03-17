@@ -27,4 +27,10 @@ public class CardRepository : ICardRepository
 
     public Task<List<Card>> GetBySetCodeAsync(string setCode, CancellationToken ct = default) =>
         _db.Cards.Where(c => c.SetCode == setCode).ToListAsync(ct);
+
+    public Task<List<string>> GetReservedIdentifiersAsync(CancellationToken ct = default) =>
+        _db.Cards
+            .Where(c => c.IsReserved)
+            .Select(c => c.Identifier)
+            .ToListAsync(ct);
 }

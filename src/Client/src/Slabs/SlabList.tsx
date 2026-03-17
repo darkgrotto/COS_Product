@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { SlabEntry } from '../types/collection';
 import { slabsApi } from '../api/slabs';
+import { useReservedList } from '../hooks/useReservedList';
+import { ReservedBadge } from '../components/ReservedBadge';
 
 interface Props {
   adminUserId?: string;
@@ -10,6 +12,7 @@ export function SlabList({ adminUserId }: Props) {
   const [entries, setEntries] = useState<SlabEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const reservedSet = useReservedList();
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +57,10 @@ export function SlabList({ adminUserId }: Props) {
           <tbody>
             {entries.map((e) => (
               <tr key={e.id}>
-                <td>{e.cardIdentifier.toUpperCase()}</td>
+                <td>
+                  {e.cardIdentifier.toUpperCase()}
+                  {reservedSet.has(e.cardIdentifier.toLowerCase()) && <ReservedBadge />}
+                </td>
                 <td>{e.treatment}</td>
                 <td>{e.gradingAgencyCode}</td>
                 <td>{e.grade}</td>

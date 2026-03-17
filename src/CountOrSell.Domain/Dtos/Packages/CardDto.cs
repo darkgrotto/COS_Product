@@ -8,4 +8,5 @@ public class CardDto
     public string? Color { get; set; }
     public string? CardType { get; set; }
     public decimal? MarketValue { get; set; }
+    public bool IsReserved { get; set; }
 }

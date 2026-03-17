@@ -187,6 +187,7 @@ public class AppDbContext : DbContext
             e.Property(c => c.CurrentMarketValue).HasColumnName("current_market_value")
                 .HasPrecision(10, 2);
             e.Property(c => c.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            e.Property(c => c.IsReserved).HasColumnName("is_reserved").HasDefaultValue(false);
             e.HasOne<Set>().WithMany().HasForeignKey(c => c.SetCode);
             e.HasIndex(c => c.SetCode);
         });

@@ -5,6 +5,7 @@ export interface CardSummary {
   name: string;
   setCode: string;
   currentMarketValue: number | null;
+  isReserved: boolean;
 }
 
 export interface MarketValueResult {
@@ -25,4 +26,7 @@ export const cardsApi = {
 
   refreshPrice: (identifier: string): Promise<MarketValueResult> =>
     api.post<MarketValueResult>(`/api/cards/${identifier}/refresh-price`),
+
+  getReservedIdentifiers: (): Promise<string[]> =>
+    api.get<string[]>('/api/cards/reserved-identifiers'),
 };

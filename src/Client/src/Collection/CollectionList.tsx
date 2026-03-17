@@ -3,6 +3,8 @@ import { CollectionEntry } from '../types/collection';
 import { CollectionFilter } from '../types/filters';
 import { collectionApi } from '../api/collection';
 import { UniversalFilter } from '../components/UniversalFilter';
+import { useReservedList } from '../hooks/useReservedList';
+import { ReservedBadge } from '../components/ReservedBadge';
 
 interface Props {
   adminUserId?: string;
@@ -13,6 +15,7 @@ export function CollectionList({ adminUserId }: Props) {
   const [filter, setFilter] = useState<CollectionFilter>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const reservedSet = useReservedList();
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +58,10 @@ export function CollectionList({ adminUserId }: Props) {
           <tbody>
             {entries.map((e) => (
               <tr key={e.id}>
-                <td>{e.cardIdentifier.toUpperCase()}</td>
+                <td>
+                  {e.cardIdentifier.toUpperCase()}
+                  {reservedSet.has(e.cardIdentifier.toLowerCase()) && <ReservedBadge />}
+                </td>
                 <td>{e.treatment}</td>
                 <td>{e.quantity}</td>
                 <td>{e.condition}{e.autographed ? ' - Autographed' : ''}</td>

@@ -3,6 +3,20 @@ import { CollectionEntry } from '../types/collection';
 import { CollectionFilter, CardCondition } from '../types/filters';
 import { MetricsResult, SetCompletionResult } from '../types/metrics';
 
+export interface ReservedCollectionEntry {
+  entryId: string;
+  cardIdentifier: string;
+  cardName: string;
+  setCode: string;
+  cardType: string | null;
+  treatment: string;
+  quantity: number;
+  condition: string;
+  autographed: boolean;
+  acquisitionPrice: number;
+  marketValue: number | null;
+}
+
 export interface CollectionEntryRequest {
   cardIdentifier: string;
   treatment: string;
@@ -79,6 +93,11 @@ export const collectionApi = {
 
   refreshPrice: (cardIdentifier: string): Promise<void> =>
     api.post<void>(`/api/collection/refresh-price/${cardIdentifier}`),
+
+  getReserved: (userId?: string): Promise<ReservedCollectionEntry[]> => {
+    const params = userId ? `?userId=${userId}` : '';
+    return api.get<ReservedCollectionEntry[]>(`/api/collection/reserved${params}`);
+  },
 };
 
 export { buildFilterQuery };
