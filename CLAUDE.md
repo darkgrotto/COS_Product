@@ -81,6 +81,14 @@ It serves the following purposes:
 - Do not introduce iOS/Android or React Native dependencies
 - Do not use SQLite - PostgreSQL only
 - Do not use em-dashes or special dash characters anywhere
+- Do not hardcode sealed product category or sub-type
+  slugs or display names; always reference the
+  taxonomy reference tables received in update packages
+- Do not display taxonomy slugs in the UI; always
+  use display_name values from the reference tables
+- Do not add an is_active or current flag to taxonomy
+  entries; current vs. legacy product type distinction
+  is not modeled
 
 ---
 
@@ -512,6 +520,11 @@ Filters that add no value in a given context are hidden
 - Serialized (boolean)
 - Slabbed (boolean)
 - Sealed product (boolean)
+- Sealed product category (from taxonomy reference table; 
+  suppressed when table is empty)
+- Sealed product sub-type (from taxonomy reference table; 
+  suppressed when table is empty or no category
+  is selected)
 - Grading agency (where applicable)
 
 ### Collection Value
@@ -1033,3 +1046,12 @@ state storage (Azure Blob for Azure, AWS S3 for AWS,
 GCP Cloud Storage for GCP).
 2026-03-08 - Deployment targets: Azure (App Service),
 AWS (App Runner), GCP (Cloud Run), Docker Compose.
+2026-03-18 - Sealed product taxonomy reference tables
+added (sealed_product_categories and
+sealed_product_sub_types). Received via update packages,
+versioned independently. Slugs are primary keys in the
+Product schema (no integer IDs). Taxonomy replacement
+on update nulls orphaned inventory references rather
+than deleting inventory records. Taxonomy filters
+suppressed in UI when tables are empty. Current vs.
+legacy product type distinction is not modeled.

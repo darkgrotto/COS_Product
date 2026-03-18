@@ -53,6 +53,159 @@ public class SettingsController : ControllerBase
         return Ok();
     }
 
+    [HttpGet("instance")]
+    public async Task<IActionResult> GetInstanceSettings(CancellationToken ct)
+    {
+        var instanceName = await GetSettingAsync("instance_name", "", ct);
+        return Ok(new { instanceName });
+    }
+
+    [HttpPatch("instance")]
+    public async Task<IActionResult> UpdateInstanceSettings(
+        [FromBody] InstanceSettingsRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.InstanceName))
+            return BadRequest(new { error = "Instance name is required." });
+
+        await UpsertSettingAsync("instance_name", request.InstanceName.Trim(), ct);
+        await _db.SaveChangesAsync(ct);
+        return Ok();
+    }
+
+    [HttpGet("tcgplayer")]
+    public async Task<IActionResult> GetTcgPlayerSettings(CancellationToken ct)
+    {
+        var key = await GetSettingAsync("tcgplayer_api_key", "", ct);
+        var configured = !string.IsNullOrWhiteSpace(key);
+        var maskedKey = configured ? MaskApiKey(key) : null;
+        return Ok(new { configured, maskedKey });
+    }
+
+    [HttpPut("tcgplayer")]
+    public async Task<IActionResult> SetTcgPlayerKey(
+        [FromBody] TcgPlayerKeyRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.ApiKey))
+            return BadRequest(new { error = "API key is required." });
+
+        await UpsertSettingAsync("tcgplayer_api_key", request.ApiKey.Trim(), ct);
+        await _db.SaveChangesAsync(ct);
+        return Ok();
+    }
+
+    [HttpDelete("tcgplayer")]
+    public async Task<IActionResult> ClearTcgPlayerKey(CancellationToken ct)
+    {
+        var setting = await _db.AppSettings.FindAsync(new object[] { "tcgplayer_api_key" }, ct);
+        if (setting != null)
+            _db.AppSettings.Remove(setting);
+        await _db.SaveChangesAsync(ct);
+        return Ok();
+    }
+
+    [HttpGet("self-enrollment")]
+    public async Task<IActionResult> GetSelfEnrollment(CancellationToken ct)
+    {
+        var val = await GetSettingAsync("self_enrollment_enabled", "false", ct);
+        return Ok(new { enabled = val == "true" });
+    }
+
+    [HttpPatch("self-enrollment")]
+    public async Task<IActionResult> UpdateSelfEnrollment(
+        [FromBody] SelfEnrollmentRequest request,
+        CancellationToken ct)
+    {
+        await UpsertSettingAsync("self_enrollment_enabled", request.Enabled ? "true" : "false", ct);
+        await _db.SaveChangesAsync(ct);
+        return Ok();
+    }
+
+    [HttpGet("oauth")]
+    public async Task<IActionResult> GetOAuthSettings(CancellationToken ct)
+    {
+        var providers = new[]
+        {
+            ("google",    "oauth_google_client_id",    "oauth_google_client_secret"),
+            ("microsoft", "oauth_microsoft_client_id", "oauth_microsoft_client_secret"),
+            ("github",    "oauth_github_client_id",    "oauth_github_client_secret"),
+        };
+
+        var result = new List<object>();
+        foreach (var (provider, clientIdKey, secretKey) in providers)
+        {
+            var clientId = await GetSettingAsync(clientIdKey, "", ct);
+            var secret   = await GetSettingAsync(secretKey,   "", ct);
+            result.Add(new
+            {
+                provider,
+                clientId          = string.IsNullOrWhiteSpace(clientId) ? null : clientId,
+                secretConfigured  = !string.IsNullOrWhiteSpace(secret),
+            });
+        }
+        return Ok(result);
+    }
+
+    [HttpPatch("oauth/{provider}")]
+    public async Task<IActionResult> UpdateOAuthProvider(
+        string provider,
+        [FromBody] OAuthProviderRequest request,
+        CancellationToken ct)
+    {
+        var (clientIdKey, secretKey) = provider.ToLowerInvariant() switch
+        {
+            "google"    => ("oauth_google_client_id",    "oauth_google_client_secret"),
+            "microsoft" => ("oauth_microsoft_client_id", "oauth_microsoft_client_secret"),
+            "github"    => ("oauth_github_client_id",    "oauth_github_client_secret"),
+            _           => (null, null),
+        };
+
+        if (clientIdKey == null)
+            return BadRequest(new { error = $"Unknown OAuth provider: {provider}" });
+
+        if (!string.IsNullOrWhiteSpace(request.ClientId))
+            await UpsertSettingAsync(clientIdKey, request.ClientId.Trim(), ct);
+
+        if (!string.IsNullOrWhiteSpace(request.ClientSecret))
+            await UpsertSettingAsync(secretKey!, request.ClientSecret.Trim(), ct);
+
+        await _db.SaveChangesAsync(ct);
+        return Ok();
+    }
+
+    [HttpDelete("oauth/{provider}")]
+    public async Task<IActionResult> ClearOAuthProvider(string provider, CancellationToken ct)
+    {
+        var (clientIdKey, secretKey) = provider.ToLowerInvariant() switch
+        {
+            "google"    => ("oauth_google_client_id",    "oauth_google_client_secret"),
+            "microsoft" => ("oauth_microsoft_client_id", "oauth_microsoft_client_secret"),
+            "github"    => ("oauth_github_client_id",    "oauth_github_client_secret"),
+            _           => (null, null),
+        };
+
+        if (clientIdKey == null)
+            return BadRequest(new { error = $"Unknown OAuth provider: {provider}" });
+
+        var clientIdSetting = await _db.AppSettings.FindAsync(new object[] { clientIdKey }, ct);
+        if (clientIdSetting != null)
+            _db.AppSettings.Remove(clientIdSetting);
+
+        var secretSetting = await _db.AppSettings.FindAsync(new object[] { secretKey! }, ct);
+        if (secretSetting != null)
+            _db.AppSettings.Remove(secretSetting);
+
+        await _db.SaveChangesAsync(ct);
+        return Ok();
+    }
+
+    private static string MaskApiKey(string key)
+    {
+        if (key.Length <= 4) return new string('*', key.Length);
+        return new string('*', key.Length - 4) + key[^4..];
+    }
+
     private async Task<string> GetSettingAsync(
         string key, string defaultValue, CancellationToken ct)
     {
@@ -79,4 +232,25 @@ public class BackupSettingsRequest
     public string? Schedule { get; set; }
     public int? RetentionScheduled { get; set; }
     public int? RetentionPreUpdate { get; set; }
+}
+
+public class InstanceSettingsRequest
+{
+    public string InstanceName { get; set; } = string.Empty;
+}
+
+public class TcgPlayerKeyRequest
+{
+    public string ApiKey { get; set; } = string.Empty;
+}
+
+public class SelfEnrollmentRequest
+{
+    public bool Enabled { get; set; }
+}
+
+public class OAuthProviderRequest
+{
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
 }

@@ -30,8 +30,15 @@ public class UsersController : ControllerBase
         var users = await _users.GetAllAsync(ct);
         return Ok(users.Select(u => new
         {
-            u.Id, u.Username, u.DisplayName, u.Role, u.State,
-            u.AuthType, u.IsBuiltinAdmin, u.CreatedAt, u.LastLoginAt
+            u.Id,
+            u.Username,
+            u.DisplayName,
+            Role      = u.Role.ToString(),
+            State     = u.State.ToString(),
+            AuthType  = u.AuthType.ToString(),
+            u.IsBuiltinAdmin,
+            u.CreatedAt,
+            u.LastLoginAt
         }));
     }
 
