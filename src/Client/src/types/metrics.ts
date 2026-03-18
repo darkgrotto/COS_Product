@@ -22,4 +22,6 @@ export interface SetCompletionResult {
   ownedCount: number;
   totalCards: number;
   percentage: number;
+  totalValue: number | null;
+  totalProfitLoss: number | null;
 }

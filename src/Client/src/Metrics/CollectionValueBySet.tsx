@@ -33,6 +33,8 @@ export function CollectionValueBySet() {
               <th>Owned</th>
               <th>Total</th>
               <th>Completion</th>
+              <th>Collection value</th>
+              <th>Profit / loss</th>
             </tr>
           </thead>
           <tbody>
@@ -43,6 +45,8 @@ export function CollectionValueBySet() {
                 <td>{r.ownedCount}</td>
                 <td>{r.totalCards}</td>
                 <td>{r.percentage.toFixed(1)}%</td>
+                <td>{r.totalValue !== null ? `$${r.totalValue.toFixed(2)}` : '--'}</td>
+                <td>{r.totalProfitLoss !== null ? `$${r.totalProfitLoss.toFixed(2)}` : '--'}</td>
               </tr>
             ))}
           </tbody>

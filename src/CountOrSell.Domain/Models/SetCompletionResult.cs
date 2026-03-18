@@ -7,4 +7,6 @@ public class SetCompletionResult
     public int OwnedCount { get; set; }
     public int TotalCards { get; set; }
     public decimal Percentage { get; set; }
+    public decimal? TotalValue { get; set; }
+    public decimal? TotalProfitLoss { get; set; }
 }

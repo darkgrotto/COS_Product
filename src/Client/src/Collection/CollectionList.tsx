@@ -58,6 +58,7 @@ export function CollectionList({ adminUserId }: Props) {
               <th>Acquired</th>
               <th>Acquisition price</th>
               <th>Market value</th>
+              <th>Profit / loss</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -87,6 +88,9 @@ export function CollectionList({ adminUserId }: Props) {
                   <td>{e.acquisitionDate}</td>
                   <td>${e.acquisitionPrice.toFixed(2)}</td>
                   <td>{e.currentMarketValue !== null ? `$${e.currentMarketValue.toFixed(2)}` : '--'}</td>
+                  <td>{e.currentMarketValue !== null
+                    ? `$${((e.currentMarketValue - e.acquisitionPrice) * e.quantity).toFixed(2)}`
+                    : '--'}</td>
                   <td>
                     {!adminUserId && (
                       <button

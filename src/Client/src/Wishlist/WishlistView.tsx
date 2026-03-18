@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { WishlistEntry } from '../types/collection';
+import { CollectionFilter } from '../types/filters';
 import { wishlistApi } from '../api/wishlist';
+import { UniversalFilter } from '../components/UniversalFilter';
 
 export function WishlistView() {
   const [entries, setEntries] = useState<WishlistEntry[]>([]);
   const [totalValue, setTotalValue] = useState<number | null>(null);
+  const [filter, setFilter] = useState<CollectionFilter>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addIdentifier, setAddIdentifier] = useState('');
@@ -14,7 +17,7 @@ export function WishlistView() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    wishlistApi.getAll()
+    wishlistApi.getAll(filter)
       .then((data) => {
         if (!cancelled) {
           setEntries(data.entries);
@@ -24,7 +27,7 @@ export function WishlistView() {
       })
       .catch(() => { if (!cancelled) { setError('Failed to load wishlist'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, []);
+  }, [filter]);
 
   const handleAdd = async () => {
     setAddError(null);
@@ -51,6 +54,11 @@ export function WishlistView() {
   return (
     <div>
       <h2>Wishlist</h2>
+      <UniversalFilter
+        filter={filter}
+        onChange={setFilter}
+        hideFields={['condition', 'treatment', 'autographed', 'serialized', 'slabbed', 'sealedProduct', 'sealedCategorySlug', 'sealedSubTypeSlug', 'gradingAgency']}
+      />
       {totalValue !== null && (
         <p>Total wishlist value: <strong>${totalValue.toFixed(2)}</strong></p>
       )}

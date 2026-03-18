@@ -286,6 +286,20 @@ public class MetricsService : IMetricsService
             .Distinct()
             .ToListAsync(ct);
 
+        var valueBySet = await _db.CollectionEntries
+            .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
+            .Where(x => x.ce.UserId == userId)
+            .GroupBy(x => x.c.SetCode)
+            .Select(g => new
+            {
+                SetCode = g.Key,
+                TotalValue = g.Sum(x => (x.c.CurrentMarketValue ?? 0) * x.ce.Quantity),
+                TotalProfitLoss = g.Sum(x => ((x.c.CurrentMarketValue ?? 0) - x.ce.AcquisitionPrice) * x.ce.Quantity)
+            })
+            .ToListAsync(ct);
+
+        var valueLookup = valueBySet.ToDictionary(v => v.SetCode);
+
         var results = new List<SetCompletionResult>(sets.Count);
         foreach (var set in sets)
         {
@@ -295,13 +309,17 @@ public class MetricsService : IMetricsService
                 ? Math.Round((decimal)ownedCount / set.TotalCards * 100, 1)
                 : 0;
 
+            valueLookup.TryGetValue(set.Code, out var val);
+
             results.Add(new SetCompletionResult
             {
                 SetCode = set.Code.ToUpperInvariant(),
                 SetName = set.Name,
                 OwnedCount = ownedCount,
                 TotalCards = set.TotalCards,
-                Percentage = percentage
+                Percentage = percentage,
+                TotalValue = val?.TotalValue,
+                TotalProfitLoss = val?.TotalProfitLoss
             });
         }
 

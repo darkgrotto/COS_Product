@@ -13,39 +13,29 @@ namespace CountOrSell.Api.Controllers;
 public class WishlistController : ControllerBase
 {
     private readonly IWishlistRepository _wishlist;
-    private readonly ICardRepository _cards;
 
-    public WishlistController(IWishlistRepository wishlist, ICardRepository cards)
+    public WishlistController(IWishlistRepository wishlist)
     {
         _wishlist = wishlist;
-        _cards = cards;
     }
 
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken ct)
+    public async Task<IActionResult> GetAll([FromQuery] CollectionFilter filter, CancellationToken ct)
     {
-        var entries = await _wishlist.GetByUserAsync(CurrentUserId, ct);
+        var rows = await _wishlist.GetByUserWithCardsAsync(CurrentUserId, filter, ct);
 
-        var entriesWithValue = new List<object>(entries.Count);
-        decimal totalValue = 0;
-
-        foreach (var entry in entries)
+        decimal totalValue = rows.Sum(r => r.Card?.CurrentMarketValue ?? 0);
+        var entriesWithValue = rows.Select(r => new
         {
-            var card = await _cards.GetByIdentifierAsync(entry.CardIdentifier, ct);
-            var marketValue = card?.CurrentMarketValue ?? 0;
-            totalValue += marketValue;
-            entriesWithValue.Add(new
-            {
-                entry.Id,
-                CardIdentifier = entry.CardIdentifier.ToUpperInvariant(),
-                CardName = card?.Name,
-                MarketValue = marketValue,
-                entry.CreatedAt
-            });
-        }
+            r.Entry.Id,
+            CardIdentifier = r.Entry.CardIdentifier.ToUpperInvariant(),
+            CardName = r.Card?.Name,
+            MarketValue = r.Card?.CurrentMarketValue ?? 0,
+            r.Entry.CreatedAt
+        }).ToList();
 
         return Ok(new { totalValue, entries = entriesWithValue });
     }
