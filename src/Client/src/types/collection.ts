@@ -12,6 +12,7 @@ export interface CollectionEntry {
   acquisitionPrice: number;
   notes: string | null;
   currentMarketValue: number | null;
+  oracleRulingUrl: string | null;
 }
 
 export interface SerializedEntry {
@@ -49,6 +50,9 @@ export interface SealedInventoryEntry {
   id: string;
   userId: string;
   productIdentifier: string;
+  productName: string | null;
+  categoryDisplayName: string | null;
+  subTypeDisplayName: string | null;
   quantity: number;
   condition: CardCondition;
   acquisitionDate: string;

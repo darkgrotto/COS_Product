@@ -147,6 +147,9 @@ public class UserService : IUserService
     public Task<List<UserExportFile>> GetExportFilesAsync(Guid userId, CancellationToken ct = default) =>
         _exportService.GetExportFilesForUserAsync(userId, ct);
 
+    public Task<UserExportFile?> GetExportFileAsync(Guid exportFileId, CancellationToken ct = default) =>
+        _exportService.GetExportFileByIdAsync(exportFileId, ct);
+
     public Task DeleteExportFileAsync(Guid exportFileId, CancellationToken ct = default) =>
         _exportService.DeleteExportFileAsync(exportFileId, ct);
 

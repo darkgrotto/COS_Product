@@ -9,7 +9,9 @@ public interface ICollectionRepository
     Task<List<CollectionEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default);
     Task<List<CollectionEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default);
     Task<CollectionEntry> CreateAsync(CollectionEntry entry, CancellationToken ct = default);
+    Task BulkCreateAsync(List<CollectionEntry> entries, CancellationToken ct = default);
     Task<CollectionEntry> UpdateAsync(CollectionEntry entry, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default);
+    Task<HashSet<string>> GetOwnedIdentifiersBySetAsync(Guid userId, string setCode, CancellationToken ct = default);
 }

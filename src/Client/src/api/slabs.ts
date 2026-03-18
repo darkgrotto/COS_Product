@@ -1,5 +1,6 @@
 import { api } from './client';
 import { SlabEntry } from '../types/collection';
+import { CardCondition } from '../types/filters';
 
 export interface SlabEntryRequest {
   cardIdentifier: string;
@@ -9,14 +10,23 @@ export interface SlabEntryRequest {
   certificateNumber: string;
   serialNumber?: number;
   printRunTotal?: number;
+  condition: CardCondition;
+  autographed: boolean;
   acquisitionDate: string;
   acquisitionPrice: number;
   notes?: string;
 }
 
 export const slabsApi = {
-  getAll: (userId?: string): Promise<SlabEntry[]> => {
-    const qs = userId ? `?userId=${userId}` : '';
+  getAll: (userId?: string, filter?: { setCode?: string; treatment?: string; condition?: string; autographed?: boolean; gradingAgency?: string }): Promise<SlabEntry[]> => {
+    const params = new URLSearchParams();
+    if (userId) params.set('userId', userId);
+    if (filter?.setCode) params.set('setCode', filter.setCode);
+    if (filter?.treatment) params.set('treatment', filter.treatment);
+    if (filter?.condition) params.set('condition', filter.condition);
+    if (filter?.autographed !== undefined) params.set('autographed', String(filter.autographed));
+    if (filter?.gradingAgency) params.set('gradingAgency', filter.gradingAgency);
+    const qs = params.toString() ? `?${params.toString()}` : '';
     return api.get<SlabEntry[]>(`/api/slabs${qs}`);
   },
 

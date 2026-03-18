@@ -58,6 +58,7 @@ export function SlabEntryForm({ onSubmit, onCancel, submitting }: Props) {
       serialNumber: serialNumberValue,
       printRunTotal: printRunTotalRequired ? printRunTotalValue : undefined,
       condition: condition as CardCondition,
+      autographed: false,
       acquisitionDate,
       acquisitionPrice: parseFloat(acquisitionPrice),
       notes: notes.trim() || undefined,

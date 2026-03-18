@@ -42,6 +42,15 @@ public class UsersController : ControllerBase
         }));
     }
 
+    [HttpGet("{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    {
+        var user = await _users.GetByIdAsync(id, ct);
+        if (user == null) return NotFound();
+        return Ok(new { user.Id, user.Username, user.DisplayName });
+    }
+
     [HttpPost("{id}/disable")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Disable(Guid id, CancellationToken ct)
@@ -102,6 +111,20 @@ public class UsersController : ControllerBase
             f.Id, f.UserId, f.Username, f.RemovedAt,
             f.FileSizeBytes, f.CreatedAt
         }));
+    }
+
+    [HttpGet("{id}/exports/{exportId}/download")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DownloadExport(Guid id, Guid exportId, CancellationToken ct)
+    {
+        var exportFile = await _userService.GetExportFileAsync(exportId, ct);
+        if (exportFile == null || exportFile.UserId != id) return NotFound();
+        if (!System.IO.File.Exists(exportFile.FilePath))
+            return NotFound(new { error = "Export file not found on disk." });
+
+        var bytes = await System.IO.File.ReadAllBytesAsync(exportFile.FilePath, ct);
+        var fileName = Path.GetFileName(exportFile.FilePath);
+        return File(bytes, "application/json", fileName);
     }
 
     [HttpDelete("{id}/exports/{exportId}")]

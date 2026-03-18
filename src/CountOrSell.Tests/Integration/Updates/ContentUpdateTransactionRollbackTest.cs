@@ -107,4 +107,10 @@ internal sealed class NoOpImageStore : IImageStore
 {
     public Task SaveImageAsync(string relativePath, byte[] data, CancellationToken ct)
         => Task.CompletedTask;
+
+    public Task<byte[]?> GetImageAsync(string relativePath, CancellationToken ct)
+        => Task.FromResult<byte[]?>(null);
+
+    public Task<bool> ExistsAsync(string relativePath, CancellationToken ct)
+        => Task.FromResult(false);
 }

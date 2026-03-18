@@ -34,6 +34,8 @@ builder.Services.AddScoped<ICollectionRepository, CollectionRepository>();
 builder.Services.AddScoped<ISerializedRepository, SerializedRepository>();
 builder.Services.AddScoped<ISlabRepository, SlabRepository>();
 builder.Services.AddScoped<ISealedInventoryRepository, SealedInventoryRepository>();
+builder.Services.AddScoped<ISealedProductRepository, SealedProductRepository>();
+builder.Services.AddScoped<ISealedTaxonomyRepository, SealedTaxonomyRepository>();
 builder.Services.AddScoped<IWishlistRepository, WishlistRepository>();
 builder.Services.AddScoped<IGradingAgencyRepository, GradingAgencyRepository>();
 
@@ -53,6 +55,7 @@ builder.Services.AddHttpClient<ITcgPlayerService, TcgPlayerService>();
 
 // Image store
 builder.Services.AddSingleton<IImageStore, FileSystemImageStore>();
+builder.Services.AddHttpClient<ICardImageFetcher, ScryfallCardImageFetcher>();
 
 // Update services
 builder.Services.AddHttpClient<IUpdateManifestClient, UpdateManifestClient>();

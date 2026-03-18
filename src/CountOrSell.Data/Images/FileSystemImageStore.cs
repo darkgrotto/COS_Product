@@ -18,4 +18,17 @@ public class FileSystemImageStore : IImageStore
         if (dir != null) Directory.CreateDirectory(dir);
         await File.WriteAllBytesAsync(fullPath, data, ct);
     }
+
+    public async Task<byte[]?> GetImageAsync(string relativePath, CancellationToken ct)
+    {
+        var fullPath = Path.Combine(_basePath, relativePath);
+        if (!File.Exists(fullPath)) return null;
+        return await File.ReadAllBytesAsync(fullPath, ct);
+    }
+
+    public Task<bool> ExistsAsync(string relativePath, CancellationToken ct)
+    {
+        var fullPath = Path.Combine(_basePath, relativePath);
+        return Task.FromResult(File.Exists(fullPath));
+    }
 }

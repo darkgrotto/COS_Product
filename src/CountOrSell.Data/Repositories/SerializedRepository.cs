@@ -1,4 +1,5 @@
 using CountOrSell.Domain.Models;
+using CountOrSell.Domain.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace CountOrSell.Data.Repositories;
@@ -13,6 +14,25 @@ public class SerializedRepository : ISerializedRepository
 
     public Task<List<SerializedEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default) =>
         _db.SerializedEntries.Where(e => e.UserId == userId).ToListAsync(ct);
+
+    public Task<List<SerializedEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default)
+    {
+        var query = _db.SerializedEntries
+            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
+            .Where(x => x.se.UserId == userId);
+
+        if (!string.IsNullOrEmpty(filter.SetCode))
+            query = query.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
+        if (!string.IsNullOrEmpty(filter.Treatment))
+            query = query.Where(x => x.se.TreatmentKey == filter.Treatment);
+        if (!string.IsNullOrEmpty(filter.Condition) &&
+            Enum.TryParse<CardCondition>(filter.Condition, true, out var cond))
+            query = query.Where(x => x.se.Condition == cond);
+        if (filter.Autographed.HasValue)
+            query = query.Where(x => x.se.Autographed == filter.Autographed.Value);
+
+        return query.Select(x => x.se).ToListAsync(ct);
+    }
 
     public async Task<SerializedEntry> CreateAsync(SerializedEntry entry, CancellationToken ct = default)
     {

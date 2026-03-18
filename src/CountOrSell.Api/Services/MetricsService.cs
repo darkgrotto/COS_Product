@@ -112,16 +112,27 @@ public class MetricsService : IMetricsService
             {
                 x.si.Quantity,
                 x.si.AcquisitionPrice,
-                x.sp.UpdatedAt
+                MarketValue = x.sp.CurrentMarketValue
             })
             .ToListAsync(ct);
 
+        decimal sealedValue = sealedEntries.Sum(e => (e.MarketValue ?? 0) * e.Quantity);
+        decimal sealedPl = sealedEntries.Sum(e => ((e.MarketValue ?? 0) - e.AcquisitionPrice) * e.Quantity);
+
         result.SealedProductCount = sealedEntries.Sum(e => e.Quantity);
-        result.SealedProductValue = 0; // Market value for sealed product would come from SealedProduct table if available
+        result.SealedProductValue = sealedValue;
+
+        result.ByContentType.Add(new ContentTypeBreakdown
+        {
+            ContentType = "sealed",
+            TotalValue = sealedValue,
+            TotalProfitLoss = sealedPl,
+            Count = result.SealedProductCount
+        });
 
         result.TotalCardCount = collectionCount;
-        result.TotalValue = collectionValue + serializedValue + slabValue + result.SealedProductValue;
-        result.TotalProfitLoss = collectionPl + serializedPl + slabPl;
+        result.TotalValue = collectionValue + serializedValue + slabValue + sealedValue;
+        result.TotalProfitLoss = collectionPl + serializedPl + slabPl + sealedPl;
 
         return result;
     }
@@ -167,16 +178,65 @@ public class MetricsService : IMetricsService
             Count = collectionCount
         });
 
-        int serializedCount = await _db.SerializedEntries.CountAsync(ct);
-        int slabCount = await _db.SlabEntries.CountAsync(ct);
-        int sealedCount = await _db.SealedInventoryEntries.SumAsync(e => e.Quantity, ct);
+        // Serialized entries aggregate
+        var serializedAgg = await _db.SerializedEntries
+            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
+            .Select(x => new { x.se.AcquisitionPrice, MarketValue = x.c.CurrentMarketValue })
+            .ToListAsync(ct);
+
+        decimal serializedAggValue = serializedAgg.Sum(e => e.MarketValue ?? 0);
+        decimal serializedAggPl = serializedAgg.Sum(e => (e.MarketValue ?? 0) - e.AcquisitionPrice);
+
+        result.SerializedCount = serializedAgg.Count;
+        result.ByContentType.Add(new ContentTypeBreakdown
+        {
+            ContentType = "serialized",
+            TotalValue = serializedAggValue,
+            TotalProfitLoss = serializedAggPl,
+            Count = result.SerializedCount
+        });
+
+        // Slab entries aggregate
+        var slabAgg = await _db.SlabEntries
+            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
+            .Select(x => new { x.se.AcquisitionPrice, MarketValue = x.c.CurrentMarketValue })
+            .ToListAsync(ct);
+
+        decimal slabAggValue = slabAgg.Sum(e => e.MarketValue ?? 0);
+        decimal slabAggPl = slabAgg.Sum(e => (e.MarketValue ?? 0) - e.AcquisitionPrice);
+
+        result.SlabCount = slabAgg.Count;
+        result.ByContentType.Add(new ContentTypeBreakdown
+        {
+            ContentType = "slabs",
+            TotalValue = slabAggValue,
+            TotalProfitLoss = slabAggPl,
+            Count = result.SlabCount
+        });
+
+        // Sealed product inventory aggregate
+        var sealedAgg = await _db.SealedInventoryEntries
+            .Join(_db.SealedProducts, si => si.ProductIdentifier, sp => sp.Identifier, (si, sp) => new { si, sp })
+            .Select(x => new { x.si.Quantity, x.si.AcquisitionPrice, MarketValue = x.sp.CurrentMarketValue })
+            .ToListAsync(ct);
+
+        decimal sealedAggValue = sealedAgg.Sum(e => (e.MarketValue ?? 0) * e.Quantity);
+        decimal sealedAggPl = sealedAgg.Sum(e => ((e.MarketValue ?? 0) - e.AcquisitionPrice) * e.Quantity);
+        int sealedCount = sealedAgg.Sum(e => e.Quantity);
+
+        result.SealedProductCount = sealedCount;
+        result.SealedProductValue = sealedAggValue;
+        result.ByContentType.Add(new ContentTypeBreakdown
+        {
+            ContentType = "sealed",
+            TotalValue = sealedAggValue,
+            TotalProfitLoss = sealedAggPl,
+            Count = sealedCount
+        });
 
         result.TotalCardCount = collectionCount;
-        result.SerializedCount = serializedCount;
-        result.SlabCount = slabCount;
-        result.SealedProductCount = sealedCount;
-        result.TotalValue = collectionValue;
-        result.TotalProfitLoss = collectionPl;
+        result.TotalValue = collectionValue + serializedAggValue + slabAggValue + sealedAggValue;
+        result.TotalProfitLoss = collectionPl + serializedAggPl + slabAggPl + sealedAggPl;
 
         return result;
     }

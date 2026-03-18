@@ -40,6 +40,8 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         var treatments = ReadJsonEntry<List<TreatmentDto>>(archive, "treatments.json");
         var sets = ReadJsonEntry<List<SetDto>>(archive, "sets.json");
         var cards = ReadJsonEntry<List<CardDto>>(archive, "cards.json");
+        var sealedCategories = ReadJsonEntry<List<SealedProductCategoryDto>>(archive, "sealed_product_categories.json");
+        var sealedSubTypes = ReadJsonEntry<List<SealedProductSubTypeDto>>(archive, "sealed_product_sub_types.json");
         var sealedProducts = ReadJsonEntry<List<SealedProductDto>>(archive, "sealed_products.json");
 
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
@@ -48,6 +50,9 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             if (treatments != null) await UpsertTreatmentsAsync(treatments, ct);
             if (sets != null) await UpsertSetsAsync(sets, ct);
             if (cards != null) await UpsertCardsAsync(cards, ct);
+            // Taxonomy must be upserted before sealed products (FK dependency)
+            if (sealedCategories != null) await UpsertSealedProductCategoriesAsync(sealedCategories, ct);
+            if (sealedSubTypes != null) await UpsertSealedProductSubTypesAsync(sealedSubTypes, ct);
             if (sealedProducts != null) await UpsertSealedProductsAsync(sealedProducts, ct);
 
             _db.UpdateVersions.Add(new UpdateVersion
@@ -137,6 +142,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 CardType = d.CardType,
                 CurrentMarketValue = d.MarketValue,
                 IsReserved = d.IsReserved,
+                OracleRulingUrl = d.OracleRulingUrl,
                 UpdatedAt = DateTime.UtcNow
             });
         _db.Cards.AddRange(toAdd);
@@ -151,8 +157,80 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.CardType = dto.CardType;
                 entity.CurrentMarketValue = dto.MarketValue;
                 entity.IsReserved = dto.IsReserved;
+                entity.OracleRulingUrl = dto.OracleRulingUrl;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
+        }
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task UpsertSealedProductCategoriesAsync(List<SealedProductCategoryDto> dtos, CancellationToken ct)
+    {
+        var existingSlugs = await _db.SealedProductCategories.Select(c => c.Slug).ToListAsync(ct);
+        var toAdd = dtos.Where(d => !existingSlugs.Contains(d.Slug))
+            .Select(d => new SealedProductCategory { Slug = d.Slug, DisplayName = d.DisplayName });
+        _db.SealedProductCategories.AddRange(toAdd);
+        foreach (var dto in dtos.Where(d => existingSlugs.Contains(d.Slug)))
+        {
+            var entity = await _db.SealedProductCategories.FindAsync(new object[] { dto.Slug }, ct);
+            if (entity != null)
+                entity.DisplayName = dto.DisplayName;
+        }
+        // Null out orphaned references for any slugs removed from the package
+        var incomingSlugs = dtos.Select(d => d.Slug).ToHashSet();
+        var removedSlugs = existingSlugs.Where(s => !incomingSlugs.Contains(s)).ToList();
+        if (removedSlugs.Count > 0)
+        {
+            var orphaned = await _db.SealedProducts
+                .Where(p => p.CategorySlug != null && removedSlugs.Contains(p.CategorySlug!))
+                .ToListAsync(ct);
+            foreach (var p in orphaned)
+            {
+                p.CategorySlug = null;
+                p.SubTypeSlug = null; // sub-type is implicitly invalid without its category
+            }
+            _db.SealedProductCategories.RemoveRange(
+                await _db.SealedProductCategories
+                    .Where(c => removedSlugs.Contains(c.Slug))
+                    .ToListAsync(ct));
+        }
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task UpsertSealedProductSubTypesAsync(List<SealedProductSubTypeDto> dtos, CancellationToken ct)
+    {
+        var existingSlugs = await _db.SealedProductSubTypes.Select(s => s.Slug).ToListAsync(ct);
+        var toAdd = dtos.Where(d => !existingSlugs.Contains(d.Slug))
+            .Select(d => new SealedProductSubType
+            {
+                Slug = d.Slug,
+                CategorySlug = d.CategorySlug,
+                DisplayName = d.DisplayName
+            });
+        _db.SealedProductSubTypes.AddRange(toAdd);
+        foreach (var dto in dtos.Where(d => existingSlugs.Contains(d.Slug)))
+        {
+            var entity = await _db.SealedProductSubTypes.FindAsync(new object[] { dto.Slug }, ct);
+            if (entity != null)
+            {
+                entity.CategorySlug = dto.CategorySlug;
+                entity.DisplayName = dto.DisplayName;
+            }
+        }
+        // Null out orphaned sub-type references for removed slugs
+        var incomingSlugs = dtos.Select(d => d.Slug).ToHashSet();
+        var removedSlugs = existingSlugs.Where(s => !incomingSlugs.Contains(s)).ToList();
+        if (removedSlugs.Count > 0)
+        {
+            var orphaned = await _db.SealedProducts
+                .Where(p => p.SubTypeSlug != null && removedSlugs.Contains(p.SubTypeSlug!))
+                .ToListAsync(ct);
+            foreach (var p in orphaned)
+                p.SubTypeSlug = null;
+            _db.SealedProductSubTypes.RemoveRange(
+                await _db.SealedProductSubTypes
+                    .Where(s => removedSlugs.Contains(s.Slug))
+                    .ToListAsync(ct));
         }
         await _db.SaveChangesAsync(ct);
     }
@@ -166,6 +244,9 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 Identifier = d.Identifier,
                 SetCode = d.SetCode,
                 Name = d.Name,
+                CategorySlug = d.CategorySlug,
+                SubTypeSlug = d.SubTypeSlug,
+                CurrentMarketValue = d.CurrentMarketValue,
                 UpdatedAt = DateTime.UtcNow
             });
         _db.SealedProducts.AddRange(toAdd);
@@ -176,6 +257,9 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             {
                 entity.SetCode = dto.SetCode;
                 entity.Name = dto.Name;
+                entity.CategorySlug = dto.CategorySlug;
+                entity.SubTypeSlug = dto.SubTypeSlug;
+                entity.CurrentMarketValue = dto.CurrentMarketValue;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }

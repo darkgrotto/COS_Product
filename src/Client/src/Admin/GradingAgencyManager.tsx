@@ -57,7 +57,7 @@ export function GradingAgencyManager() {
       setReplacementCode('');
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 409) {
-        const body = (err as { body: string }).body;
+        const body = (err as unknown as { body: string }).body;
         try {
           const conflict = JSON.parse(body) as GradingAgencyDeleteConflict;
           setDeleteConflict({ code, conflict });

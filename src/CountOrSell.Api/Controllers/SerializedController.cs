@@ -14,10 +14,12 @@ namespace CountOrSell.Api.Controllers;
 public class SerializedController : ControllerBase
 {
     private readonly ISerializedRepository _serialized;
+    private readonly ICardRepository _cards;
 
-    public SerializedController(ISerializedRepository serialized)
+    public SerializedController(ISerializedRepository serialized, ICardRepository cards)
     {
         _serialized = serialized;
+        _cards = cards;
     }
 
     private Guid CurrentUserId =>
@@ -27,14 +29,22 @@ public class SerializedController : ControllerBase
         User.IsInRole("Admin");
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? userId, CancellationToken ct)
+    public async Task<IActionResult> GetAll([FromQuery] Guid? userId, [FromQuery] CollectionFilter filter, CancellationToken ct)
     {
         if (userId.HasValue && !IsAdmin)
             return Forbid();
 
         var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
-        var entries = await _serialized.GetByUserAsync(targetUserId, ct);
-        return Ok(entries.Select(MapEntry));
+
+        List<SerializedEntry> entries;
+        if (HasFilters(filter))
+            entries = await _serialized.GetByUserFilteredAsync(targetUserId, filter, ct);
+        else
+            entries = await _serialized.GetByUserAsync(targetUserId, ct);
+
+        var identifiers = entries.Select(e => e.CardIdentifier).Distinct();
+        var marketValues = await _cards.GetMarketValuesByIdentifiersAsync(identifiers, ct);
+        return Ok(entries.Select(e => MapEntry(e, marketValues.GetValueOrDefault(e.CardIdentifier))));
     }
 
     [HttpPost]
@@ -108,10 +118,14 @@ public class SerializedController : ControllerBase
         return NoContent();
     }
 
+    private static bool HasFilters(CollectionFilter filter) =>
+        filter.SetCode != null || filter.Treatment != null || filter.Condition != null ||
+        filter.Autographed.HasValue;
+
     private static bool TryParseCondition(string value, out CardCondition result) =>
         Enum.TryParse(value, true, out result);
 
-    private static object MapEntry(SerializedEntry e) => new
+    private static object MapEntry(SerializedEntry e, decimal? currentMarketValue = null) => new
     {
         e.Id,
         e.UserId,
@@ -125,6 +139,7 @@ public class SerializedController : ControllerBase
         e.AcquisitionPrice,
         e.Notes,
         e.CreatedAt,
-        e.UpdatedAt
+        e.UpdatedAt,
+        CurrentMarketValue = currentMarketValue
     };
 }

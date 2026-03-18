@@ -12,4 +12,6 @@ public class CollectionFilter
     public bool? Slabbed { get; set; }
     public bool? SealedProduct { get; set; }
     public string? GradingAgency { get; set; }
+    public string? SealedCategorySlug { get; set; }
+    public string? SealedSubTypeSlug { get; set; }
 }

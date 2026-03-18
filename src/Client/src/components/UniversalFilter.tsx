@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CollectionFilter, CardCondition, CARD_CONDITIONS, CARD_COLORS, CARD_TYPES } from '../types/filters';
 import { Treatment } from '../types/treatments';
 import { treatmentsApi } from '../api/treatments';
+import { sealedTaxonomyApi, SealedCategory, SealedSubType } from '../api/sealedTaxonomy';
 
 interface Props {
   filter: CollectionFilter;
@@ -11,10 +12,21 @@ interface Props {
 
 export function UniversalFilter({ filter, onChange, hideFields = [] }: Props) {
   const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [categories, setCategories] = useState<SealedCategory[]>([]);
+  const [subTypes, setSubTypes] = useState<SealedSubType[]>([]);
 
   useEffect(() => {
     treatmentsApi.getAll().then(setTreatments).catch(() => {});
+    sealedTaxonomyApi.getCategories().then(setCategories).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (filter.sealedCategorySlug) {
+      sealedTaxonomyApi.getSubTypes(filter.sealedCategorySlug).then(setSubTypes).catch(() => {});
+    } else {
+      setSubTypes([]);
+    }
+  }, [filter.sealedCategorySlug]);
 
   const show = (field: keyof CollectionFilter) => !hideFields.includes(field);
 
@@ -102,6 +114,39 @@ export function UniversalFilter({ filter, onChange, hideFields = [] }: Props) {
             onChange={(e) => update({ autographed: e.target.checked || undefined })}
           />
           Autographed only
+        </label>
+      )}
+      {show('sealedCategorySlug') && categories.length > 0 && (
+        <label>
+          Category
+          <select
+            value={filter.sealedCategorySlug ?? ''}
+            onChange={(e) => update({
+              sealedCategorySlug: e.target.value || undefined,
+              sealedSubTypeSlug: undefined,
+            })}
+            aria-label="Filter by sealed product category"
+          >
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c.slug} value={c.slug}>{c.displayName}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      {show('sealedSubTypeSlug') && filter.sealedCategorySlug && subTypes.length > 0 && (
+        <label>
+          Sub-type
+          <select
+            value={filter.sealedSubTypeSlug ?? ''}
+            onChange={(e) => update({ sealedSubTypeSlug: e.target.value || undefined })}
+            aria-label="Filter by sealed product sub-type"
+          >
+            <option value="">All sub-types</option>
+            {subTypes.map((s) => (
+              <option key={s.slug} value={s.slug}>{s.displayName}</option>
+            ))}
+          </select>
         </label>
       )}
     </div>

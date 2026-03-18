@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { SlabEntry } from '../types/collection';
+import { CollectionFilter } from '../types/filters';
 import { slabsApi } from '../api/slabs';
+import { UniversalFilter } from '../components/UniversalFilter';
 import { useReservedList } from '../hooks/useReservedList';
 import { ReservedBadge } from '../components/ReservedBadge';
 
@@ -10,6 +12,7 @@ interface Props {
 
 export function SlabList({ adminUserId }: Props) {
   const [entries, setEntries] = useState<SlabEntry[]>([]);
+  const [filter, setFilter] = useState<CollectionFilter>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const reservedSet = useReservedList();
@@ -17,11 +20,16 @@ export function SlabList({ adminUserId }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    slabsApi.getAll(adminUserId)
+    slabsApi.getAll(adminUserId, {
+      setCode: filter.setCode,
+      treatment: filter.treatment,
+      condition: filter.condition,
+      autographed: filter.autographed,
+    })
       .then((data) => { if (!cancelled) { setEntries(data); setLoading(false); } })
       .catch(() => { if (!cancelled) { setError('Failed to load slabs'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [adminUserId]);
+  }, [adminUserId, filter.setCode, filter.treatment, filter.condition, filter.autographed]);
 
   const handleDelete = async (id: string) => {
     await slabsApi.delete(id);
@@ -33,6 +41,11 @@ export function SlabList({ adminUserId }: Props) {
   return (
     <div>
       <h2>Slabs</h2>
+      <UniversalFilter
+        filter={filter}
+        onChange={setFilter}
+        hideFields={['color', 'cardType', 'serialized', 'slabbed', 'sealedProduct', 'sealedCategorySlug', 'sealedSubTypeSlug', 'gradingAgency']}
+      />
       {loading ? (
         <p>Loading...</p>
       ) : entries.length === 0 ? (

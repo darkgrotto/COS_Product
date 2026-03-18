@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { SerializedEntry } from '../types/collection';
+import { CollectionFilter } from '../types/filters';
 import { serializedApi } from '../api/serialized';
+import { UniversalFilter } from '../components/UniversalFilter';
 import { useReservedList } from '../hooks/useReservedList';
 import { ReservedBadge } from '../components/ReservedBadge';
 
@@ -10,6 +12,7 @@ interface Props {
 
 export function SerializedList({ adminUserId }: Props) {
   const [entries, setEntries] = useState<SerializedEntry[]>([]);
+  const [filter, setFilter] = useState<CollectionFilter>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const reservedSet = useReservedList();
@@ -17,11 +20,16 @@ export function SerializedList({ adminUserId }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    serializedApi.getAll(adminUserId)
+    serializedApi.getAll(adminUserId, {
+      setCode: filter.setCode,
+      treatment: filter.treatment,
+      condition: filter.condition,
+      autographed: filter.autographed,
+    })
       .then((data) => { if (!cancelled) { setEntries(data); setLoading(false); } })
       .catch(() => { if (!cancelled) { setError('Failed to load serialized cards'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [adminUserId]);
+  }, [adminUserId, filter.setCode, filter.treatment, filter.condition, filter.autographed]);
 
   const handleDelete = async (id: string) => {
     await serializedApi.delete(id);
@@ -33,6 +41,11 @@ export function SerializedList({ adminUserId }: Props) {
   return (
     <div>
       <h2>Serialized Cards</h2>
+      <UniversalFilter
+        filter={filter}
+        onChange={setFilter}
+        hideFields={['color', 'cardType', 'slabbed', 'sealedProduct', 'sealedCategorySlug', 'sealedSubTypeSlug', 'gradingAgency', 'serialized']}
+      />
       {loading ? (
         <p>Loading...</p>
       ) : entries.length === 0 ? (

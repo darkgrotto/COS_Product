@@ -133,6 +133,9 @@ public class ExportService : IExportService
     public Task<List<UserExportFile>> GetExportFilesForUserAsync(Guid userId, CancellationToken ct = default) =>
         _exportFiles.GetByUserIdAsync(userId, ct);
 
+    public Task<UserExportFile?> GetExportFileByIdAsync(Guid exportFileId, CancellationToken ct = default) =>
+        _exportFiles.GetByIdAsync(exportFileId, ct);
+
     public async Task DeleteExportFileAsync(Guid exportFileId, CancellationToken ct = default)
     {
         var exportFile = await _exportFiles.GetByIdAsync(exportFileId, ct);

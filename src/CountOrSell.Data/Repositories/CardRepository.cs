@@ -33,4 +33,16 @@ public class CardRepository : ICardRepository
             .Where(c => c.IsReserved)
             .Select(c => c.Identifier)
             .ToListAsync(ct);
+
+    public Task<Dictionary<string, string?>> GetOracleRulingUrlsByIdentifiersAsync(
+        IEnumerable<string> identifiers, CancellationToken ct = default) =>
+        _db.Cards
+            .Where(c => identifiers.Contains(c.Identifier))
+            .ToDictionaryAsync(c => c.Identifier, c => c.OracleRulingUrl, ct);
+
+    public Task<Dictionary<string, decimal?>> GetMarketValuesByIdentifiersAsync(
+        IEnumerable<string> identifiers, CancellationToken ct = default) =>
+        _db.Cards
+            .Where(c => identifiers.Contains(c.Identifier))
+            .ToDictionaryAsync(c => c.Identifier, c => c.CurrentMarketValue, ct);
 }

@@ -1,4 +1,5 @@
 using CountOrSell.Domain.Models;
+using CountOrSell.Domain.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace CountOrSell.Data.Repositories;
@@ -13,6 +14,27 @@ public class SlabRepository : ISlabRepository
 
     public Task<List<SlabEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default) =>
         _db.SlabEntries.Where(e => e.UserId == userId).ToListAsync(ct);
+
+    public Task<List<SlabEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default)
+    {
+        var query = _db.SlabEntries
+            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
+            .Where(x => x.se.UserId == userId);
+
+        if (!string.IsNullOrEmpty(filter.SetCode))
+            query = query.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
+        if (!string.IsNullOrEmpty(filter.Treatment))
+            query = query.Where(x => x.se.TreatmentKey == filter.Treatment);
+        if (!string.IsNullOrEmpty(filter.Condition) &&
+            Enum.TryParse<CardCondition>(filter.Condition, true, out var cond))
+            query = query.Where(x => x.se.Condition == cond);
+        if (filter.Autographed.HasValue)
+            query = query.Where(x => x.se.Autographed == filter.Autographed.Value);
+        if (!string.IsNullOrEmpty(filter.GradingAgency))
+            query = query.Where(x => x.se.GradingAgencyCode == filter.GradingAgency.ToLowerInvariant());
+
+        return query.Select(x => x.se).ToListAsync(ct);
+    }
 
     public async Task<SlabEntry> CreateAsync(SlabEntry entry, CancellationToken ct = default)
     {

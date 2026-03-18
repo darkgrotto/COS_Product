@@ -12,8 +12,12 @@ export interface SealedInventoryRequest {
 }
 
 export const sealedInventoryApi = {
-  getAll: (userId?: string): Promise<SealedInventoryEntry[]> => {
-    const qs = userId ? `?userId=${userId}` : '';
+  getAll: (userId?: string, categorySlug?: string, subTypeSlug?: string): Promise<SealedInventoryEntry[]> => {
+    const params = new URLSearchParams();
+    if (userId) params.set('userId', userId);
+    if (categorySlug) params.set('categorySlug', categorySlug);
+    if (subTypeSlug) params.set('subTypeSlug', subTypeSlug);
+    const qs = params.toString() ? `?${params.toString()}` : '';
     return api.get<SealedInventoryEntry[]>(`/api/sealed-inventory${qs}`);
   },
 

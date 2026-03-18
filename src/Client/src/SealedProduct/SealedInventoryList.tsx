@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { SealedInventoryEntry } from '../types/collection';
+import { CollectionFilter } from '../types/filters';
 import { sealedInventoryApi } from '../api/sealedInventory';
+import { UniversalFilter } from '../components/UniversalFilter';
 
 interface Props {
   adminUserId?: string;
@@ -8,17 +10,18 @@ interface Props {
 
 export function SealedInventoryList({ adminUserId }: Props) {
   const [entries, setEntries] = useState<SealedInventoryEntry[]>([]);
+  const [filter, setFilter] = useState<CollectionFilter>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    sealedInventoryApi.getAll(adminUserId)
+    sealedInventoryApi.getAll(adminUserId, filter.sealedCategorySlug, filter.sealedSubTypeSlug)
       .then((data) => { if (!cancelled) { setEntries(data); setLoading(false); } })
       .catch(() => { if (!cancelled) { setError('Failed to load sealed inventory'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [adminUserId]);
+  }, [adminUserId, filter.sealedCategorySlug, filter.sealedSubTypeSlug]);
 
   const handleDelete = async (id: string) => {
     await sealedInventoryApi.delete(id);
@@ -30,6 +33,11 @@ export function SealedInventoryList({ adminUserId }: Props) {
   return (
     <div>
       <h2>Sealed Product Inventory</h2>
+      <UniversalFilter
+        filter={filter}
+        onChange={setFilter}
+        hideFields={['setCode', 'color', 'cardType', 'treatment', 'autographed', 'serialized', 'slabbed', 'sealedProduct', 'gradingAgency']}
+      />
       {loading ? (
         <p>Loading...</p>
       ) : entries.length === 0 ? (
@@ -39,6 +47,8 @@ export function SealedInventoryList({ adminUserId }: Props) {
           <thead>
             <tr>
               <th>Product</th>
+              <th>Category</th>
+              <th>Sub-type</th>
               <th>Qty</th>
               <th>Condition</th>
               <th>Acquired</th>
@@ -50,7 +60,9 @@ export function SealedInventoryList({ adminUserId }: Props) {
           <tbody>
             {entries.map((e) => (
               <tr key={e.id}>
-                <td>{e.productIdentifier}</td>
+                <td>{e.productName ?? e.productIdentifier}</td>
+                <td>{e.categoryDisplayName ?? ''}</td>
+                <td>{e.subTypeDisplayName ?? ''}</td>
                 <td>{e.quantity}</td>
                 <td>{e.condition}</td>
                 <td>{e.acquisitionDate}</td>
@@ -61,7 +73,7 @@ export function SealedInventoryList({ adminUserId }: Props) {
                     <button
                       type="button"
                       onClick={() => handleDelete(e.id)}
-                      aria-label={`Delete sealed product ${e.productIdentifier}`}
+                      aria-label={`Delete sealed product ${e.productName ?? e.productIdentifier}`}
                     >
                       Delete
                     </button>

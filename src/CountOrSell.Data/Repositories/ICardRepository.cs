@@ -9,4 +9,6 @@ public interface ICardRepository
     Task<Card> UpdateAsync(Card card, CancellationToken ct = default);
     Task<List<Card>> GetBySetCodeAsync(string setCode, CancellationToken ct = default);
     Task<List<string>> GetReservedIdentifiersAsync(CancellationToken ct = default);
+    Task<Dictionary<string, string?>> GetOracleRulingUrlsByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
+    Task<Dictionary<string, decimal?>> GetMarketValuesByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
 }

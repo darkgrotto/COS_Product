@@ -11,6 +11,8 @@ export interface CollectionFilter {
   slabbed?: boolean;
   sealedProduct?: boolean;
   gradingAgency?: string;
+  sealedCategorySlug?: string;
+  sealedSubTypeSlug?: string;
 }
 
 export const CARD_CONDITIONS: CardCondition[] = ['NM', 'LP', 'MP', 'HP', 'DMG'];

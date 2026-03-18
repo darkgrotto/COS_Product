@@ -14,6 +14,22 @@ public class SealedInventoryRepository : ISealedInventoryRepository
     public Task<List<SealedInventoryEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default) =>
         _db.SealedInventoryEntries.Where(e => e.UserId == userId).ToListAsync(ct);
 
+    public Task<List<SealedInventoryEntry>> GetByUserFilteredAsync(
+        Guid userId, string? categorySlug, string? subTypeSlug, CancellationToken ct = default)
+    {
+        var query = _db.SealedInventoryEntries
+            .Join(_db.SealedProducts, i => i.ProductIdentifier, p => p.Identifier, (i, p) => new { i, p })
+            .Where(x => x.i.UserId == userId);
+
+        if (!string.IsNullOrEmpty(categorySlug))
+            query = query.Where(x => x.p.CategorySlug == categorySlug);
+
+        if (!string.IsNullOrEmpty(subTypeSlug))
+            query = query.Where(x => x.p.SubTypeSlug == subTypeSlug);
+
+        return query.Select(x => x.i).ToListAsync(ct);
+    }
+
     public async Task<SealedInventoryEntry> CreateAsync(SealedInventoryEntry entry, CancellationToken ct = default)
     {
         _db.SealedInventoryEntries.Add(entry);

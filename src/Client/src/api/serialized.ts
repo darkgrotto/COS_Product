@@ -15,8 +15,14 @@ export interface SerializedEntryRequest {
 }
 
 export const serializedApi = {
-  getAll: (userId?: string): Promise<SerializedEntry[]> => {
-    const qs = userId ? `?userId=${userId}` : '';
+  getAll: (userId?: string, filter?: { setCode?: string; treatment?: string; condition?: string; autographed?: boolean }): Promise<SerializedEntry[]> => {
+    const params = new URLSearchParams();
+    if (userId) params.set('userId', userId);
+    if (filter?.setCode) params.set('setCode', filter.setCode);
+    if (filter?.treatment) params.set('treatment', filter.treatment);
+    if (filter?.condition) params.set('condition', filter.condition);
+    if (filter?.autographed !== undefined) params.set('autographed', String(filter.autographed));
+    const qs = params.toString() ? `?${params.toString()}` : '';
     return api.get<SerializedEntry[]>(`/api/serialized${qs}`);
   },
 

@@ -74,6 +74,23 @@ public class CollectionRepository : ICollectionRepository
         return entry;
     }
 
+    public async Task BulkCreateAsync(List<CollectionEntry> entries, CancellationToken ct = default)
+    {
+        _db.CollectionEntries.AddRange(entries);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<HashSet<string>> GetOwnedIdentifiersBySetAsync(Guid userId, string setCode, CancellationToken ct = default)
+    {
+        var identifiers = await _db.CollectionEntries
+            .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
+            .Where(x => x.ce.UserId == userId && x.c.SetCode == setCode.ToLowerInvariant())
+            .Select(x => x.ce.CardIdentifier)
+            .Distinct()
+            .ToListAsync(ct);
+        return identifiers.ToHashSet();
+    }
+
     public async Task<CollectionEntry> UpdateAsync(CollectionEntry entry, CancellationToken ct = default)
     {
         _db.CollectionEntries.Update(entry);

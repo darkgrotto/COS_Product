@@ -62,7 +62,9 @@ public class CollectionController : ControllerBase
         else
             entries = await _collection.GetByUserAsync(targetUserId, ct);
 
-        return Ok(entries.Select(MapEntry));
+        var identifiers = entries.Select(e => e.CardIdentifier).Distinct();
+        var oracleUrls = await _cards.GetOracleRulingUrlsByIdentifiersAsync(identifiers, ct);
+        return Ok(entries.Select(e => MapEntry(e, oracleUrls.GetValueOrDefault(e.CardIdentifier))));
     }
 
     [HttpPost]
@@ -206,6 +208,45 @@ public class CollectionController : ControllerBase
         return Ok(entries);
     }
 
+    [HttpPost("bulk-add-set")]
+    public async Task<IActionResult> BulkAddSet([FromBody] BulkAddSetRequest request, CancellationToken ct)
+    {
+        if (!TryParseCondition(request.Condition, out var condition))
+            return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        var setCode = request.SetCode.ToLowerInvariant();
+        var cards = await _cards.GetBySetCodeAsync(setCode, ct);
+        if (cards.Count == 0)
+            return BadRequest(new { error = $"No cards found for set {request.SetCode.ToUpperInvariant()}." });
+
+        var ownedIdentifiers = await _collection.GetOwnedIdentifiersBySetAsync(CurrentUserId, setCode, ct);
+
+        var now = DateTime.UtcNow;
+        var toAdd = cards
+            .Where(c => !ownedIdentifiers.Contains(c.Identifier))
+            .Select(c => new CollectionEntry
+            {
+                Id = Guid.NewGuid(),
+                UserId = CurrentUserId,
+                CardIdentifier = c.Identifier,
+                TreatmentKey = request.Treatment,
+                Quantity = 1,
+                Condition = condition,
+                Autographed = false,
+                AcquisitionDate = request.AcquisitionDate,
+                AcquisitionPrice = request.AcquisitionPrice ?? (c.CurrentMarketValue ?? 0),
+                Notes = null,
+                CreatedAt = now,
+                UpdatedAt = now
+            })
+            .ToList();
+
+        if (toAdd.Count > 0)
+            await _collection.BulkCreateAsync(toAdd, ct);
+
+        return Ok(new { added = toAdd.Count, skipped = ownedIdentifiers.Count });
+    }
+
     [HttpPost("refresh-price/{cardIdentifier}")]
     public async Task<IActionResult> RefreshPrice(string cardIdentifier, CancellationToken ct)
     {
@@ -226,7 +267,7 @@ public class CollectionController : ControllerBase
     private static bool TryParseCondition(string value, out CardCondition result) =>
         Enum.TryParse(value, true, out result);
 
-    private static object MapEntry(CollectionEntry e) => new
+    private static object MapEntry(CollectionEntry e, string? oracleRulingUrl = null) => new
     {
         e.Id,
         e.UserId,
@@ -239,6 +280,7 @@ public class CollectionController : ControllerBase
         e.AcquisitionPrice,
         e.Notes,
         e.CreatedAt,
-        e.UpdatedAt
+        e.UpdatedAt,
+        OracleRulingUrl = oracleRulingUrl
     };
 }

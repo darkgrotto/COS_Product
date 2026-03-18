@@ -18,6 +18,8 @@ public class AppDbContext : DbContext
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Set> Sets => Set<Set>();
     public DbSet<SealedProduct> SealedProducts => Set<SealedProduct>();
+    public DbSet<SealedProductCategory> SealedProductCategories => Set<SealedProductCategory>();
+    public DbSet<SealedProductSubType> SealedProductSubTypes => Set<SealedProductSubType>();
     public DbSet<CollectionEntry> CollectionEntries => Set<CollectionEntry>();
     public DbSet<SerializedEntry> SerializedEntries => Set<SerializedEntry>();
     public DbSet<SlabEntry> SlabEntries => Set<SlabEntry>();
@@ -42,6 +44,7 @@ public class AppDbContext : DbContext
         ConfigureGradingAgencies(modelBuilder);
         ConfigureSets(modelBuilder);
         ConfigureCards(modelBuilder);
+        ConfigureSealedProductTaxonomy(modelBuilder);
         ConfigureSealedProducts(modelBuilder);
         ConfigureCollectionEntries(modelBuilder);
         ConfigureSerializedEntries(modelBuilder);
@@ -149,6 +152,28 @@ public class AppDbContext : DbContext
         });
     }
 
+    private static void ConfigureSealedProductTaxonomy(ModelBuilder b)
+    {
+        b.Entity<SealedProductCategory>(e =>
+        {
+            e.ToTable("sealed_product_categories");
+            e.HasKey(c => c.Slug);
+            e.Property(c => c.Slug).HasColumnName("slug").HasMaxLength(100);
+            e.Property(c => c.DisplayName).HasColumnName("display_name").HasMaxLength(200).IsRequired();
+        });
+
+        b.Entity<SealedProductSubType>(e =>
+        {
+            e.ToTable("sealed_product_sub_types");
+            e.HasKey(s => s.Slug);
+            e.Property(s => s.Slug).HasColumnName("slug").HasMaxLength(100);
+            e.Property(s => s.CategorySlug).HasColumnName("category_slug").HasMaxLength(100).IsRequired();
+            e.Property(s => s.DisplayName).HasColumnName("display_name").HasMaxLength(200).IsRequired();
+            e.HasOne<SealedProductCategory>().WithMany().HasForeignKey(s => s.CategorySlug);
+            e.HasIndex(s => s.CategorySlug);
+        });
+    }
+
     private static void ConfigureSealedProducts(ModelBuilder b)
     {
         b.Entity<SealedProduct>(e =>
@@ -158,10 +183,19 @@ public class AppDbContext : DbContext
             e.Property(s => s.Identifier).HasColumnName("identifier").HasMaxLength(100);
             e.Property(s => s.SetCode).HasColumnName("set_code").HasMaxLength(4).IsRequired();
             e.Property(s => s.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
+            e.Property(s => s.CategorySlug).HasColumnName("category_slug").HasMaxLength(100);
+            e.Property(s => s.SubTypeSlug).HasColumnName("sub_type_slug").HasMaxLength(100);
+            e.Property(s => s.CurrentMarketValue).HasColumnName("current_market_value").HasPrecision(10, 2);
             e.Property(s => s.ImagePath).HasColumnName("image_path").HasMaxLength(500);
             e.Property(s => s.UpdatedAt).HasColumnName("updated_at").IsRequired();
             e.HasOne<Set>().WithMany().HasForeignKey(s => s.SetCode);
+            // Nullable FK to taxonomy - SET NULL on taxonomy replacement
+            e.HasOne<SealedProductCategory>().WithMany().HasForeignKey(s => s.CategorySlug)
+                .IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<SealedProductSubType>().WithMany().HasForeignKey(s => s.SubTypeSlug)
+                .IsRequired(false).OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(s => s.SetCode);
+            e.HasIndex(s => s.CategorySlug);
         });
     }
 

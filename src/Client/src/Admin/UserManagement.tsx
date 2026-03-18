@@ -211,6 +211,13 @@ export function UserManagement() {
                     <td>{f.fileSizeBytes.toLocaleString()} bytes</td>
                     <td>{f.createdAt}</td>
                     <td>
+                      <a
+                        href={`/api/users/${selectedExportUserId}/exports/${f.id}/download`}
+                        download
+                      >
+                        Download
+                      </a>
+                      {' '}
                       <button
                         type="button"
                         onClick={() => handleDeleteExport(selectedExportUserId, f.id)}

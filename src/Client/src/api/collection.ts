@@ -98,6 +98,15 @@ export const collectionApi = {
     const params = userId ? `?userId=${userId}` : '';
     return api.get<ReservedCollectionEntry[]>(`/api/collection/reserved${params}`);
   },
+
+  bulkAddSet: (request: {
+    setCode: string;
+    treatment: string;
+    condition: string;
+    acquisitionDate: string;
+    acquisitionPrice?: number;
+  }): Promise<{ added: number; skipped: number }> =>
+    api.post<{ added: number; skipped: number }>('/api/collection/bulk-add-set', request),
 };
 
 export { buildFilterQuery };

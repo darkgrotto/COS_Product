@@ -14,10 +14,12 @@ namespace CountOrSell.Api.Controllers;
 public class SlabsController : ControllerBase
 {
     private readonly ISlabRepository _slabs;
+    private readonly ICardRepository _cards;
 
-    public SlabsController(ISlabRepository slabs)
+    public SlabsController(ISlabRepository slabs, ICardRepository cards)
     {
         _slabs = slabs;
+        _cards = cards;
     }
 
     private Guid CurrentUserId =>
@@ -27,14 +29,22 @@ public class SlabsController : ControllerBase
         User.IsInRole("Admin");
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? userId, CancellationToken ct)
+    public async Task<IActionResult> GetAll([FromQuery] Guid? userId, [FromQuery] CollectionFilter filter, CancellationToken ct)
     {
         if (userId.HasValue && !IsAdmin)
             return Forbid();
 
         var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
-        var entries = await _slabs.GetByUserAsync(targetUserId, ct);
-        return Ok(entries.Select(MapEntry));
+
+        List<SlabEntry> entries;
+        if (HasFilters(filter))
+            entries = await _slabs.GetByUserFilteredAsync(targetUserId, filter, ct);
+        else
+            entries = await _slabs.GetByUserAsync(targetUserId, ct);
+
+        var identifiers = entries.Select(e => e.CardIdentifier).Distinct();
+        var marketValues = await _cards.GetMarketValuesByIdentifiersAsync(identifiers, ct);
+        return Ok(entries.Select(e => MapEntry(e, marketValues.GetValueOrDefault(e.CardIdentifier))));
     }
 
     [HttpPost]
@@ -120,10 +130,14 @@ public class SlabsController : ControllerBase
         return NoContent();
     }
 
+    private static bool HasFilters(CollectionFilter filter) =>
+        filter.SetCode != null || filter.Treatment != null || filter.Condition != null ||
+        filter.Autographed.HasValue || filter.GradingAgency != null;
+
     private static bool TryParseCondition(string value, out CardCondition result) =>
         Enum.TryParse(value, true, out result);
 
-    private static object MapEntry(SlabEntry e) => new
+    private static object MapEntry(SlabEntry e, decimal? currentMarketValue = null) => new
     {
         e.Id,
         e.UserId,
@@ -140,6 +154,7 @@ public class SlabsController : ControllerBase
         e.AcquisitionPrice,
         e.Notes,
         e.CreatedAt,
-        e.UpdatedAt
+        e.UpdatedAt,
+        CurrentMarketValue = currentMarketValue
     };
 }

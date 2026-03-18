@@ -5,9 +5,15 @@ import { collectionApi } from '../api/collection';
 import { UniversalFilter } from '../components/UniversalFilter';
 import { useReservedList } from '../hooks/useReservedList';
 import { ReservedBadge } from '../components/ReservedBadge';
+import { SetSymbol } from '../components/SetSymbol';
 
 interface Props {
   adminUserId?: string;
+}
+
+function extractSetCode(identifier: string): string {
+  const match = identifier.toLowerCase().match(/^([a-z0-9]{3,4})\d{3,4}$/);
+  return match ? match[1] : '';
 }
 
 export function CollectionList({ adminUserId }: Props) {
@@ -56,32 +62,45 @@ export function CollectionList({ adminUserId }: Props) {
             </tr>
           </thead>
           <tbody>
-            {entries.map((e) => (
-              <tr key={e.id}>
-                <td>
-                  {e.cardIdentifier.toUpperCase()}
-                  {reservedSet.has(e.cardIdentifier.toLowerCase()) && <ReservedBadge />}
-                </td>
-                <td>{e.treatment}</td>
-                <td>{e.quantity}</td>
-                <td>{e.condition}{e.autographed ? ' - Autographed' : ''}</td>
-                <td>{e.autographed ? 'Yes' : 'No'}</td>
-                <td>{e.acquisitionDate}</td>
-                <td>${e.acquisitionPrice.toFixed(2)}</td>
-                <td>{e.currentMarketValue !== null ? `$${e.currentMarketValue.toFixed(2)}` : '--'}</td>
-                <td>
-                  {!adminUserId && (
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(e.id)}
-                      aria-label={`Delete ${e.cardIdentifier.toUpperCase()}`}
-                    >
-                      Delete
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {entries.map((e) => {
+              const setCode = extractSetCode(e.cardIdentifier);
+              return (
+                <tr key={e.id}>
+                  <td>
+                    {setCode && <SetSymbol setCode={setCode} />}
+                    {' '}
+                    {e.cardIdentifier.toUpperCase()}
+                    {reservedSet.has(e.cardIdentifier.toLowerCase()) && <ReservedBadge />}
+                    {e.oracleRulingUrl && (
+                      <>
+                        {' '}
+                        <a href={e.oracleRulingUrl} target="_blank" rel="noopener noreferrer">
+                          Oracle
+                        </a>
+                      </>
+                    )}
+                  </td>
+                  <td>{e.treatment}</td>
+                  <td>{e.quantity}</td>
+                  <td>{e.condition}{e.autographed ? ' - Autographed' : ''}</td>
+                  <td>{e.autographed ? 'Yes' : 'No'}</td>
+                  <td>{e.acquisitionDate}</td>
+                  <td>${e.acquisitionPrice.toFixed(2)}</td>
+                  <td>{e.currentMarketValue !== null ? `$${e.currentMarketValue.toFixed(2)}` : '--'}</td>
+                  <td>
+                    {!adminUserId && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(e.id)}
+                        aria-label={`Delete ${e.cardIdentifier.toUpperCase()}`}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

@@ -1046,6 +1046,7 @@ state storage (Azure Blob for Azure, AWS S3 for AWS,
 GCP Cloud Storage for GCP).
 2026-03-08 - Deployment targets: Azure (App Service),
 AWS (App Runner), GCP (Cloud Run), Docker Compose.
+2026-03-18 - Docker Compose reverse proxy: Nginx.
 2026-03-18 - Sealed product taxonomy reference tables
 added (sealed_product_categories and
 sealed_product_sub_types). Received via update packages,
