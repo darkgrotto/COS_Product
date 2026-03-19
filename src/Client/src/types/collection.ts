@@ -40,6 +40,8 @@ export interface SlabEntry {
   certificateNumber: string;
   serialNumber: number | null;
   printRunTotal: number | null;
+  condition: CardCondition;
+  autographed: boolean;
   acquisitionDate: string;
   acquisitionPrice: number;
   notes: string | null;

@@ -19,6 +19,7 @@ import { UpdatesManager } from './Admin/UpdatesManager';
 import { AboutView } from './About/AboutView';
 import { UserPreferencesPage } from './UserPreferences/UserPreferencesPage';
 import { usersApi } from './api/users';
+import { TcgPlayerProvider } from './context/TcgPlayerContext';
 
 function DefaultPage() {
   const [defaultPage, setDefaultPage] = useState<string | null | undefined>(undefined);
@@ -36,6 +37,7 @@ function DefaultPage() {
 
 export function App() {
   return (
+    <TcgPlayerProvider>
     <BrowserRouter>
       <nav aria-label="Main navigation">
         <NavLink to="/">Dashboard</NavLink>
@@ -76,6 +78,7 @@ export function App() {
         </Routes>
       </main>
     </BrowserRouter>
+    </TcgPlayerProvider>
   );
 }
 

@@ -91,8 +91,8 @@ export const collectionApi = {
     return api.get<SetCompletionResult>(`/api/collection/completion/${setCode}${qs}`);
   },
 
-  refreshPrice: (cardIdentifier: string): Promise<void> =>
-    api.post<void>(`/api/collection/refresh-price/${cardIdentifier}`),
+  refreshPrice: (cardIdentifier: string): Promise<{ cardIdentifier: string; marketValue: number | null }> =>
+    api.post<{ cardIdentifier: string; marketValue: number | null }>(`/api/collection/refresh-price/${cardIdentifier}`),
 
   getReserved: (userId?: string): Promise<ReservedCollectionEntry[]> => {
     const params = userId ? `?userId=${userId}` : '';
