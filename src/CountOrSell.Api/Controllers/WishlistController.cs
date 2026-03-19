@@ -62,6 +62,16 @@ public class WishlistController : ControllerBase
         });
     }
 
+    [HttpGet("export/tcgplayer")]
+    public async Task<IActionResult> ExportTcgPlayer(CancellationToken ct)
+    {
+        var rows = await _wishlist.GetByUserWithCardsAsync(CurrentUserId, new CollectionFilter(), ct);
+        var lines = rows
+            .Where(r => r.Card != null)
+            .Select(r => $"1 {r.Card!.Name} [{r.Card.SetCode.ToUpperInvariant()}]");
+        return Content(string.Join("\n", lines), "text/plain");
+    }
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Remove(Guid id, CancellationToken ct)
     {

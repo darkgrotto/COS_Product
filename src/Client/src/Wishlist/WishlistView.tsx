@@ -13,6 +13,8 @@ export function WishlistView() {
   const [addIdentifier, setAddIdentifier] = useState('');
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [copyNotice, setCopyNotice] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +46,39 @@ export function WishlistView() {
     }
   };
 
+  const handleDownload = async () => {
+    setExportBusy(true);
+    try {
+      const text = await wishlistApi.exportTcgPlayer();
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'wishlist-tcgplayer.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silently ignore
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  const handleOpenTcgPlayer = async () => {
+    setExportBusy(true);
+    try {
+      const text = await wishlistApi.exportTcgPlayer();
+      await navigator.clipboard.writeText(text);
+      setCopyNotice(true);
+      setTimeout(() => setCopyNotice(false), 5000);
+    } catch {
+      // silently ignore
+    } finally {
+      setExportBusy(false);
+    }
+    window.open('https://www.tcgplayer.com/massentry', '_blank', 'noopener,noreferrer');
+  };
+
   const handleRemove = async (id: string) => {
     await wishlistApi.remove(id);
     setEntries((prev) => prev.filter((e) => e.id !== id));
@@ -61,6 +96,21 @@ export function WishlistView() {
       />
       {totalValue !== null && (
         <p>Total wishlist value: <strong>${totalValue.toFixed(2)}</strong></p>
+      )}
+
+      {!loading && entries.length > 0 && (
+        <div>
+          <button type="button" onClick={handleDownload} disabled={exportBusy}>
+            {exportBusy ? 'Exporting...' : 'Download for TCGPlayer'}
+          </button>
+          {' '}
+          <button type="button" onClick={handleOpenTcgPlayer} disabled={exportBusy}>
+            {exportBusy ? 'Exporting...' : 'Open TCGPlayer Mass Entry'}
+          </button>
+          {copyNotice && (
+            <span role="status"> List copied to clipboard - paste it into the Mass Entry field</span>
+          )}
+        </div>
       )}
 
       <div>

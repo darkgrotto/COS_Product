@@ -22,4 +22,7 @@ export const wishlistApi = {
 
   remove: (id: string): Promise<void> =>
     api.delete<void>(`/api/wishlist/${id}`),
+
+  exportTcgPlayer: (): Promise<string> =>
+    api.getText('/api/wishlist/export/tcgplayer'),
 };

@@ -32,8 +32,18 @@ export class ApiError extends Error {
   }
 }
 
+async function requestText(url: string): Promise<string> {
+  const response = await fetch(url, { credentials: 'include' });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new ApiError(response.status, text);
+  }
+  return response.text();
+}
+
 export const api = {
   get: <T>(url: string) => request<T>(url),
+  getText: (url: string) => requestText(url),
   post: <T>(url: string, body?: unknown) =>
     request<T>(url, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }),
   put: <T>(url: string, body?: unknown) =>
