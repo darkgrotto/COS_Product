@@ -1,0 +1,43 @@
+# Health check test compose file.
+# Starts the application with a local Postgres instance and stub environment
+# variables. Used to verify the image starts successfully and /health returns 200.
+#
+# Usage:
+#   docker compose -f docker/test/docker-compose.test.yml up --abort-on-container-exit
+#
+# The app service is marked healthy when /health returns 200. The db service
+# must be healthy before the app starts (dependency enforced below).
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: countorsell_test
+      POSTGRES_USER: countorsell
+      POSTGRES_PASSWORD: testpassword
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U countorsell -d countorsell_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: ghcr.io/darkgrotto/countorsell:dev
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_CONNECTION: "Host=db;Database=countorsell_test;Username=countorsell;Password=testpassword"
+      INSTANCE_NAME: "Health Check Test"
+      UPDATE_CHECK_TIME: "03:00"
+      BACKUP_SCHEDULE: "0 3 * * 0"
+      BACKUP_RETENTION: "4"
+      ASPNETCORE_ENVIRONMENT: "Production"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s

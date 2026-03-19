@@ -938,7 +938,37 @@ TCGPLAYER_API_KEY=            # Optional, user/admin supplied
 - CI/CD: GitHub Actions
 - IaC: Terraform with provider-native state storage
 - Pipeline definition: /.github/workflows/
-- Docker image registry: user-specified during wizard
+
+### Docker Image
+- Registry: ghcr.io/darkgrotto/countorsell
+- Tags:
+  - :latest - most recent stable release
+  - :X.Y.Z - specific version (e.g. :1.2.3)
+  - :X.Y - tracks latest patch for minor version
+  - :X - tracks latest minor for major version
+  - :dev - built from every push to main,
+           unstable, not for production use
+- Architectures: linux/amd64, linux/arm64
+- Version tags are created manually by pushing
+  a git tag in format vX.Y.Z (e.g. v1.2.3)
+- Claude Code must never create git tags
+
+### Build Commands
+Local multi-arch build (requires Docker Desktop
+with Buildx and QEMU configured):
+```
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t ghcr.io/darkgrotto/countorsell:dev \
+  --push .
+```
+
+Health check test (verifies image starts and
+/health returns 200 with a local Postgres):
+```
+docker compose -f docker/test/docker-compose.test.yml \
+  up --abort-on-container-exit
+```
 
 ---
 
@@ -1065,3 +1095,10 @@ on update nulls orphaned inventory references rather
 than deleting inventory records. Taxonomy filters
 suppressed in UI when tables are empty. Current vs.
 legacy product type distinction is not modeled.
+2026-03-19 - Docker images published to
+ghcr.io/darkgrotto/countorsell. Architectures:
+linux/amd64 and linux/arm64. Dev builds from
+main push (:dev tag). Release builds from manual
+git tag push (vX.Y.Z produces :X.Y.Z, :X.Y,
+:X, :latest). Version tags created manually,
+never by automated workflow.

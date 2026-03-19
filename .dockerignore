@@ -1,0 +1,33 @@
+# Infrastructure and CI - not needed in image
+infrastructure/
+.github/
+
+# Generated Docker Compose files and certificates - not needed in image
+docker/compose/
+docker/certs/
+
+# Local configuration and secrets - must never be in any image layer
+.env
+.env.*
+*.env
+**/.env
+**/.env.*
+**/*.env
+
+# Build artifacts - rebuilt inside Docker
+src/**/bin/
+src/**/obj/
+src/Client/dist/
+src/Client/node_modules/
+
+# Local test and developer files
+docker/test/
+
+# Git metadata
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+LICENSE

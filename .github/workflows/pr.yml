@@ -16,3 +16,11 @@ jobs:
         run: dotnet build src/CountOrSell.sln --no-restore --configuration Release /warnaserror
       - name: Test
         run: dotnet test src/CountOrSell.sln --no-build --configuration Release --verbosity normal
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Docker build (linux/amd64, no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
