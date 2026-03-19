@@ -22,8 +22,15 @@ interface EditForm {
 }
 
 function extractSetCode(identifier: string): string {
-  const match = identifier.toLowerCase().match(/^([a-z0-9]{3,4})\d{3,4}$/);
-  return match ? match[1] : '';
+  const id = identifier.toLowerCase();
+  // For 7-char identifiers, disambiguate 3-char-set+4-digit-suffix vs 4-char-set+3-digit-suffix.
+  // A 4-digit suffix must be >= 1000, so check whether chars 3-6 form a value >= 1000.
+  if (id.length === 8) return id.slice(0, 4);
+  if (id.length === 7) {
+    const suffix4 = parseInt(id.slice(3), 10);
+    return (suffix4 >= 1000) ? id.slice(0, 3) : id.slice(0, 4);
+  }
+  return id.slice(0, 3);
 }
 
 export function CollectionList({ adminUserId }: Props) {

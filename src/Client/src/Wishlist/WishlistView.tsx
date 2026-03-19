@@ -34,6 +34,11 @@ export function WishlistView() {
   const handleAdd = async () => {
     setAddError(null);
     if (!addIdentifier.trim()) { setAddError('Card identifier is required'); return; }
+    const normalized = addIdentifier.trim().toLowerCase();
+    if (!/^[a-z0-9]{3,4}[0-9]{3,4}$/.test(normalized) || /^[a-z0-9]{3,4}0[0-9]{3}$/.test(normalized)) {
+      setAddError('Invalid card identifier format. Expected set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000), e.g. EOE019 or EOE1234.');
+      return;
+    }
     setAdding(true);
     try {
       const entry = await wishlistApi.add(addIdentifier.trim().toLowerCase());

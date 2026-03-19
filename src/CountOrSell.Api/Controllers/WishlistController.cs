@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos.Requests;
 using CountOrSell.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -44,6 +45,8 @@ public class WishlistController : ControllerBase
     public async Task<IActionResult> Add([FromBody] WishlistRequest request, CancellationToken ct)
     {
         var cardId = request.CardIdentifier.ToLowerInvariant();
+        if (!CardIdentifierValidator.IsValid(cardId))
+            return BadRequest(new { error = $"Invalid card identifier: {request.CardIdentifier.ToUpperInvariant()}. Expected format: set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000)." });
 
         var entry = new WishlistEntry
         {
