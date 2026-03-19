@@ -1,19 +1,29 @@
 import { useEffect, useState } from 'react';
 import { SetCompletionResult } from '../types/metrics';
 import { metricsApi } from '../api/metrics';
+import { usersApi } from '../api/users';
 
 export function CollectionValueBySet() {
   const [results, setResults] = useState<SetCompletionResult[]>([]);
+  const [regularOnly, setRegularOnly] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    usersApi.getPreferences()
+      .then((prefs) => setRegularOnly(prefs.setCompletionRegularOnly))
+      .catch(() => setRegularOnly(false));
+  }, []);
+
+  useEffect(() => {
+    if (regularOnly === null) return;
     let cancelled = false;
-    metricsApi.getSetCompletion()
+    setLoading(true);
+    metricsApi.getSetCompletion(regularOnly)
       .then((data) => { if (!cancelled) { setResults(data); setLoading(false); } })
       .catch(() => { if (!cancelled) { setError('Failed to load set data'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, []);
+  }, [regularOnly]);
 
   if (error) return <div role="alert">{error}</div>;
 

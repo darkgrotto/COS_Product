@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { SlabEntry } from '../types/collection';
 import { CollectionFilter } from '../types/filters';
+import { GradingAgency } from '../types/gradingAgency';
 import { slabsApi, SlabEntryRequest } from '../api/slabs';
 import { collectionApi } from '../api/collection';
+import { gradingAgenciesApi } from '../api/gradingAgencies';
 import { UniversalFilter } from '../components/UniversalFilter';
 import { useReservedList } from '../hooks/useReservedList';
 import { ReservedBadge } from '../components/ReservedBadge';
@@ -12,23 +14,43 @@ interface Props {
   adminUserId?: string;
 }
 
+type SortField = 'marketValue' | 'profitLoss';
+type SortDir = 'asc' | 'desc';
+
 interface EditForm {
   acquisitionDate: string;
   acquisitionPrice: string;
   notes: string;
 }
 
+function buildVerifyUrl(agency: GradingAgency, certificateNumber: string): string {
+  return agency.validationUrlTemplate.replace('{certificateNumber}', encodeURIComponent(certificateNumber));
+}
+
 export function SlabList({ adminUserId }: Props) {
   const [entries, setEntries] = useState<SlabEntry[]>([]);
+  const [agencies, setAgencies] = useState<Record<string, GradingAgency>>({});
   const [filter, setFilter] = useState<CollectionFilter>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({ acquisitionDate: '', acquisitionPrice: '', notes: '' });
   const [saving, setSaving] = useState(false);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const reservedSet = useReservedList();
   const tcgConfigured = useTcgPlayerConfigured();
+
+  useEffect(() => {
+    gradingAgenciesApi.getAll()
+      .then((list) => {
+        const map: Record<string, GradingAgency> = {};
+        list.forEach((a) => { map[a.code.toUpperCase()] = a; });
+        setAgencies(map);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,11 +60,12 @@ export function SlabList({ adminUserId }: Props) {
       treatment: filter.treatment,
       condition: filter.condition,
       autographed: filter.autographed,
+      gradingAgency: filter.gradingAgency,
     })
       .then((data) => { if (!cancelled) { setEntries(data); setLoading(false); } })
       .catch(() => { if (!cancelled) { setError('Failed to load slabs'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [adminUserId, filter.setCode, filter.treatment, filter.condition, filter.autographed]);
+  }, [adminUserId, filter.setCode, filter.treatment, filter.condition, filter.autographed, filter.gradingAgency]);
 
   const handleDelete = async (id: string) => {
     await slabsApi.delete(id);
@@ -103,6 +126,27 @@ export function SlabList({ adminUserId }: Props) {
     }
   };
 
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+  };
+
+  const sortedEntries = sortField === null ? entries : [...entries].sort((a, b) => {
+    const aVal = sortField === 'marketValue'
+      ? (a.currentMarketValue ?? -Infinity)
+      : (a.currentMarketValue !== null ? a.currentMarketValue - a.acquisitionPrice : -Infinity);
+    const bVal = sortField === 'marketValue'
+      ? (b.currentMarketValue ?? -Infinity)
+      : (b.currentMarketValue !== null ? b.currentMarketValue - b.acquisitionPrice : -Infinity);
+    return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+  });
+
+  const sortIndicator = (field: SortField) => sortField === field ? (sortDir === 'asc' ? ' \u25b2' : ' \u25bc') : null;
+
   if (error) return <div role="alert">{error}</div>;
 
   return (
@@ -111,7 +155,7 @@ export function SlabList({ adminUserId }: Props) {
       <UniversalFilter
         filter={filter}
         onChange={setFilter}
-        hideFields={['color', 'cardType', 'serialized', 'slabbed', 'sealedProduct', 'sealedCategorySlug', 'sealedSubTypeSlug', 'gradingAgency']}
+        hideFields={['color', 'cardType', 'serialized', 'slabbed', 'sealedProduct', 'sealedCategorySlug', 'sealedSubTypeSlug']}
       />
       {loading ? (
         <p>Loading...</p>
@@ -130,12 +174,19 @@ export function SlabList({ adminUserId }: Props) {
               <th>Print run</th>
               <th>Acquired</th>
               <th>Acquisition price</th>
-              <th>Market value</th>
+              <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('marketValue')}>
+                Market value{sortIndicator('marketValue')}
+              </th>
+              <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('profitLoss')}>
+                Profit / loss{sortIndicator('profitLoss')}
+              </th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {entries.map((e) => {
+            {sortedEntries.map((e) => {
+              const pl = e.currentMarketValue !== null ? e.currentMarketValue - e.acquisitionPrice : null;
+              const agency = agencies[e.gradingAgencyCode.toUpperCase()];
               if (editingId === e.id) {
                 return (
                   <tr key={e.id}>
@@ -169,7 +220,7 @@ export function SlabList({ adminUserId }: Props) {
                         aria-label="Acquisition price"
                       />
                     </td>
-                    <td>
+                    <td colSpan={2}>
                       <input
                         type="text"
                         value={editForm.notes}
@@ -198,12 +249,43 @@ export function SlabList({ adminUserId }: Props) {
                   <td>{e.treatment}</td>
                   <td>{e.gradingAgencyCode}</td>
                   <td>{e.grade}</td>
-                  <td>{e.certificateNumber}</td>
+                  <td>
+                    {agency ? (
+                      <>
+                        {agency.supportsDirectLookup ? (
+                          <a
+                            href={buildVerifyUrl(agency, e.certificateNumber)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Verify certificate ${e.certificateNumber} with ${agency.fullName}`}
+                          >
+                            {e.certificateNumber}
+                          </a>
+                        ) : (
+                          <>
+                            {e.certificateNumber}
+                            {' '}
+                            <a
+                              href={agency.validationUrlTemplate}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Verify certificate with ${agency.fullName} (manual entry required)`}
+                            >
+                              Verify
+                            </a>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      e.certificateNumber
+                    )}
+                  </td>
                   <td>{e.serialNumber ?? '--'}</td>
                   <td>{e.printRunTotal ?? '--'}</td>
                   <td>{e.acquisitionDate}</td>
                   <td>${e.acquisitionPrice.toFixed(2)}</td>
                   <td>{e.currentMarketValue !== null ? `$${e.currentMarketValue.toFixed(2)}` : '--'}</td>
+                  <td>{pl !== null ? `$${pl.toFixed(2)}` : '--'}</td>
                   <td>
                     {!adminUserId && (
                       <>

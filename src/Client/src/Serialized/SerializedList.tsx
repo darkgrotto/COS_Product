@@ -12,6 +12,9 @@ interface Props {
   adminUserId?: string;
 }
 
+type SortField = 'marketValue' | 'profitLoss';
+type SortDir = 'asc' | 'desc';
+
 interface EditForm {
   acquisitionDate: string;
   acquisitionPrice: string;
@@ -26,6 +29,8 @@ export function SerializedList({ adminUserId }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({ acquisitionDate: '', acquisitionPrice: '', notes: '' });
   const [saving, setSaving] = useState(false);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const reservedSet = useReservedList();
   const tcgConfigured = useTcgPlayerConfigured();
@@ -100,6 +105,27 @@ export function SerializedList({ adminUserId }: Props) {
     }
   };
 
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+  };
+
+  const sortedEntries = sortField === null ? entries : [...entries].sort((a, b) => {
+    const aVal = sortField === 'marketValue'
+      ? (a.currentMarketValue ?? -Infinity)
+      : (a.currentMarketValue !== null ? a.currentMarketValue - a.acquisitionPrice : -Infinity);
+    const bVal = sortField === 'marketValue'
+      ? (b.currentMarketValue ?? -Infinity)
+      : (b.currentMarketValue !== null ? b.currentMarketValue - b.acquisitionPrice : -Infinity);
+    return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+  });
+
+  const sortIndicator = (field: SortField) => sortField === field ? (sortDir === 'asc' ? ' \u25b2' : ' \u25bc') : null;
+
   if (error) return <div role="alert">{error}</div>;
 
   return (
@@ -125,12 +151,18 @@ export function SerializedList({ adminUserId }: Props) {
               <th>Condition</th>
               <th>Acquired</th>
               <th>Acquisition price</th>
-              <th>Market value</th>
+              <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('marketValue')}>
+                Market value{sortIndicator('marketValue')}
+              </th>
+              <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('profitLoss')}>
+                Profit / loss{sortIndicator('profitLoss')}
+              </th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {entries.map((e) => {
+            {sortedEntries.map((e) => {
+              const pl = e.currentMarketValue !== null ? e.currentMarketValue - e.acquisitionPrice : null;
               if (editingId === e.id) {
                 return (
                   <tr key={e.id}>
@@ -162,7 +194,7 @@ export function SerializedList({ adminUserId }: Props) {
                         aria-label="Acquisition price"
                       />
                     </td>
-                    <td>
+                    <td colSpan={2}>
                       <input
                         type="text"
                         value={editForm.notes}
@@ -195,6 +227,7 @@ export function SerializedList({ adminUserId }: Props) {
                   <td>{e.acquisitionDate}</td>
                   <td>${e.acquisitionPrice.toFixed(2)}</td>
                   <td>{e.currentMarketValue !== null ? `$${e.currentMarketValue.toFixed(2)}` : '--'}</td>
+                  <td>{pl !== null ? `$${pl.toFixed(2)}` : '--'}</td>
                   <td>
                     {!adminUserId && (
                       <>
