@@ -6,4 +6,5 @@ public class SealedProductCategory
 {
     public string Slug { get; set; } = string.Empty; // PK
     public string DisplayName { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
 }

@@ -160,6 +160,7 @@ public class AppDbContext : DbContext
             e.HasKey(c => c.Slug);
             e.Property(c => c.Slug).HasColumnName("slug").HasMaxLength(100);
             e.Property(c => c.DisplayName).HasColumnName("display_name").HasMaxLength(200).IsRequired();
+            e.Property(c => c.SortOrder).HasColumnName("sort_order").IsRequired();
         });
 
         b.Entity<SealedProductSubType>(e =>
@@ -169,6 +170,7 @@ public class AppDbContext : DbContext
             e.Property(s => s.Slug).HasColumnName("slug").HasMaxLength(100);
             e.Property(s => s.CategorySlug).HasColumnName("category_slug").HasMaxLength(100).IsRequired();
             e.Property(s => s.DisplayName).HasColumnName("display_name").HasMaxLength(200).IsRequired();
+            e.Property(s => s.SortOrder).HasColumnName("sort_order").IsRequired();
             e.HasOne<SealedProductCategory>().WithMany().HasForeignKey(s => s.CategorySlug);
             e.HasIndex(s => s.CategorySlug);
         });
@@ -338,6 +340,9 @@ public class AppDbContext : DbContext
             e.ToTable("sealed_inventory_entries", t =>
             {
                 t.HasCheckConstraint("CK_sealed_inventory_entries_quantity", "quantity > 0");
+                // sub_type_slug requires category_slug to be non-null
+                t.HasCheckConstraint("CK_sealed_inventory_entries_sub_type_slug",
+                    "sub_type_slug IS NULL OR category_slug IS NOT NULL");
             });
             e.HasKey(s => s.Id);
             e.Property(s => s.Id).HasColumnName("id");
@@ -350,10 +355,17 @@ public class AppDbContext : DbContext
             e.Property(s => s.AcquisitionPrice).HasColumnName("acquisition_price")
                 .HasPrecision(10, 2).IsRequired();
             e.Property(s => s.Notes).HasColumnName("notes").HasMaxLength(1000);
+            e.Property(s => s.CategorySlug).HasColumnName("category_slug").HasMaxLength(100);
+            e.Property(s => s.SubTypeSlug).HasColumnName("sub_type_slug").HasMaxLength(100);
             e.Property(s => s.CreatedAt).HasColumnName("created_at").IsRequired();
             e.Property(s => s.UpdatedAt).HasColumnName("updated_at").IsRequired();
             e.HasOne(s => s.User).WithMany().HasForeignKey(s => s.UserId);
+            e.HasOne<SealedProductCategory>().WithMany().HasForeignKey(s => s.CategorySlug)
+                .IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<SealedProductSubType>().WithMany().HasForeignKey(s => s.SubTypeSlug)
+                .IsRequired(false).OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(s => s.UserId);
+            e.HasIndex(s => s.CategorySlug);
         });
     }
 

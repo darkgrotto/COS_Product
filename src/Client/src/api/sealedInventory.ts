@@ -9,6 +9,8 @@ export interface SealedInventoryRequest {
   acquisitionDate: string;
   acquisitionPrice: number;
   notes?: string;
+  categorySlug?: string;
+  subTypeSlug?: string;
 }
 
 export const sealedInventoryApi = {

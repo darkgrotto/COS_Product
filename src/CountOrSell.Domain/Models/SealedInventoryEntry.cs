@@ -12,6 +12,8 @@ public class SealedInventoryEntry
     public DateOnly AcquisitionDate { get; set; }
     public decimal AcquisitionPrice { get; set; }
     public string? Notes { get; set; }
+    public string? CategorySlug { get; set; }
+    public string? SubTypeSlug { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     // Navigation

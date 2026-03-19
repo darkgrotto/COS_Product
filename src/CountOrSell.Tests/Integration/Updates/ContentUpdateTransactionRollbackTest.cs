@@ -1,6 +1,7 @@
 using CountOrSell.Api.Services;
 using CountOrSell.Data;
 using CountOrSell.Data.Images;
+using CountOrSell.Data.Repositories;
 using CountOrSell.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,8 +24,9 @@ public class ContentUpdateTransactionRollbackTest : IClassFixture<PostgreSqlFixt
     {
         await using var db = _fixture.CreateContext();
         var imageStore = new NoOpImageStore();
+        var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, NullLogger<ContentUpdateApplicator>.Instance);
 
         // Build a package with treatments but cards referencing a set that does not exist
         var treatments = new[]
@@ -68,8 +70,9 @@ public class ContentUpdateTransactionRollbackTest : IClassFixture<PostgreSqlFixt
     {
         await using var db = _fixture.CreateContext();
         var imageStore = new NoOpImageStore();
+        var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, NullLogger<ContentUpdateApplicator>.Instance);
 
         // Use a unique treatment key so we can verify it was not persisted after rollback
         var uniqueTreatmentKey = $"rollback-test-{Guid.NewGuid():N}";

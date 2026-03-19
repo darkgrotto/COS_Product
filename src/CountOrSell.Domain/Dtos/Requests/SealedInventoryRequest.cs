@@ -8,4 +8,6 @@ public class SealedInventoryRequest
     public DateOnly AcquisitionDate { get; set; }
     public decimal AcquisitionPrice { get; set; }
     public string? Notes { get; set; }
+    public string? CategorySlug { get; set; }
+    public string? SubTypeSlug { get; set; }
 }

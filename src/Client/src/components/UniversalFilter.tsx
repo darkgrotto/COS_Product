@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { CollectionFilter, CardCondition, CARD_CONDITIONS, CARD_COLORS, CARD_TYPES } from '../types/filters';
 import { Treatment } from '../types/treatments';
 import { treatmentsApi } from '../api/treatments';
-import { sealedTaxonomyApi, SealedCategory, SealedSubType } from '../api/sealedTaxonomy';
+import { sealedTaxonomyApi, SealedCategory } from '../api/sealedTaxonomy';
 
 interface Props {
   filter: CollectionFilter;
@@ -13,20 +13,15 @@ interface Props {
 export function UniversalFilter({ filter, onChange, hideFields = [] }: Props) {
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [categories, setCategories] = useState<SealedCategory[]>([]);
-  const [subTypes, setSubTypes] = useState<SealedSubType[]>([]);
 
   useEffect(() => {
     treatmentsApi.getAll().then(setTreatments).catch(() => {});
     sealedTaxonomyApi.getCategories().then(setCategories).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (filter.sealedCategorySlug) {
-      sealedTaxonomyApi.getSubTypes(filter.sealedCategorySlug).then(setSubTypes).catch(() => {});
-    } else {
-      setSubTypes([]);
-    }
-  }, [filter.sealedCategorySlug]);
+  const subTypes = filter.sealedCategorySlug
+    ? (categories.find((c) => c.slug === filter.sealedCategorySlug)?.subTypes ?? [])
+    : [];
 
   const show = (field: keyof CollectionFilter) => !hideFields.includes(field);
 

@@ -54,15 +54,8 @@ public class SealedInventoryController : ControllerBase
         var identifiers = entries.Select(e => e.ProductIdentifier).Distinct();
         var products = await _sealedProducts.GetByIdentifiersAsync(identifiers, ct);
 
-        var categorySlugs = products.Values.Select(p => p.CategorySlug).Where(s => s != null).Distinct().ToList();
-        var subTypeSlugs = products.Values.Select(p => p.SubTypeSlug).Where(s => s != null).Distinct().ToList();
-
-        var allSubTypes = subTypeSlugs.Count > 0
-            ? await _taxonomy.GetAllSubTypesAsync(ct)
-            : new List<SealedProductSubType>();
-        var allCategories = categorySlugs.Count > 0
-            ? await _taxonomy.GetAllCategoriesAsync(ct)
-            : new List<SealedProductCategory>();
+        var allCategories = await _taxonomy.GetAllCategoriesAsync(ct);
+        var allSubTypes = await _taxonomy.GetAllSubTypesAsync(ct);
 
         var categoryMap = allCategories.ToDictionary(c => c.Slug, c => c.DisplayName);
         var subTypeMap = allSubTypes.ToDictionary(s => s.Slug, s => s.DisplayName);
@@ -80,6 +73,23 @@ public class SealedInventoryController : ControllerBase
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
 
+        if (request.SubTypeSlug != null && request.CategorySlug == null)
+            return BadRequest(new { error = "category_slug is required when sub_type_slug is provided" });
+
+        if (request.CategorySlug != null)
+        {
+            var categories = await _taxonomy.GetAllCategoriesAsync(ct);
+            if (!categories.Any(c => c.Slug == request.CategorySlug))
+                return BadRequest(new { error = $"Unknown category slug: {request.CategorySlug}" });
+        }
+
+        if (request.SubTypeSlug != null)
+        {
+            var subTypes = await _taxonomy.GetSubTypesByCategoryAsync(request.CategorySlug!, ct);
+            if (!subTypes.Any(s => s.Slug == request.SubTypeSlug))
+                return BadRequest(new { error = $"Unknown sub-type slug: {request.SubTypeSlug}" });
+        }
+
         var entry = new SealedInventoryEntry
         {
             Id = Guid.NewGuid(),
@@ -90,12 +100,18 @@ public class SealedInventoryController : ControllerBase
             AcquisitionDate = request.AcquisitionDate,
             AcquisitionPrice = request.AcquisitionPrice,
             Notes = request.Notes,
+            CategorySlug = request.CategorySlug,
+            SubTypeSlug = request.SubTypeSlug,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         var created = await _sealedInventory.CreateAsync(entry, ct);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, MapEntry(created, null, new(), new()));
+        var allCategories = await _taxonomy.GetAllCategoriesAsync(ct);
+        var allSubTypes = await _taxonomy.GetAllSubTypesAsync(ct);
+        var categoryMap = allCategories.ToDictionary(c => c.Slug, c => c.DisplayName);
+        var subTypeMap = allSubTypes.ToDictionary(s => s.Slug, s => s.DisplayName);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, MapEntry(created, null, categoryMap, subTypeMap));
     }
 
     [HttpGet("{id:guid}")]
@@ -104,7 +120,12 @@ public class SealedInventoryController : ControllerBase
         var entry = await _sealedInventory.GetByIdAsync(id, ct);
         if (entry == null) return NotFound();
         if (entry.UserId != CurrentUserId && !IsAdmin) return Forbid();
-        return Ok(MapEntry(entry, null, new(), new()));
+
+        var allCategories = await _taxonomy.GetAllCategoriesAsync(ct);
+        var allSubTypes = await _taxonomy.GetAllSubTypesAsync(ct);
+        var categoryMap = allCategories.ToDictionary(c => c.Slug, c => c.DisplayName);
+        var subTypeMap = allSubTypes.ToDictionary(s => s.Slug, s => s.DisplayName);
+        return Ok(MapEntry(entry, null, categoryMap, subTypeMap));
     }
 
     [HttpPut("{id:guid}")]
@@ -117,15 +138,38 @@ public class SealedInventoryController : ControllerBase
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
 
+        if (request.SubTypeSlug != null && request.CategorySlug == null)
+            return BadRequest(new { error = "category_slug is required when sub_type_slug is provided" });
+
+        if (request.CategorySlug != null)
+        {
+            var categories = await _taxonomy.GetAllCategoriesAsync(ct);
+            if (!categories.Any(c => c.Slug == request.CategorySlug))
+                return BadRequest(new { error = $"Unknown category slug: {request.CategorySlug}" });
+        }
+
+        if (request.SubTypeSlug != null)
+        {
+            var subTypes = await _taxonomy.GetSubTypesByCategoryAsync(request.CategorySlug!, ct);
+            if (!subTypes.Any(s => s.Slug == request.SubTypeSlug))
+                return BadRequest(new { error = $"Unknown sub-type slug: {request.SubTypeSlug}" });
+        }
+
         entry.Quantity = request.Quantity;
         entry.Condition = condition;
         entry.AcquisitionDate = request.AcquisitionDate;
         entry.AcquisitionPrice = request.AcquisitionPrice;
         entry.Notes = request.Notes;
+        entry.CategorySlug = request.CategorySlug;
+        entry.SubTypeSlug = request.SubTypeSlug;
         entry.UpdatedAt = DateTime.UtcNow;
 
         var updated = await _sealedInventory.UpdateAsync(entry, ct);
-        return Ok(MapEntry(updated, null, new(), new()));
+        var allCategories = await _taxonomy.GetAllCategoriesAsync(ct);
+        var allSubTypes = await _taxonomy.GetAllSubTypesAsync(ct);
+        var categoryMap = allCategories.ToDictionary(c => c.Slug, c => c.DisplayName);
+        var subTypeMap = allSubTypes.ToDictionary(s => s.Slug, s => s.DisplayName);
+        return Ok(MapEntry(updated, null, categoryMap, subTypeMap));
     }
 
     [HttpDelete("{id:guid}")]
@@ -152,17 +196,20 @@ public class SealedInventoryController : ControllerBase
         e.UserId,
         e.ProductIdentifier,
         ProductName = product?.Name,
-        CategoryDisplayName = product?.CategorySlug != null
-            ? categoryMap.GetValueOrDefault(product.CategorySlug)
+        e.CategorySlug,
+        CategoryDisplayName = e.CategorySlug != null
+            ? categoryMap.GetValueOrDefault(e.CategorySlug)
             : null,
-        SubTypeDisplayName = product?.SubTypeSlug != null
-            ? subTypeMap.GetValueOrDefault(product.SubTypeSlug)
+        e.SubTypeSlug,
+        SubTypeDisplayName = e.SubTypeSlug != null
+            ? subTypeMap.GetValueOrDefault(e.SubTypeSlug)
             : null,
         e.Quantity,
         Condition = e.Condition.ToString(),
         e.AcquisitionDate,
         e.AcquisitionPrice,
         e.Notes,
+        CurrentMarketValue = product?.CurrentMarketValue,
         e.CreatedAt,
         e.UpdatedAt
     };

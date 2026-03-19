@@ -1,4 +1,5 @@
 using CountOrSell.Api.Services;
+using CountOrSell.Data.Repositories;
 using CountOrSell.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,8 +22,9 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
     {
         await using var db = _fixture.CreateContext();
         var imageStore = new NoOpImageStore();
+        var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, NullLogger<ContentUpdateApplicator>.Instance);
 
         var setCode = $"t{Guid.NewGuid():N}".Substring(0, 4); // 4 lowercase chars
         var cardId = $"{setCode}001";
@@ -77,8 +79,9 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
     {
         await using var db = _fixture.CreateContext();
         var imageStore = new NoOpImageStore();
+        var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, NullLogger<ContentUpdateApplicator>.Instance);
 
         var treatmentKey = $"upsert-{Guid.NewGuid():N}".Substring(0, 14);
         var setCode = $"u{Guid.NewGuid():N}".Substring(0, 4);
@@ -100,8 +103,9 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
 
         // Second apply - update the treatment display name
         await using var db2 = _fixture.CreateContext();
+        var taxonomy2 = new SealedTaxonomyRepository(db2, NullLogger<SealedTaxonomyRepository>.Instance);
         var applicator2 = new ContentUpdateApplicator(
-            db2, imageStore, NullLogger<ContentUpdateApplicator>.Instance);
+            db2, imageStore, taxonomy2, NullLogger<ContentUpdateApplicator>.Instance);
         var treatments2 = new[]
         {
             new { key = treatmentKey, displayName = "Updated Name", sortOrder = 2 }

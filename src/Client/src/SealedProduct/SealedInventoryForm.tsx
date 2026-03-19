@@ -1,5 +1,6 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { SealedInventoryRequest } from '../api/sealedInventory';
+import { sealedTaxonomyApi, SealedCategory } from '../api/sealedTaxonomy';
 import { ConditionSelector } from '../components/ConditionSelector';
 import { CardCondition } from '../types/filters';
 
@@ -17,7 +18,23 @@ export function SealedInventoryForm({ onSubmit, onCancel, submitting }: Props) {
   const [acquisitionDate, setAcquisitionDate] = useState(today);
   const [acquisitionPrice, setAcquisitionPrice] = useState('');
   const [notes, setNotes] = useState('');
+  const [categorySlug, setCategorySlug] = useState('');
+  const [subTypeSlug, setSubTypeSlug] = useState('');
+  const [categories, setCategories] = useState<SealedCategory[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    sealedTaxonomyApi.getCategories()
+      .then(setCategories)
+      .catch(() => {});
+  }, []);
+
+  const selectedCategory = categories.find((c) => c.slug === categorySlug);
+
+  const handleCategoryChange = (slug: string) => {
+    setCategorySlug(slug);
+    setSubTypeSlug('');
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,6 +52,8 @@ export function SealedInventoryForm({ onSubmit, onCancel, submitting }: Props) {
       acquisitionDate,
       acquisitionPrice: parseFloat(acquisitionPrice),
       notes: notes.trim() || undefined,
+      categorySlug: categorySlug || undefined,
+      subTypeSlug: subTypeSlug || undefined,
     });
   };
 
@@ -71,6 +90,40 @@ export function SealedInventoryForm({ onSubmit, onCancel, submitting }: Props) {
         required
         disabled={submitting}
       />
+
+      {categories.length > 0 && (
+        <>
+          <label htmlFor="sealed-category">Category (optional)</label>
+          <select
+            id="sealed-category"
+            value={categorySlug}
+            onChange={(e) => handleCategoryChange(e.target.value)}
+            disabled={submitting}
+          >
+            <option value="">-- None --</option>
+            {categories.map((c) => (
+              <option key={c.slug} value={c.slug}>{c.displayName}</option>
+            ))}
+          </select>
+
+          {selectedCategory && selectedCategory.subTypes.length > 0 && (
+            <>
+              <label htmlFor="sealed-sub-type">Sub-type (optional)</label>
+              <select
+                id="sealed-sub-type"
+                value={subTypeSlug}
+                onChange={(e) => setSubTypeSlug(e.target.value)}
+                disabled={submitting}
+              >
+                <option value="">-- None --</option>
+                {selectedCategory.subTypes.map((s) => (
+                  <option key={s.slug} value={s.slug}>{s.displayName}</option>
+                ))}
+              </select>
+            </>
+          )}
+        </>
+      )}
 
       <label htmlFor="sealed-acq-date">Acquisition date</label>
       <input

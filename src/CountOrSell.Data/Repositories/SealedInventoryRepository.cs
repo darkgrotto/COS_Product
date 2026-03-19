@@ -17,17 +17,15 @@ public class SealedInventoryRepository : ISealedInventoryRepository
     public Task<List<SealedInventoryEntry>> GetByUserFilteredAsync(
         Guid userId, string? categorySlug, string? subTypeSlug, CancellationToken ct = default)
     {
-        var query = _db.SealedInventoryEntries
-            .Join(_db.SealedProducts, i => i.ProductIdentifier, p => p.Identifier, (i, p) => new { i, p })
-            .Where(x => x.i.UserId == userId);
+        var query = _db.SealedInventoryEntries.Where(e => e.UserId == userId);
 
         if (!string.IsNullOrEmpty(categorySlug))
-            query = query.Where(x => x.p.CategorySlug == categorySlug);
+            query = query.Where(e => e.CategorySlug == categorySlug);
 
         if (!string.IsNullOrEmpty(subTypeSlug))
-            query = query.Where(x => x.p.SubTypeSlug == subTypeSlug);
+            query = query.Where(e => e.SubTypeSlug == subTypeSlug);
 
-        return query.Select(x => x.i).ToListAsync(ct);
+        return query.ToListAsync(ct);
     }
 
     public async Task<SealedInventoryEntry> CreateAsync(SealedInventoryEntry entry, CancellationToken ct = default)

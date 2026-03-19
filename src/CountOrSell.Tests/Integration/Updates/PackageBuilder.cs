@@ -16,6 +16,7 @@ internal static class PackageBuilder
         object? treatments = null,
         object? sets = null,
         object? cards = null,
+        object? sealedCategories = null,
         object? sealedProducts = null)
     {
         var ms = new MemoryStream();
@@ -24,6 +25,7 @@ internal static class PackageBuilder
             if (treatments != null) AddJsonEntry(archive, "treatments.json", treatments);
             if (sets != null) AddJsonEntry(archive, "sets.json", sets);
             if (cards != null) AddJsonEntry(archive, "cards.json", cards);
+            if (sealedCategories != null) AddJsonEntry(archive, "sealed_product_categories.json", sealedCategories);
             if (sealedProducts != null) AddJsonEntry(archive, "sealed_products.json", sealedProducts);
         }
         ms.Position = 0;

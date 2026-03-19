@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { SealedInventoryEntry } from '../types/collection';
 import { CollectionFilter } from '../types/filters';
 import { sealedInventoryApi, SealedInventoryRequest } from '../api/sealedInventory';
+import { sealedTaxonomyApi, SealedCategory } from '../api/sealedTaxonomy';
 import { UniversalFilter } from '../components/UniversalFilter';
 
 interface Props {
@@ -12,6 +13,8 @@ interface EditForm {
   acquisitionDate: string;
   acquisitionPrice: string;
   notes: string;
+  categorySlug: string;
+  subTypeSlug: string;
 }
 
 export function SealedInventoryList({ adminUserId }: Props) {
@@ -20,8 +23,15 @@ export function SealedInventoryList({ adminUserId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ acquisitionDate: '', acquisitionPrice: '', notes: '' });
+  const [editForm, setEditForm] = useState<EditForm>({ acquisitionDate: '', acquisitionPrice: '', notes: '', categorySlug: '', subTypeSlug: '' });
   const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState<SealedCategory[]>([]);
+
+  useEffect(() => {
+    sealedTaxonomyApi.getCategories()
+      .then(setCategories)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +53,8 @@ export function SealedInventoryList({ adminUserId }: Props) {
       acquisitionDate: e.acquisitionDate,
       acquisitionPrice: String(e.acquisitionPrice),
       notes: e.notes ?? '',
+      categorySlug: e.categorySlug ?? '',
+      subTypeSlug: e.subTypeSlug ?? '',
     });
   };
 
@@ -58,6 +70,8 @@ export function SealedInventoryList({ adminUserId }: Props) {
         acquisitionDate: editForm.acquisitionDate,
         acquisitionPrice: parseFloat(editForm.acquisitionPrice),
         notes: editForm.notes.trim() || undefined,
+        categorySlug: editForm.categorySlug || undefined,
+        subTypeSlug: editForm.subTypeSlug || undefined,
       };
       const updated = await sealedInventoryApi.update(e.id, request);
       setEntries((prev) => prev.map((x) => x.id === e.id ? updated : x));
@@ -68,6 +82,12 @@ export function SealedInventoryList({ adminUserId }: Props) {
       setSaving(false);
     }
   };
+
+  const handleEditCategoryChange = (slug: string) => {
+    setEditForm((f) => ({ ...f, categorySlug: slug, subTypeSlug: '' }));
+  };
+
+  const editSelectedCategory = categories.find((c) => c.slug === editForm.categorySlug);
 
   if (error) return <div role="alert">{error}</div>;
 
@@ -104,8 +124,40 @@ export function SealedInventoryList({ adminUserId }: Props) {
                 return (
                   <tr key={e.id}>
                     <td>{e.productName ?? e.productIdentifier}</td>
-                    <td>{e.categoryDisplayName ?? ''}</td>
-                    <td>{e.subTypeDisplayName ?? ''}</td>
+                    <td>
+                      {categories.length > 0 ? (
+                        <select
+                          value={editForm.categorySlug}
+                          onChange={(ev) => handleEditCategoryChange(ev.target.value)}
+                          disabled={saving}
+                          aria-label="Category"
+                        >
+                          <option value="">-- None --</option>
+                          {categories.map((c) => (
+                            <option key={c.slug} value={c.slug}>{c.displayName}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        e.categoryDisplayName ?? ''
+                      )}
+                    </td>
+                    <td>
+                      {categories.length > 0 && editSelectedCategory && editSelectedCategory.subTypes.length > 0 ? (
+                        <select
+                          value={editForm.subTypeSlug}
+                          onChange={(ev) => setEditForm((f) => ({ ...f, subTypeSlug: ev.target.value }))}
+                          disabled={saving}
+                          aria-label="Sub-type"
+                        >
+                          <option value="">-- None --</option>
+                          {editSelectedCategory.subTypes.map((s) => (
+                            <option key={s.slug} value={s.slug}>{s.displayName}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        e.subTypeDisplayName ?? ''
+                      )}
+                    </td>
                     <td>{e.quantity}</td>
                     <td>{e.condition}</td>
                     <td>

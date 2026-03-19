@@ -53,7 +53,9 @@ export interface SealedInventoryEntry {
   userId: string;
   productIdentifier: string;
   productName: string | null;
+  categorySlug: string | null;
   categoryDisplayName: string | null;
+  subTypeSlug: string | null;
   subTypeDisplayName: string | null;
   quantity: number;
   condition: CardCondition;
