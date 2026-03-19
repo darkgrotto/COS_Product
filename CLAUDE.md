@@ -23,16 +23,21 @@ Set code:
   (e.g. "Edge of Eternities" is never a valid set code)
 
 Card identifier:
-- Pattern: ^[a-z0-9]{3,4}[0-9]{3,4}$
+- Pattern: ^[a-z0-9]{3,4}[0-9]{3,4}[a-z]?$
 - Set code portion follows set code pattern above
 - Numeric suffix: zero-padded to three digits for values
   001 through 999, expands to four digits unpadded for
   values 1000 through 9999
 - A four-digit numeric suffix must be >= 1000 - zero-padded
   four-digit suffixes (e.g. "0123") are never valid
-- Stored: lowercase always (e.g. "eoe019", "eoe1234")
+- Optional single trailing lowercase letter for cards with
+  letter-suffixed collector numbers (e.g. "1a", "1b")
+- Cards differing only by trailing letter are distinct
+  (e.g. "eoe001a" and "eoe001b" are different cards)
+- Stored: lowercase always (e.g. "eoe019", "eoe1234", "pala001a")
 - Displayed: uppercase by convention in all UI (e.g. "EOE019")
-- Valid examples: "eoe019", "eoe999", "eoe1234", "3ed019"
+- Valid examples: "eoe019", "eoe999", "eoe1234", "3ed019",
+  "pala001a", "pala001b"
 
 ## What This Repo Is
 The self-hostable CountOrSell product. A web application
@@ -395,7 +400,7 @@ and displayed alongside the autograph indicator.
 Display example: "NM - Autographed"
 
 ### Standard Collection Entry Fields
-- Card identifier (required, ^[a-z0-9]{3,4}[0-9]{3,4}$)
+- Card identifier (required, ^[a-z0-9]{3,4}[0-9]{3,4}[a-z]?$)
 - Treatment (required, from treatments reference table)
 - Quantity (required, integer, multiple copies per record)
 - Condition (required, enum: NM, LP, MP, HP, DMG)
@@ -407,7 +412,7 @@ Display example: "NM - Autographed"
 - Both acquisition fields editable after entry
 
 ### Serialized Card Tracker Fields
-- Card identifier (required, ^[a-z0-9]{3,4}[0-9]{3,4}$)
+- Card identifier (required, ^[a-z0-9]{3,4}[0-9]{3,4}[a-z]?$)
 - Treatment (required, from treatments reference table)
 - Serial number (required, integer)
 - Print run total (required, integer)
@@ -421,7 +426,7 @@ Display example: "NM - Autographed"
 - Both acquisition fields editable after entry
 
 ### Slab Tracker Fields
-- Card identifier (required, ^[a-z0-9]{3,4}[0-9]{3,4}$)
+- Card identifier (required, ^[a-z0-9]{3,4}[0-9]{3,4}[a-z]?$)
 - Treatment (required, from treatments reference table)
 - Grading agency (required, from grading agency
   reference table)
@@ -1033,9 +1038,13 @@ value per card and total wishlist value. Separate
 feature from collection.
 2026-03-08 - Set codes: ^[a-z0-9]{3,4}$, stored
 lowercase, displayed uppercase.
-2026-03-08 - Card identifiers: ^[a-z0-9]{3,4}[0-9]{3,4}$
+2026-03-08 - Card identifiers: ^[a-z0-9]{3,4}[0-9]{3,4}[a-z]?$
 four-digit numeric suffix only valid when >= 1000,
 stored lowercase, displayed uppercase.
+2026-03-19 - Card identifier pattern extended with optional
+trailing letter (e.g. "pala001a", "pala001b") to support
+cards with letter-suffixed collector numbers. Cards
+differing only by trailing letter are distinct cards.
 2026-03-08 - iOS/Android and React Native dropped.
 Responsive web only. Do not reintroduce.
 2026-03-08 - Linode removed as supported deployment
