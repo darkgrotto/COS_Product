@@ -12,6 +12,8 @@ interface AboutData {
   updatePending: boolean;
   lastContentUpdate: string | null;
   instanceName: string;
+  isDemo: boolean;
+  demoSets: string[];
   license: LicenseInfo;
 }
 
@@ -66,6 +68,22 @@ export function AboutView() {
           </tbody>
         </table>
       </section>
+
+      {data.isDemo && (
+        <section>
+          <h2>Demo Environment</h2>
+          <p>
+            This is a demonstration instance of CountOrSell. Data is pre-seeded and
+            some actions are disabled. Changes to collections and wishlists are
+            permitted and affect the shared demo data.
+          </p>
+          {data.demoSets.length > 0 && (
+            <p>
+              Demo sets: {data.demoSets.map((s) => s.toUpperCase()).join(', ')}
+            </p>
+          )}
+        </section>
+      )}
 
       <section>
         <h2>License</h2>

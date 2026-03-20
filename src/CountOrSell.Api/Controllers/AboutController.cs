@@ -1,4 +1,5 @@
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,17 +12,24 @@ public class AboutController : ControllerBase
 {
     private readonly IUpdateRepository _updateRepo;
     private readonly IConfiguration _config;
+    private readonly IDemoModeService _demoModeService;
 
-    public AboutController(IUpdateRepository updateRepo, IConfiguration config)
+    public AboutController(
+        IUpdateRepository updateRepo,
+        IConfiguration config,
+        IDemoModeService demoModeService)
     {
         _updateRepo = updateRepo;
         _config = config;
+        _demoModeService = demoModeService;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAbout(CancellationToken ct)
     {
-        var instanceName = _config["INSTANCE_NAME"] ?? "CountOrSell";
+        var instanceName = _demoModeService.IsDemo
+            ? "CountOrSell Demo"
+            : (_config["INSTANCE_NAME"] ?? "CountOrSell");
         var currentContentVersion = await _updateRepo.GetCurrentContentVersionAsync(ct);
         var latestAppVersion = await _updateRepo.GetLatestApplicationVersionAsync(ct);
         var isPending = latestAppVersion != null && latestAppVersion != ProductVersion.Current;
@@ -32,6 +40,8 @@ public class AboutController : ControllerBase
             updatePending = isPending,
             lastContentUpdate = currentContentVersion,
             instanceName,
+            isDemo = _demoModeService.IsDemo,
+            demoSets = _demoModeService.DemoSets,
             license = new
             {
                 name = "CC BY-NC-SA 4.0",

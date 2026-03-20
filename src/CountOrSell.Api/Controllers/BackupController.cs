@@ -1,3 +1,4 @@
+using CountOrSell.Api.Filters;
 using CountOrSell.Data;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
@@ -91,6 +92,7 @@ public class BackupController : ControllerBase
     }
 
     [HttpPost("trigger")]
+    [DemoLocked]
     public async Task<IActionResult> TriggerBackup(CancellationToken ct)
     {
         var record = await _backupService.TakeBackupAsync(BackupType.Scheduled, ct);
@@ -114,6 +116,7 @@ public class BackupController : ControllerBase
     }
 
     [HttpPost("destinations")]
+    [DemoLocked]
     public async Task<IActionResult> AddDestination(
         [FromBody] AddDestinationRequest request,
         CancellationToken ct)
@@ -141,6 +144,7 @@ public class BackupController : ControllerBase
     }
 
     [HttpDelete("destinations/{id}")]
+    [DemoLocked]
     public async Task<IActionResult> RemoveDestination(Guid id, CancellationToken ct)
     {
         var dest = await _db.BackupDestinationConfigs.FindAsync(new object[] { id }, ct);
@@ -203,6 +207,7 @@ public class RestoreController : ControllerBase
     }
 
     [HttpPost]
+    [DemoLocked]
     [RequestSizeLimit(524_288_000)] // 500 MB
     public async Task<IActionResult> RestoreFromUpload(
         IFormFile file,
@@ -237,6 +242,7 @@ public class RestoreController : ControllerBase
     }
 
     [HttpPost("{backupId}")]
+    [DemoLocked]
     public async Task<IActionResult> RestoreFromRecord(Guid backupId, CancellationToken ct)
     {
         var record = await _db.BackupRecords.FindAsync(new object[] { backupId }, ct);

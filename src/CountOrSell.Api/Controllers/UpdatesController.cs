@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CountOrSell.Api.Background.Updates;
+using CountOrSell.Api.Filters;
 using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
 using Microsoft.AspNetCore.Authorization;
@@ -62,6 +63,7 @@ public class UpdatesController : ControllerBase
     }
 
     [HttpPost("check")]
+    [DemoLocked]
     public async Task<IActionResult> TriggerCheck(CancellationToken ct)
     {
         await _updateTrigger.TriggerAsync(ct);
@@ -69,6 +71,7 @@ public class UpdatesController : ControllerBase
     }
 
     [HttpPost("schema/{id}/approve")]
+    [DemoLocked]
     public async Task<IActionResult> ApproveSchemaUpdate(int id, CancellationToken ct)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

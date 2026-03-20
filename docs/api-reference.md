@@ -7,6 +7,8 @@ Auth column values:
 - **Authenticated** - any authenticated user (Admin or GeneralUser)
 - **Admin** - Admin role required
 
+Endpoints marked **Demo-locked** return HTTP 403 with `{"error": "This action is not available in demo mode."}` when the instance is running in demo mode (`DEMO_MODE=true`), regardless of the caller's authentication state. See [docs/deployment/demo.md](deployment/demo.md) for demo mode details.
+
 ---
 
 ## Health
@@ -34,7 +36,7 @@ Auth column values:
 |--------|------|------|-------------|-------|
 | `GET` | `/api/users` | Admin | List all user accounts | Returns id, username, displayName, role, state, authType, isBuiltinAdmin, createdAt, lastLoginAt |
 | `POST` | `/api/users/{id}/disable` | Admin | Disable a user account | Returns 409 if user is the built-in admin or the last local admin |
-| `POST` | `/api/users/{id}/remove` | Admin | Remove a user account | Triggers export workflow before deletion. Returns 409 if built-in admin, last local admin, or export fails |
+| `POST` | `/api/users/{id}/remove` | Admin | Remove a user account | Triggers export workflow before deletion. Returns 409 if built-in admin, last local admin, or export fails. **Demo-locked:** returns 403 in demo mode |
 | `POST` | `/api/users/{id}/demote` | Admin | Demote admin to general user | Returns 409 if built-in admin or last local admin |
 | `POST` | `/api/users/{id}/promote` | Admin | Promote general user to admin | |
 | `POST` | `/api/users/{id}/reenable` | Admin | Re-enable a disabled account | Returns 409 if account is not in Disabled state |
@@ -60,7 +62,7 @@ All collection endpoints resolve the requesting user's own collection unless the
 | `GET` | `/api/collection/metrics` | Authenticated | Get collection value and P/L metrics | Query: `userId` (Admin only), `filter.*`. Admins without `userId` get aggregate across all users |
 | `GET` | `/api/collection/completion` | Authenticated | Get set completion for all sets | Query: `userId` (Admin only), `regularOnly=true/false` |
 | `GET` | `/api/collection/completion/{setCode}` | Authenticated | Get set completion for a specific set | Query: `userId` (Admin only), `regularOnly=true/false` |
-| `POST` | `/api/collection/refresh-price/{cardIdentifier}` | Authenticated | Query TCGPlayer for current price | Returns 400 if no API key configured; 502 if TCGPlayer returns no price. Does not persist the price to the cards table |
+| `POST` | `/api/collection/refresh-price/{cardIdentifier}` | Authenticated | Query TCGPlayer for current price | Returns 400 if no API key configured; 502 if TCGPlayer returns no price. Does not persist the price to the cards table. **Demo-locked:** returns 403 in demo mode |
 
 ---
 
@@ -106,6 +108,7 @@ All collection endpoints resolve the requesting user's own collection unless the
 |--------|------|------|-------------|-------|
 | `GET` | `/api/wishlist` | Authenticated | List wishlist entries with current market values | Returns `{totalValue, entries: [{id, cardIdentifier, cardName, marketValue, createdAt}]}` |
 | `POST` | `/api/wishlist` | Authenticated | Add a card to the wishlist | Body: `{"cardIdentifier": "..."}`. Returns 201 |
+| `GET` | `/api/wishlist/export/tcgplayer` | Authenticated | Export wishlist as a TCGPlayer mass-entry URL | Returns a redirect URL for TCGPlayer mass entry. **Demo-locked:** returns 403 in demo mode |
 | `DELETE` | `/api/wishlist/{id}` | Authenticated | Remove a wishlist entry | Owner only. Returns 204 |
 
 ---
@@ -148,9 +151,17 @@ All update endpoints require Admin authentication.
 |--------|------|------|-------------|-------|
 | `GET` | `/api/updates/status` | Admin | Get current update status | Returns `{currentContentVersion, pendingSchemaUpdate, latestApplicationVersion, applicationUpdatePending}` |
 | `GET` | `/api/updates/notifications` | Admin | List unread admin notifications | Returns `[{id, message, category, isRead, createdAt}]` |
-| `POST` | `/api/updates/check` | Admin | Trigger an immediate update check | |
-| `POST` | `/api/updates/schema/{id}/approve` | Admin | Approve and execute a pending schema update | Returns 422 if the update fails; check notifications for details |
+| `POST` | `/api/updates/check` | Admin | Trigger an immediate update check | **Demo-locked:** returns 403 in demo mode |
+| `POST` | `/api/updates/schema/{id}/approve` | Admin | Approve and execute a pending schema update | Returns 422 if the update fails; check notifications for details. **Demo-locked:** returns 403 in demo mode |
 | `POST` | `/api/updates/notifications/{id}/read` | Admin | Mark a notification as read | |
+
+---
+
+## Demo (`/api/demo`)
+
+| Method | Path | Auth | Description | Notes |
+|--------|------|------|-------------|-------|
+| `GET` | `/api/demo/status` | None | Get demo mode state | Returns 404 when not in demo mode. When demo mode is active returns `{isDemo: true, expiresAt, secondsRemaining, visitorId, demoSets}`. `visitorId` is a per-session UUID stored in ASP.NET Core session. `secondsRemaining` is 0 when no expiry is set or when the expiry has passed |
 
 ---
 
@@ -158,7 +169,7 @@ All update endpoints require Admin authentication.
 
 | Method | Path | Auth | Description | Notes |
 |--------|------|------|-------------|-------|
-| `GET` | `/api/about` | Authenticated | Get instance information | Returns `{currentVersion, latestReleasedVersion, updatePending, lastContentUpdate, instanceName, license: {name, fullName, url}}` |
+| `GET` | `/api/about` | Authenticated | Get instance information | Returns `{currentVersion, latestReleasedVersion, updatePending, lastContentUpdate, instanceName, isDemo, demoSets, license: {name, fullName, url}}`. `isDemo` is `false` and `demoSets` is empty when not in demo mode. `instanceName` is overridden to `"CountOrSell Demo"` in demo mode |
 
 ---
 
@@ -170,14 +181,14 @@ All backup and restore endpoints require Admin authentication.
 |--------|------|------|-------------|-------|
 | `GET` | `/api/backup/status` | Admin | Get backup status summary | Returns last scheduled backup, last pre-update backup, next scheduled time, and active destinations |
 | `GET` | `/api/backup/history` | Admin | Get paginated backup history | Query: `page` (default 1), `pageSize` (default 20, max 100) |
-| `POST` | `/api/backup/trigger` | Admin | Trigger a manual scheduled backup | Returns `{id, label, createdAt}` |
+| `POST` | `/api/backup/trigger` | Admin | Trigger a manual scheduled backup | Returns `{id, label, createdAt}`. **Demo-locked:** returns 403 in demo mode |
 | `GET` | `/api/backup/{id}/download` | Admin | Download a backup ZIP from local storage | Returns 404 if not in local storage; 410 if pruned |
 | `GET` | `/api/backup/destinations` | Admin | List all backup destinations | |
-| `POST` | `/api/backup/destinations` | Admin | Add a backup destination | Body: `{destinationType, label, configurationJson}` |
-| `DELETE` | `/api/backup/destinations/{id}` | Admin | Remove a backup destination | |
+| `POST` | `/api/backup/destinations` | Admin | Add a backup destination | Body: `{destinationType, label, configurationJson}`. **Demo-locked:** returns 403 in demo mode |
+| `DELETE` | `/api/backup/destinations/{id}` | Admin | Remove a backup destination | **Demo-locked:** returns 403 in demo mode |
 | `POST` | `/api/backup/destinations/{id}/test` | Admin | Test a backup destination connection | Returns `{"success": true/false}` |
-| `POST` | `/api/restore` | Admin | Restore from an uploaded backup ZIP file | Multipart form upload, max 500 MB. Returns 409 if backup schema version > deployment schema version; 422 on restore failure |
-| `POST` | `/api/restore/{backupId}` | Admin | Restore from an existing backup record in local storage | Returns 404 if record not found or file missing; 409 on schema version conflict; 422 on failure |
+| `POST` | `/api/restore` | Admin | Restore from an uploaded backup ZIP file | Multipart form upload, max 500 MB. Returns 409 if backup schema version > deployment schema version; 422 on restore failure. **Demo-locked:** returns 403 in demo mode |
+| `POST` | `/api/restore/{backupId}` | Admin | Restore from an existing backup record in local storage | Returns 404 if record not found or file missing; 409 on schema version conflict; 422 on failure. **Demo-locked:** returns 403 in demo mode |
 
 ---
 
@@ -189,3 +200,7 @@ All settings endpoints require Admin authentication.
 |--------|------|------|-------------|-------|
 | `GET` | `/api/settings/backup` | Admin | Get current backup settings | Returns `{schedule, retentionScheduled, retentionPreUpdate}` |
 | `PATCH` | `/api/settings/backup` | Admin | Update backup settings | Body: `{schedule?: string, retentionScheduled?: int, retentionPreUpdate?: int}`. All fields optional |
+| `PATCH` | `/api/settings/instance` | Admin | Update instance settings (e.g. name) | **Demo-locked:** returns 403 in demo mode |
+| `PATCH` | `/api/settings/self-enrollment` | Admin | Enable or disable self-enrollment | **Demo-locked:** returns 403 in demo mode |
+| `PATCH` | `/api/settings/oauth/{provider}` | Admin | Configure an OAuth provider | `provider` values: `google`, `microsoft`, `github`. **Demo-locked:** returns 403 in demo mode |
+| `DELETE` | `/api/settings/oauth/{provider}` | Admin | Clear an OAuth provider configuration | **Demo-locked:** returns 403 in demo mode |

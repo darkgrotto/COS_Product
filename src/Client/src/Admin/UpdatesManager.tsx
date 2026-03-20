@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { updatesApi, UpdateStatus, AdminNotification } from '../api/updates';
+import { DemoLock } from '../components/DemoLock';
 
 export function UpdatesManager() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
@@ -89,9 +90,11 @@ export function UpdatesManager() {
               : 'Unknown'}
           </dd>
         </dl>
-        <button type="button" onClick={triggerCheck} disabled={checking}>
-          {checking ? 'Checking...' : 'Check for updates now'}
-        </button>
+        <DemoLock>
+          <button type="button" onClick={triggerCheck} disabled={checking}>
+            {checking ? 'Checking...' : 'Check for updates now'}
+          </button>
+        </DemoLock>
         {checkResult && <div role="status">{checkResult}</div>}
       </section>
 
@@ -112,13 +115,15 @@ export function UpdatesManager() {
             update fails, the backup will be restored automatically.
           </p>
           {approveError && <div role="alert">{approveError}</div>}
-          <button
-            type="button"
-            onClick={() => approveSchema(status.pendingSchemaUpdate!.id)}
-            disabled={approving}
-          >
-            {approving ? 'Applying update...' : 'Approve and apply schema update'}
-          </button>
+          <DemoLock>
+            <button
+              type="button"
+              onClick={() => approveSchema(status.pendingSchemaUpdate!.id)}
+              disabled={approving}
+            >
+              {approving ? 'Applying update...' : 'Approve and apply schema update'}
+            </button>
+          </DemoLock>
         </section>
       )}
 

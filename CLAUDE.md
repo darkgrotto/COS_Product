@@ -831,10 +831,96 @@ Available to all users. Displays:
 - Whether an update is pending
 - Date of last content update
 - Instance name
+- Demo environment notice (isDemo, demoSets) when in demo mode
 
 Does not display:
 - Update package contents or change details (admin only)
 - Any administrative controls
+
+---
+
+## Demo Mode
+
+Demo mode is a runtime-only configuration state for
+hosting public demonstrations. It is not a user setting,
+not a database flag, and not configurable by any user
+or admin through the UI.
+
+### Activation
+Set environment variable `DEMO_MODE=true`.
+Demo mode is detected at startup and never changes
+at runtime.
+
+### Additional Environment Variables
+```
+DEMO_MODE=true                # Activates demo mode
+DEMO_EXPIRES_AT=              # ISO 8601 datetime for
+                              # countdown clock (optional)
+```
+
+### Demo Sets (fixed, stored lowercase)
+lea, 2ed, vis, eoe, fdn, ecl, tla, fin, dsk,
+usg, ulg, uns, p23, tdm
+
+### Demo Mode Behavior
+- Instance name overridden to "CountOrSell Demo" in
+  all API responses (INSTANCE_NAME env var ignored)
+- Persistent non-dismissible banner shown to all users
+- Countdown clock shown when DEMO_EXPIRES_AT is set
+- Filter scope indicator shown on all collection views
+  noting that results are limited to demo sets
+- About view includes a demo environment section
+- GET /api/demo/status returns 200 with demo state
+  (isDemo, expiresAt, secondsRemaining, visitorId,
+  demoSets); returns 404 when not in demo mode
+- Visitor tracking uses per-session UUID stored in
+  ASP.NET Core session (key: "visitor_id")
+
+### Locked Endpoints (return 403 in demo mode)
+These endpoints return 403 with error message
+"This action is not available in demo mode."
+- POST /api/collection/refresh-price/{cardIdentifier}
+- GET /api/wishlist/export/tcgplayer
+- POST /api/backup/trigger
+- POST /api/restore
+- POST /api/restore/{backupId}
+- POST /api/backup/destinations
+- DELETE /api/backup/destinations/{id}
+- PATCH /api/settings/instance
+- PATCH /api/settings/oauth/{provider}
+- DELETE /api/settings/oauth/{provider}
+- PATCH /api/settings/self-enrollment
+- POST /api/updates/check
+- POST /api/updates/schema/{id}/approve
+- POST /api/users/{id}/remove
+
+### Allowed in Demo Mode
+All read operations are unrestricted. Users can add,
+modify, and remove their own collection and wishlist
+entries (affecting shared demo data). These writes
+are intentionally permitted so visitors can explore
+the product fully.
+
+### Seed Script
+docker/scripts/demo-seed.sql populates a freshly
+migrated database with demo accounts and sample data.
+Usage:
+```
+psql "$POSTGRES_CONNECTION" -f docker/scripts/demo-seed.sql
+```
+The SQL file includes placeholder bcrypt hashes that
+must be replaced with real hashes before use.
+
+### Frontend Implementation
+- DemoProvider wraps the app at root level
+- useDemo() hook returns { isDemo, demoSets,
+  secondsRemaining }
+- DemoBanner: persistent notice at top of every page
+- DemoLock: wrapper that disables child elements in
+  demo mode (rendered as semi-transparent, pointer
+  events disabled, tooltip explains restriction)
+- FilterScopeIndicator: note near filter panel listing
+  demo sets
 
 ---
 
@@ -856,6 +942,9 @@ OAUTH_MICROSOFT_CLIENT_SECRET=# Retrieved from secure store
 OAUTH_GITHUB_CLIENT_ID=       # Retrieved from secure store
 OAUTH_GITHUB_CLIENT_SECRET=   # Retrieved from secure store
 TCGPLAYER_API_KEY=            # Optional, user/admin supplied
+DEMO_MODE=                    # "true" to activate demo mode
+DEMO_EXPIRES_AT=              # Optional ISO 8601 expiry for
+                              # demo countdown clock
 ```
 
 ---
@@ -1102,3 +1191,17 @@ main push (:dev tag). Release builds from manual
 git tag push (vX.Y.Z produces :X.Y.Z, :X.Y,
 :X, :latest). Version tags created manually,
 never by automated workflow.
+2026-03-19 - Demo mode is a runtime-only configuration
+state activated by DEMO_MODE=true environment variable.
+Not a DB flag, not a user setting, not configurable
+post-launch. Demo sets are fixed (lea, 2ed, vis, eoe,
+fdn, ecl, tla, fin, dsk, usg, ulg, uns, p23, tdm).
+Expiry tracked via DEMO_EXPIRES_AT env var. Visitor
+tracking uses per-session UUID (ASP.NET Core session).
+Locked endpoints return 403 with consistent error
+message. Instance name overridden to "CountOrSell Demo"
+in demo mode. About view and banner surface demo state
+to all users. Filter scope indicator appears on all
+pages with universal filter. Seed script at
+docker/scripts/demo-seed.sql populates demo accounts
+and sample data against a freshly migrated database.

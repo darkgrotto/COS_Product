@@ -3,6 +3,7 @@ import { CollectionFilter, CardCondition, CARD_CONDITIONS, CARD_COLORS, CARD_TYP
 import { Treatment } from '../types/treatments';
 import { treatmentsApi } from '../api/treatments';
 import { sealedTaxonomyApi, SealedCategory } from '../api/sealedTaxonomy';
+import { FilterScopeIndicator } from './FilterScopeIndicator';
 
 interface Props {
   filter: CollectionFilter;
@@ -29,6 +30,7 @@ export function UniversalFilter({ filter, onChange, hideFields = [] }: Props) {
 
   return (
     <div aria-label="Collection filters">
+      <FilterScopeIndicator />
       {show('setCode') && (
         <label>
           Set

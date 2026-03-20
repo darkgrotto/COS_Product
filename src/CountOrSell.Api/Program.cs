@@ -16,6 +16,18 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
+// Demo mode
+builder.Services.AddSingleton<IDemoModeService, DemoModeService>();
+
+// Session (used by demo mode for visitor_id)
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.IdleTimeout = TimeSpan.FromHours(4);
+});
+
 // Database
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? Environment.GetEnvironmentVariable("POSTGRES_CONNECTION")
@@ -142,6 +154,7 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

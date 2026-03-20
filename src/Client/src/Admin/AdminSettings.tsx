@@ -5,6 +5,7 @@ import {
   SelfEnrollmentSettings,
   OAuthProviderConfig,
 } from '../api/settings';
+import { DemoLock } from '../components/DemoLock';
 
 const OAUTH_PROVIDER_LABELS: Record<string, string> = {
   google: 'Google',
@@ -191,13 +192,15 @@ export function AdminSettings() {
           onChange={(e) => setInstanceNameInput(e.target.value)}
           disabled={instanceSaving}
         />
-        <button
-          type="button"
-          onClick={saveInstanceName}
-          disabled={instanceSaving || !instanceNameInput.trim()}
-        >
-          {instanceSaving ? 'Saving...' : 'Save'}
-        </button>
+        <DemoLock>
+          <button
+            type="button"
+            onClick={saveInstanceName}
+            disabled={instanceSaving || !instanceNameInput.trim()}
+          >
+            {instanceSaving ? 'Saving...' : 'Save'}
+          </button>
+        </DemoLock>
         {instanceError && <div role="alert">{instanceError}</div>}
         {instanceSuccess && <div role="status">Instance name saved.</div>}
       </section>
@@ -313,21 +316,25 @@ export function AdminSettings() {
                 disabled={saving}
                 autoComplete="off"
               />
-              <button
-                type="button"
-                onClick={() => saveOAuthProvider(provider.provider)}
-                disabled={!canSave}
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-              {isConfigured && (
+              <DemoLock>
                 <button
                   type="button"
-                  onClick={() => clearOAuthProvider(provider.provider)}
-                  disabled={saving}
+                  onClick={() => saveOAuthProvider(provider.provider)}
+                  disabled={!canSave}
                 >
-                  Clear configuration
+                  {saving ? 'Saving...' : 'Save'}
                 </button>
+              </DemoLock>
+              {isConfigured && (
+                <DemoLock>
+                  <button
+                    type="button"
+                    onClick={() => clearOAuthProvider(provider.provider)}
+                    disabled={saving}
+                  >
+                    Clear configuration
+                  </button>
+                </DemoLock>
               )}
               {oauthError[provider.provider] && (
                 <div role="alert">{oauthError[provider.provider]}</div>

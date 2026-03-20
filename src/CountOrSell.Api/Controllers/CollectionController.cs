@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CountOrSell.Api.Filters;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos.Requests;
@@ -251,6 +252,7 @@ public class CollectionController : ControllerBase
     }
 
     [HttpPost("refresh-price/{cardIdentifier}")]
+    [DemoLocked]
     public async Task<IActionResult> RefreshPrice(string cardIdentifier, CancellationToken ct)
     {
         if (!_tcgPlayer.IsConfigured)

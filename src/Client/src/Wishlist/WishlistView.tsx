@@ -3,6 +3,7 @@ import { WishlistEntry } from '../types/collection';
 import { CollectionFilter } from '../types/filters';
 import { wishlistApi } from '../api/wishlist';
 import { UniversalFilter } from '../components/UniversalFilter';
+import { DemoLock } from '../components/DemoLock';
 
 export function WishlistView() {
   const [entries, setEntries] = useState<WishlistEntry[]>([]);
@@ -109,9 +110,11 @@ export function WishlistView() {
             {exportBusy ? 'Exporting...' : 'Download for TCGPlayer'}
           </button>
           {' '}
-          <button type="button" onClick={handleOpenTcgPlayer} disabled={exportBusy}>
-            {exportBusy ? 'Exporting...' : 'Open TCGPlayer Mass Entry'}
-          </button>
+          <DemoLock>
+            <button type="button" onClick={handleOpenTcgPlayer} disabled={exportBusy}>
+              {exportBusy ? 'Exporting...' : 'Open TCGPlayer Mass Entry'}
+            </button>
+          </DemoLock>
           {copyNotice && (
             <span role="status"> List copied to clipboard - paste it into the Mass Entry field</span>
           )}

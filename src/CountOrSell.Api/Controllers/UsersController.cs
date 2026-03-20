@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CountOrSell.Api.Filters;
 using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Dtos.Requests;
@@ -63,6 +64,7 @@ public class UsersController : ControllerBase
 
     [HttpPost("{id}/remove")]
     [Authorize(Roles = "Admin")]
+    [DemoLocked]
     public async Task<IActionResult> Remove(Guid id, CancellationToken ct)
     {
         var result = await _userService.RemoveUserAsync(id, ct);

@@ -1,3 +1,4 @@
+using CountOrSell.Api.Filters;
 using CountOrSell.Data;
 using CountOrSell.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -61,6 +62,7 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPatch("instance")]
+    [DemoLocked]
     public async Task<IActionResult> UpdateInstanceSettings(
         [FromBody] InstanceSettingsRequest request,
         CancellationToken ct)
@@ -113,6 +115,7 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPatch("self-enrollment")]
+    [DemoLocked]
     public async Task<IActionResult> UpdateSelfEnrollment(
         [FromBody] SelfEnrollmentRequest request,
         CancellationToken ct)
@@ -148,6 +151,7 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPatch("oauth/{provider}")]
+    [DemoLocked]
     public async Task<IActionResult> UpdateOAuthProvider(
         string provider,
         [FromBody] OAuthProviderRequest request,
@@ -175,6 +179,7 @@ public class SettingsController : ControllerBase
     }
 
     [HttpDelete("oauth/{provider}")]
+    [DemoLocked]
     public async Task<IActionResult> ClearOAuthProvider(string provider, CancellationToken ct)
     {
         var (clientIdKey, secretKey) = provider.ToLowerInvariant() switch

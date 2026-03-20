@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CountOrSell.Api.Filters;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos.Requests;
@@ -66,6 +67,7 @@ public class WishlistController : ControllerBase
     }
 
     [HttpGet("export/tcgplayer")]
+    [DemoLocked]
     public async Task<IActionResult> ExportTcgPlayer(CancellationToken ct)
     {
         var rows = await _wishlist.GetByUserWithCardsAsync(CurrentUserId, new CollectionFilter(), ct);

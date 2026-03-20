@@ -21,6 +21,8 @@ All sensitive configuration is stored as environment variables. The `.env` file 
 | `OAUTH_GITHUB_CLIENT_ID` | GitHub OAuth client ID | None | No |
 | `OAUTH_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | None | No |
 | `TCGPLAYER_API_KEY` | TCGPlayer API key for direct price queries | None | No |
+| `DEMO_MODE` | Set to `true` to activate demo mode. Detected at startup; never changes at runtime | `false` | No |
+| `DEMO_EXPIRES_AT` | ISO 8601 datetime for the demo countdown clock (e.g. `2026-04-01T18:00:00Z`). Only used when `DEMO_MODE=true` | None | No |
 
 The application reads OAuth credentials from configuration keys `OAuth:Google:ClientId`, `OAuth:Google:ClientSecret`, `OAuth:Microsoft:ClientId`, `OAuth:Microsoft:ClientSecret`, `OAuth:GitHub:ClientId`, and `OAuth:GitHub:ClientSecret`. These can be set via environment variables using the ASP.NET Core double-underscore convention (e.g., `OAuth__Google__ClientId`).
 

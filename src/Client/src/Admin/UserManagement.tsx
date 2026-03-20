@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { DemoLock } from '../components/DemoLock';
 
 interface UserSummary {
   id: string;
@@ -158,9 +159,11 @@ export function UserManagement() {
                             {' '}
                           </>
                         )}
-                        <button type="button" onClick={() => handleRemove(u.id)}>
-                          Remove
-                        </button>
+                        <DemoLock>
+                          <button type="button" onClick={() => handleRemove(u.id)}>
+                            Remove
+                          </button>
+                        </DemoLock>
                         {' '}
                       </>
                     )}

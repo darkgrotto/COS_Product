@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { backupApi, BackupStatus, BackupRecord, BackupHistoryPage } from '../api/backup';
 import { settingsApi, BackupSettings } from '../api/settings';
+import { DemoLock } from '../components/DemoLock';
 
 export function BackupManager() {
   const [status, setStatus] = useState<BackupStatus | null>(null);
@@ -199,9 +200,11 @@ export function BackupManager() {
               : 'Unknown'}
           </dd>
         </dl>
-        <button type="button" onClick={triggerBackup} disabled={triggering}>
-          {triggering ? 'Running backup...' : 'Run backup now'}
-        </button>
+        <DemoLock>
+          <button type="button" onClick={triggerBackup} disabled={triggering}>
+            {triggering ? 'Running backup...' : 'Run backup now'}
+          </button>
+        </DemoLock>
         {triggerError && <div role="alert">{triggerError}</div>}
         {triggerSuccess && <div role="status">Backup complete.</div>}
       </section>
@@ -280,9 +283,11 @@ export function BackupManager() {
                       </span>
                     )}
                     {' '}
-                    <button type="button" onClick={() => removeDestination(d.id)}>
-                      Remove
-                    </button>
+                    <DemoLock>
+                      <button type="button" onClick={() => removeDestination(d.id)}>
+                        Remove
+                      </button>
+                    </DemoLock>
                   </td>
                 </tr>
               ))}
@@ -319,13 +324,15 @@ export function BackupManager() {
           rows={3}
           disabled={addingDest}
         />
-        <button
-          type="button"
-          onClick={addDestination}
-          disabled={addingDest || !destLabel.trim()}
-        >
-          {addingDest ? 'Adding...' : 'Add destination'}
-        </button>
+        <DemoLock>
+          <button
+            type="button"
+            onClick={addDestination}
+            disabled={addingDest || !destLabel.trim()}
+          >
+            {addingDest ? 'Adding...' : 'Add destination'}
+          </button>
+        </DemoLock>
       </section>
 
       <section aria-labelledby="history-heading">
@@ -359,13 +366,15 @@ export function BackupManager() {
                           Download
                         </a>
                         {' '}
-                        <button
-                          type="button"
-                          onClick={() => restoreFromRecord(r)}
-                          disabled={restoring}
-                        >
-                          Restore
-                        </button>
+                        <DemoLock>
+                          <button
+                            type="button"
+                            onClick={() => restoreFromRecord(r)}
+                            disabled={restoring}
+                          >
+                            Restore
+                          </button>
+                        </DemoLock>
                       </>
                     )}
                   </td>
@@ -392,13 +401,15 @@ export function BackupManager() {
           onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
           disabled={restoring}
         />
-        <button
-          type="button"
-          onClick={restoreFromFile}
-          disabled={restoring || !restoreFile}
-        >
-          {restoring ? 'Restoring...' : 'Restore from file'}
-        </button>
+        <DemoLock>
+          <button
+            type="button"
+            onClick={restoreFromFile}
+            disabled={restoring || !restoreFile}
+          >
+            {restoring ? 'Restoring...' : 'Restore from file'}
+          </button>
+        </DemoLock>
       </section>
     </div>
   );

@@ -20,6 +20,8 @@ import { AboutView } from './About/AboutView';
 import { UserPreferencesPage } from './UserPreferences/UserPreferencesPage';
 import { usersApi } from './api/users';
 import { TcgPlayerProvider } from './context/TcgPlayerContext';
+import { DemoProvider } from './context/DemoContext';
+import { DemoBanner } from './components/DemoBanner';
 
 function DefaultPage() {
   const [defaultPage, setDefaultPage] = useState<string | null | undefined>(undefined);
@@ -37,8 +39,10 @@ function DefaultPage() {
 
 export function App() {
   return (
+    <DemoProvider>
     <TcgPlayerProvider>
     <BrowserRouter>
+      <DemoBanner />
       <nav aria-label="Main navigation">
         <NavLink to="/">Dashboard</NavLink>
         <NavLink to="/collection">Collection</NavLink>
@@ -79,6 +83,7 @@ export function App() {
       </main>
     </BrowserRouter>
     </TcgPlayerProvider>
+    </DemoProvider>
   );
 }
 

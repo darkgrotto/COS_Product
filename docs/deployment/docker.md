@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-Docker Compose is the self-hosted deployment option. The wizard generates all required files. The Compose configuration runs four services and requires no Docker socket access from within any container.
+Docker Compose is the self-hosted deployment option. For deploying a public demo instance, see [docs/deployment/demo.md](demo.md). The wizard generates all required files. The Compose configuration runs four services and requires no Docker socket access from within any container.
 
 | Service | Image | Role |
 |---------|-------|------|
