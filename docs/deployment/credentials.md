@@ -144,7 +144,20 @@ az storage container create \
 
 The values you choose here become the `state_resource_group_name` and `state_storage_account_name` Terraform variables, which the wizard collects in Step 4.
 
-### Step 4 - Add GitHub Actions secrets
+### Step 4 - Set service principal credentials as environment variables
+
+The wizard calls Terraform on your behalf. Terraform authenticates to Azure using the `ARM_*` environment variables. Set these before running the wizard:
+
+```
+export ARM_CLIENT_ID=<appId from service principal creation>
+export ARM_CLIENT_SECRET=<password from service principal creation>
+export ARM_SUBSCRIPTION_ID=<your subscription ID>
+export ARM_TENANT_ID=<tenant from service principal creation>
+```
+
+The wizard inherits these from your shell environment and passes them to Terraform automatically.
+
+### Step 5 - Add GitHub Actions secrets
 
 If you are using the included GitHub Actions workflow (`azure.yml`) to manage infrastructure, add these secrets to your GitHub repository (**Settings > Secrets and variables > Actions**):
 
@@ -154,8 +167,8 @@ If you are using the included GitHub Actions workflow (`azure.yml`) to manage in
 | `AZURE_CLIENT_SECRET` | `password` from service principal creation |
 | `AZURE_SUBSCRIPTION_ID` | Your subscription ID |
 | `AZURE_TENANT_ID` | `tenant` from service principal creation |
-
-These secrets are only needed for CI/CD automation. They are not required if you run the wizard and Terraform manually.
+| `TF_STATE_RESOURCE_GROUP` | Resource group containing your state storage account |
+| `TF_STATE_STORAGE_ACCOUNT` | Name of the storage account containing the `tfstate` container |
 
 ### Summary of values the wizard collects (Step 4)
 
@@ -163,8 +176,6 @@ These secrets are only needed for CI/CD automation. They are not required if you
 |--------------|-------|
 | Subscription ID | From `az account show` |
 | Tenant ID | From `az account show` or service principal output |
-| Client ID | `appId` from service principal |
-| Client secret | `password` from service principal |
 | Resource group name | Name you choose for the app (Terraform creates it) |
 | Azure region | e.g. `eastus`, `westeurope` |
 | State resource group name | Resource group containing your state storage account |
@@ -273,7 +284,7 @@ aws s3api create-bucket \
   --create-bucket-configuration LocationConstraint=eu-west-1
 ```
 
-The bucket name becomes the `state_bucket` Terraform variable. The state key defaults to `countorsell/terraform.tfstate` and can be left as-is.
+The bucket name you choose here is entered when the wizard asks for the S3 bucket name for Terraform state in Step 4.
 
 ### Step 4 - Add GitHub Actions secrets
 
@@ -284,6 +295,7 @@ If you are using the included GitHub Actions workflow (`aws.yml`) to manage infr
 | `AWS_ACCESS_KEY_ID` | `AccessKeyId` from access key creation |
 | `AWS_SECRET_ACCESS_KEY` | `SecretAccessKey` from access key creation |
 | `AWS_DEFAULT_REGION` | Your chosen AWS region (e.g. `us-east-1`) |
+| `TF_STATE_BUCKET` | S3 bucket name you created for Terraform state |
 
 ### Summary of values the wizard collects (Step 4)
 
@@ -398,15 +410,16 @@ gcloud storage buckets update gs://countorsell-tfstate-yourname \
   --versioning
 ```
 
-The bucket name (without the `gs://` prefix) becomes the `state_bucket` Terraform variable.
+The bucket name (without the `gs://` prefix) is entered when the wizard asks for the GCS bucket name for Terraform state in Step 4.
 
 ### Step 7 - Add GitHub Actions secrets
 
-If you are using the included GitHub Actions workflow (`gcp.yml`) to manage infrastructure, add this secret to your GitHub repository:
+If you are using the included GitHub Actions workflow (`gcp.yml`) to manage infrastructure, add these secrets to your GitHub repository:
 
 | Secret name | Value |
 |------------|-------|
 | `GCP_SERVICE_ACCOUNT_KEY` | The full contents of `countorsell-terraform-key.json` (the entire JSON object, not the file path) |
+| `TF_STATE_BUCKET` | GCS bucket name you created for Terraform state (without `gs://`) |
 
 To read the file contents:
 

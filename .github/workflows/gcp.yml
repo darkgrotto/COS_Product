@@ -19,7 +19,9 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
       - name: Terraform Init
-        run: terraform init
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
         working-directory: ${{ env.TF_WORKING_DIR }}
       - name: Terraform Plan
         run: terraform plan -input=false

@@ -37,8 +37,13 @@ public static class Step04_EnvironmentConfig
         Console.WriteLine();
 
         config.CloudSubscriptionId = PromptRequired("Azure Subscription ID");
+        config.CloudTenantId = PromptRequired("Azure Tenant ID");
         config.CloudResourceGroup = PromptRequired("Resource group name");
         config.CloudRegion = PromptWithDefault("Azure location", "eastus");
+        Console.WriteLine();
+        Console.WriteLine("Terraform state storage (created during credential setup):");
+        config.CloudStateResourceGroup = PromptRequired("State storage resource group name");
+        config.CloudStateStorageAccount = PromptRequired("State storage account name");
     }
 
     private static void ConfigureAws(WizardConfig config)
@@ -47,10 +52,12 @@ public static class Step04_EnvironmentConfig
         Console.WriteLine();
 
         config.CloudAccessKeyId = PromptRequired("AWS Access Key ID");
-        // Secret key is sensitive - store securely; prompted but not saved to config object
         Console.Write("AWS Secret Access Key: ");
-        ReadPasswordLine();
+        config.CloudSecretAccessKey = ReadPasswordLine();
         config.CloudRegion = PromptWithDefault("AWS region", "us-east-1");
+        Console.WriteLine();
+        Console.WriteLine("Terraform state storage (created during credential setup):");
+        config.CloudStateBucket = PromptRequired("S3 bucket name for Terraform state");
     }
 
     private static void ConfigureGcp(WizardConfig config)
@@ -61,6 +68,9 @@ public static class Step04_EnvironmentConfig
         config.CloudProjectId = PromptRequired("GCP Project ID");
         config.CloudServiceAccountKeyPath = PromptRequired("Service account key file path");
         config.CloudRegion = PromptWithDefault("GCP region", "us-central1");
+        Console.WriteLine();
+        Console.WriteLine("Terraform state storage (created during credential setup):");
+        config.CloudStateBucket = PromptRequired("GCS bucket name for Terraform state");
     }
 
     private static string PromptRequired(string label)
@@ -84,9 +94,8 @@ public static class Step04_EnvironmentConfig
         return string.IsNullOrEmpty(value) ? defaultValue : value;
     }
 
-    private static void ReadPasswordLine()
+    private static string ReadPasswordLine()
     {
-        // Read without echoing
         var sb = new System.Text.StringBuilder();
         while (true)
         {
@@ -105,5 +114,6 @@ public static class Step04_EnvironmentConfig
                 sb.Append(key.KeyChar);
             }
         }
+        return sb.ToString();
     }
 }

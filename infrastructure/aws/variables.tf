@@ -25,14 +25,3 @@ variable "db_admin_password" {
   type        = string
   sensitive   = true
 }
-
-variable "state_bucket" {
-  description = "S3 bucket name for Terraform state"
-  type        = string
-}
-
-variable "state_key" {
-  description = "S3 key for Terraform state file"
-  type        = string
-  default     = "countorsell/terraform.tfstate"
-}

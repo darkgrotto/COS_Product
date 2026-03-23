@@ -16,13 +16,13 @@ public static class Step16_Deploy
                 await DeployDockerAsync(config);
                 break;
             case DeploymentType.Azure:
-                await DeployTerraformAsync("azure");
+                await DeployTerraformAsync("azure", config);
                 break;
             case DeploymentType.Aws:
-                await DeployTerraformAsync("aws");
+                await DeployTerraformAsync("aws", config);
                 break;
             case DeploymentType.Gcp:
-                await DeployTerraformAsync("gcp");
+                await DeployTerraformAsync("gcp", config);
                 break;
         }
 
@@ -58,7 +58,7 @@ public static class Step16_Deploy
         }
     }
 
-    private static async Task DeployTerraformAsync(string provider)
+    private static async Task DeployTerraformAsync(string provider, WizardConfig config)
     {
         var baseDir = FindRepoRoot();
         var tfDir = Path.Combine(baseDir, "infrastructure", provider);
@@ -72,8 +72,14 @@ public static class Step16_Deploy
         Console.WriteLine($"Running Terraform for {provider}...");
         Console.WriteLine($"Working directory: {tfDir}");
 
+        WriteTfvars(tfDir, provider, config);
+
+        var backendConfig = BuildBackendConfig(provider, config);
+        var initArgs = "init -input=false" + string.Concat(backendConfig.Select(kv => $" -backend-config=\"{kv.Key}={kv.Value}\""));
+        var envVars = BuildCredentialEnvVars(provider, config);
+
         Console.WriteLine("Running: terraform init");
-        int initCode = await RunCommandAsync("terraform", "init", tfDir);
+        int initCode = await RunCommandAsync("terraform", initArgs, tfDir, envVars);
         if (initCode != 0)
         {
             Console.WriteLine("Terraform init failed. Check output above.");
@@ -81,7 +87,7 @@ public static class Step16_Deploy
         }
 
         Console.WriteLine("Running: terraform apply -auto-approve");
-        int applyCode = await RunCommandAsync("terraform", "apply -auto-approve", tfDir);
+        int applyCode = await RunCommandAsync("terraform", "apply -auto-approve -input=false -var-file=terraform.tfvars", tfDir, envVars);
         if (applyCode == 0)
         {
             Console.WriteLine("Terraform apply completed successfully.");
@@ -92,7 +98,96 @@ public static class Step16_Deploy
         }
     }
 
-    private static async Task<int> RunCommandAsync(string command, string arguments, string? workingDir = null)
+    private static void WriteTfvars(string tfDir, string provider, WizardConfig config)
+    {
+        var appName = SanitizeAppName(config.InstanceName);
+        var dockerImage = "ghcr.io/darkgrotto/countorsell:latest";
+        var lines = new List<string>
+        {
+            $"app_name           = \"{appName}\"",
+            $"docker_image       = \"{dockerImage}\"",
+            $"db_admin_username  = \"{config.DbAdminUsername}\"",
+            $"db_admin_password  = \"{EscapeTfString(config.DbAdminPassword)}\"",
+        };
+
+        switch (provider)
+        {
+            case "azure":
+                lines.Add($"subscription_id    = \"{config.CloudSubscriptionId}\"");
+                lines.Add($"tenant_id          = \"{config.CloudTenantId}\"");
+                lines.Add($"resource_group_name = \"{config.CloudResourceGroup}\"");
+                lines.Add($"location           = \"{config.CloudRegion ?? "eastus"}\"");
+                break;
+            case "aws":
+                lines.Add($"region             = \"{config.CloudRegion ?? "us-east-1"}\"");
+                break;
+            case "gcp":
+                lines.Add($"project_id         = \"{config.CloudProjectId}\"");
+                lines.Add($"region             = \"{config.CloudRegion ?? "us-central1"}\"");
+                break;
+        }
+
+        File.WriteAllLines(Path.Combine(tfDir, "terraform.tfvars"), lines);
+    }
+
+    private static Dictionary<string, string> BuildBackendConfig(string provider, WizardConfig config)
+    {
+        return provider switch
+        {
+            "azure" => new Dictionary<string, string>
+            {
+                ["resource_group_name"] = config.CloudStateResourceGroup ?? string.Empty,
+                ["storage_account_name"] = config.CloudStateStorageAccount ?? string.Empty,
+            },
+            "aws" => new Dictionary<string, string>
+            {
+                ["bucket"] = config.CloudStateBucket ?? string.Empty,
+                ["region"] = config.CloudRegion ?? "us-east-1",
+            },
+            "gcp" => new Dictionary<string, string>
+            {
+                ["bucket"] = config.CloudStateBucket ?? string.Empty,
+            },
+            _ => new Dictionary<string, string>(),
+        };
+    }
+
+    private static Dictionary<string, string> BuildCredentialEnvVars(string provider, WizardConfig config)
+    {
+        return provider switch
+        {
+            "aws" => new Dictionary<string, string>
+            {
+                ["AWS_ACCESS_KEY_ID"] = config.CloudAccessKeyId ?? string.Empty,
+                ["AWS_SECRET_ACCESS_KEY"] = config.CloudSecretAccessKey ?? string.Empty,
+                ["AWS_DEFAULT_REGION"] = config.CloudRegion ?? "us-east-1",
+            },
+            "gcp" when !string.IsNullOrEmpty(config.CloudServiceAccountKeyPath) =>
+                new Dictionary<string, string>
+                {
+                    ["GOOGLE_APPLICATION_CREDENTIALS"] = config.CloudServiceAccountKeyPath,
+                },
+            _ => new Dictionary<string, string>(),
+        };
+    }
+
+    private static string SanitizeAppName(string instanceName)
+    {
+        var name = instanceName.ToLowerInvariant()
+            .Replace(" ", "-")
+            .Replace("_", "-");
+        name = new string(name.Where(c => char.IsLetterOrDigit(c) || c == '-').ToArray());
+        return string.IsNullOrEmpty(name) ? "countorsell" : name;
+    }
+
+    private static string EscapeTfString(string value) =>
+        value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    private static async Task<int> RunCommandAsync(
+        string command,
+        string arguments,
+        string? workingDir = null,
+        Dictionary<string, string>? envVars = null)
     {
         var psi = new ProcessStartInfo
         {
@@ -107,6 +202,14 @@ public static class Step16_Deploy
         if (!string.IsNullOrEmpty(workingDir))
         {
             psi.WorkingDirectory = workingDir;
+        }
+
+        if (envVars != null)
+        {
+            foreach (var kv in envVars)
+            {
+                psi.Environment[kv.Key] = kv.Value;
+            }
         }
 
         using var proc = Process.Start(psi);

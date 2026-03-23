@@ -30,8 +30,3 @@ variable "db_admin_password" {
   type        = string
   sensitive   = true
 }
-
-variable "state_bucket" {
-  description = "GCS bucket name for Terraform state"
-  type        = string
-}

@@ -22,8 +22,13 @@ public class WizardConfig
     // Cloud-specific
     public string? CloudRegion { get; set; }
     public string? CloudSubscriptionId { get; set; }
+    public string? CloudTenantId { get; set; }
     public string? CloudResourceGroup { get; set; }
+    public string? CloudStateResourceGroup { get; set; }
+    public string? CloudStateStorageAccount { get; set; }
     public string? CloudProjectId { get; set; }
     public string? CloudAccessKeyId { get; set; }
+    public string? CloudSecretAccessKey { get; set; }
+    public string? CloudStateBucket { get; set; }
     public string? CloudServiceAccountKeyPath { get; set; }
 }

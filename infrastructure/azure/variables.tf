@@ -40,13 +40,3 @@ variable "db_admin_password" {
   type        = string
   sensitive   = true
 }
-
-variable "state_resource_group_name" {
-  description = "Resource group containing Terraform state storage"
-  type        = string
-}
-
-variable "state_storage_account_name" {
-  description = "Storage account name for Terraform state"
-  type        = string
-}
