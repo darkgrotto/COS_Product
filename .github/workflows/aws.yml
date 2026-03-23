@@ -9,7 +9,27 @@ on:
 env:
   TF_WORKING_DIR: infrastructure/aws
 jobs:
+  check-credentials:
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+        run: |
+          if [[ -n "$ACCESS_KEY_ID" && -n "$STATE_BUCKET" && -n "$REGION" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Required secrets not configured - skipping deployment."
+            echo "See docs/deployment/credentials.md for setup instructions."
+          fi
   terraform:
+    needs: check-credentials
+    if: needs.check-credentials.outputs.configured == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
