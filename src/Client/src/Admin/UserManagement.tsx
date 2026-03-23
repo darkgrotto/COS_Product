@@ -20,6 +20,14 @@ interface ExportFile {
   createdAt: string;
 }
 
+interface PendingInvitation {
+  id: string;
+  email: string;
+  role: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export function UserManagement() {
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,11 +36,23 @@ export function UserManagement() {
   const [exportLoading, setExportLoading] = useState(false);
   const [selectedExportUserId, setSelectedExportUserId] = useState<string | null>(null);
 
+  const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('GeneralUser');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
   useEffect(() => {
     fetch('/api/users', { credentials: 'include' })
       .then((r) => r.json() as Promise<UserSummary[]>)
       .then((data) => { setUsers(data); setLoading(false); })
       .catch(() => { setError('Failed to load users'); setLoading(false); });
+
+    fetch('/api/invitations', { credentials: 'include' })
+      .then((r) => r.json() as Promise<PendingInvitation[]>)
+      .then(setPendingInvitations)
+      .catch(() => {});
   }, []);
 
   const loadExports = async (userId: string) => {
@@ -96,6 +116,50 @@ export function UserManagement() {
       setExportFiles((prev) => prev.filter((e) => e.id !== exportId));
     } catch {
       setError('Failed to delete export file');
+    }
+  };
+
+  const handleSendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInviteError(null);
+    setInviteLink(null);
+    if (!inviteEmail.trim()) {
+      setInviteError('Email is required.');
+      return;
+    }
+    setInviteLoading(true);
+    try {
+      const r = await fetch('/api/invitations', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({})) as { error?: string };
+        setInviteError(body.error ?? `Failed (${r.status})`);
+        return;
+      }
+      const data = await r.json() as { id: string; email: string; role: string; expiresAt: string; inviteUrl: string };
+      setInviteLink(data.inviteUrl);
+      setInviteEmail('');
+      setPendingInvitations((prev) => [
+        { id: data.id, email: data.email, role: data.role, createdAt: new Date().toISOString(), expiresAt: data.expiresAt },
+        ...prev,
+      ]);
+    } catch {
+      setInviteError('Request failed');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleRevokeInvitation = async (id: string) => {
+    try {
+      await fetch(`/api/invitations/${id}`, { method: 'DELETE', credentials: 'include' });
+      setPendingInvitations((prev) => prev.filter((i) => i.id !== id));
+    } catch {
+      setError('Failed to revoke invitation');
     }
   };
 
@@ -233,6 +297,79 @@ export function UserManagement() {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      <hr />
+
+      <h3>Invite user</h3>
+      <DemoLock>
+        <form onSubmit={(e) => { void handleSendInvite(e); }}>
+          <label htmlFor="invite-email">Email</label>
+          {' '}
+          <input
+            id="invite-email"
+            type="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            required
+          />
+          {' '}
+          <label htmlFor="invite-role">Role</label>
+          {' '}
+          <select
+            id="invite-role"
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value)}
+          >
+            <option value="GeneralUser">General user</option>
+            <option value="Admin">Admin</option>
+          </select>
+          {' '}
+          <button type="submit" disabled={inviteLoading}>
+            {inviteLoading ? 'Sending...' : 'Send invite'}
+          </button>
+        </form>
+      </DemoLock>
+
+      {inviteError && <p role="alert">{inviteError}</p>}
+
+      {inviteLink && (
+        <p>
+          Invite sent. If email delivery is not configured, share this link manually:{' '}
+          <code>{inviteLink}</code>
+        </p>
+      )}
+
+      {pendingInvitations.length > 0 && (
+        <div>
+          <h3>Pending invitations</h3>
+          <table aria-label="Pending invitations">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Expires</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingInvitations.map((i) => (
+                <tr key={i.id}>
+                  <td>{i.email}</td>
+                  <td>{i.role === 'GeneralUser' ? 'General user' : i.role}</td>
+                  <td>{new Date(i.expiresAt).toLocaleString()}</td>
+                  <td>
+                    <DemoLock>
+                      <button type="button" onClick={() => { void handleRevokeInvitation(i.id); }}>
+                        Revoke
+                      </button>
+                    </DemoLock>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

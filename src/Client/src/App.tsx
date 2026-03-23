@@ -13,6 +13,7 @@ import { MetricsDashboard } from './Metrics/MetricsDashboard';
 import { GradingAgencyManager } from './Admin/GradingAgencyManager';
 import { UserManagement } from './Admin/UserManagement';
 import { UserCollectionView } from './Admin/UserCollectionView';
+import { InviteAccept } from './Admin/InviteAccept';
 import { AdminSettings } from './Admin/AdminSettings';
 import { BackupManager } from './Admin/BackupManager';
 import { UpdatesManager } from './Admin/UpdatesManager';
@@ -79,6 +80,7 @@ export function App() {
           <Route path="/admin/updates" element={<UpdatesManager />} />
           <Route path="/preferences" element={<UserPreferencesPage />} />
           <Route path="/about" element={<AboutView />} />
+          <Route path="/invite/:token" element={<InviteAccept />} />
         </Routes>
       </main>
     </BrowserRouter>

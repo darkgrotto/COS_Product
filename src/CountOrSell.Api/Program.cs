@@ -55,6 +55,7 @@ builder.Services.AddScoped<IGradingAgencyRepository, GradingAgencyRepository>();
 builder.Services.AddScoped<ILocalAuthService, LocalAuthService>();
 builder.Services.AddSingleton<IOAuthConfigService, OAuthConfigService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IInvitationService, InvitationService>();
 
 // Card and data repositories
 builder.Services.AddScoped<ICardRepository, CardRepository>();

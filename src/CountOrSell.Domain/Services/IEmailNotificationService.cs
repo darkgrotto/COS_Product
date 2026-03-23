@@ -4,4 +4,5 @@ namespace CountOrSell.Domain.Services;
 public interface IEmailNotificationService
 {
     Task SendUpdateNotificationAsync(string subject, string body, CancellationToken ct);
+    Task SendInvitationAsync(string toEmail, string inviteUrl, CancellationToken ct);
 }

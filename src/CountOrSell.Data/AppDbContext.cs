@@ -30,6 +30,7 @@ public class AppDbContext : DbContext
     public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<UserExportFile> UserExportFiles => Set<UserExportFile>();
+    public DbSet<UserInvitation> UserInvitations => Set<UserInvitation>();
     public DbSet<BackupRecord> BackupRecords => Set<BackupRecord>();
     public DbSet<BackupDestinationRecord> BackupDestinationRecords => Set<BackupDestinationRecord>();
     public DbSet<BackupDestinationConfig> BackupDestinationConfigs => Set<BackupDestinationConfig>();
@@ -56,6 +57,7 @@ public class AppDbContext : DbContext
         ConfigureAdminNotifications(modelBuilder);
         ConfigureAppSettings(modelBuilder);
         ConfigureUserExportFiles(modelBuilder);
+        ConfigureUserInvitations(modelBuilder);
         ConfigureBackupRecords(modelBuilder);
         ConfigureBackupDestinationRecords(modelBuilder);
         ConfigureBackupDestinationConfigs(modelBuilder);
@@ -459,6 +461,26 @@ public class AppDbContext : DbContext
             e.Property(f => f.FileSizeBytes).HasColumnName("file_size_bytes").IsRequired();
             e.Property(f => f.CreatedAt).HasColumnName("created_at").IsRequired();
             e.HasIndex(f => f.UserId);
+        });
+    }
+
+    private static void ConfigureUserInvitations(ModelBuilder b)
+    {
+        b.Entity<UserInvitation>(e =>
+        {
+            e.ToTable("user_invitations");
+            e.HasKey(i => i.Id);
+            e.Property(i => i.Id).HasColumnName("id");
+            e.Property(i => i.Email).HasColumnName("email").HasMaxLength(254).IsRequired();
+            e.Property(i => i.Token).HasColumnName("token").HasMaxLength(64).IsRequired();
+            e.Property(i => i.Role).HasColumnName("role")
+                .HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.Property(i => i.CreatedByUserId).HasColumnName("created_by_user_id").IsRequired();
+            e.Property(i => i.CreatedAt).HasColumnName("created_at").IsRequired();
+            e.Property(i => i.ExpiresAt).HasColumnName("expires_at").IsRequired();
+            e.Property(i => i.UsedAt).HasColumnName("used_at");
+            e.Property(i => i.UsedByUserId).HasColumnName("used_by_user_id");
+            e.HasIndex(i => i.Token).IsUnique();
         });
     }
 

@@ -14,4 +14,11 @@ public class EmailNotificationService : IEmailNotificationService
         _logger.LogInformation("Email notification stub - Subject: {Subject}", subject);
         return Task.CompletedTask;
     }
+
+    public Task SendInvitationAsync(string toEmail, string inviteUrl, CancellationToken ct)
+    {
+        // Stub: email notification implementation is provider-specific and not yet implemented
+        _logger.LogInformation("Invitation email stub - To: {Email}, Url: {Url}", toEmail, inviteUrl);
+        return Task.CompletedTask;
+    }
 }
