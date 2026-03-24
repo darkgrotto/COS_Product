@@ -1,8 +1,8 @@
 # Credentials and Secrets Setup Guide
 
-This guide covers everything you need to create or obtain before running the first-run wizard. Each section is specific to one deployment type.
+This guide covers everything you need before running the first-run wizard. Each section is specific to one deployment type.
 
-The wizard collects all credentials interactively. This guide explains where those credentials come from and how to prepare them in advance so the wizard runs without interruption.
+The wizard collects all configuration interactively and provisions infrastructure on your behalf. For cloud deployments, you only need to install the required CLI tools and log in before starting.
 
 ---
 
@@ -26,15 +26,13 @@ Regardless of deployment type, the wizard creates the following accounts during 
 
 | Item | Where it comes from |
 |------|-------------------|
-| Docker registry host | Public registry hosting the CountOrSell image (default: `ghcr.io`) |
+| Docker registry | Default: `ghcr.io/darkgrotto/countorsell` (official registry, no authentication required) |
 | Three account passwords | You choose (15+ characters each) |
 | Backup destination | Local path or cloud storage credentials (see below) |
 
 ### Docker registry
 
-The official CountOrSell image is published at `ghcr.io/darkgrotto/countorsell`. This is a public registry - no authentication is required to pull from it. When the wizard asks for the registry host in Step 3, enter `ghcr.io`.
-
-If you are hosting the image in your own private registry, enter that registry's hostname instead and ensure the host running the containers can authenticate to pull from it.
+The official CountOrSell image is published at `ghcr.io/darkgrotto/countorsell`. This is a public registry - no authentication is required to pull from it. The wizard defaults to `ghcr.io/darkgrotto/countorsell`. Press Enter to accept the default unless you are hosting the image in your own private registry.
 
 ### Backup destination (Step 11)
 
@@ -71,115 +69,81 @@ These are not required during the wizard but are needed later:
 
 ### Overview of what you need
 
-| Item | Created by |
-|------|-----------|
-| Azure account with an active subscription | You |
-| Subscription ID and tenant ID | Your Azure account |
-| Service principal (client ID and client secret) | You (instructions below) |
-| Resource group name | You choose; Terraform creates it |
-| Azure region | You choose |
-| State storage: storage account and `tfstate` container | You (instructions below) |
+| Item | Notes |
+|------|-------|
+| Azure CLI (`az`) installed | Install instructions below |
+| Terraform installed | Install instructions below |
+| Active Azure subscription | Log in with `az login` before running the wizard |
+| Application resource group name | You choose; Terraform creates it |
+| Azure location | You choose (e.g. `eastus`) |
+| Terraform state resource group name | You choose; the wizard creates it |
+| Terraform state storage account name | You choose; globally unique, 3-24 lowercase alphanumeric; the wizard creates it |
 
-### Step 1 - Find your subscription ID and tenant ID
+The wizard detects your active subscription and tenant automatically from your login. No credentials need to be entered or set as environment variables.
+
+### Step 1 - Install prerequisites
+
+**Azure CLI:**
+```
+# macOS
+brew install azure-cli
+
+# Windows (winget)
+winget install Microsoft.AzureCLI
+
+# Linux - see https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux
+```
+
+**Terraform:**
+```
+# macOS
+brew tap hashicorp/tap && brew install hashicorp/tap/terraform
+
+# Other platforms: https://developer.hashicorp.com/terraform/install
+```
+
+### Step 2 - Log in to Azure
 
 ```
 az login
-az account show --query "{subscriptionId:id, tenantId:tenantId}"
 ```
 
-Copy both values. The wizard collects them in Step 4.
+This opens a browser window for authentication. When complete, `az account show` should return your subscription details. The wizard checks this automatically and will prompt you if you are not logged in.
 
-### Step 2 - Create a service principal
+### Step 3 - Choose your resource names
 
-The service principal is the identity Terraform uses to create Azure resources. It needs Contributor access to your subscription.
+Decide on names before running the wizard:
 
-```
-az ad sp create-for-rbac \
-  --name countorsell-terraform \
-  --role Contributor \
-  --scopes /subscriptions/<YOUR_SUBSCRIPTION_ID>
-```
+- **Application resource group name:** Any valid Azure resource group name (e.g. `countorsell-rg`). Terraform creates this.
+- **Azure location:** The region for all resources (e.g. `eastus`, `westeurope`).
+- **Terraform state resource group name:** A separate resource group to hold Terraform state storage (e.g. `countorsell-tfstate-rg`). The wizard creates this.
+- **Terraform state storage account name:** Must be globally unique across all Azure accounts, 3-24 lowercase alphanumeric characters (e.g. `myorgcountorselltf`). The wizard creates this.
 
-The output looks like:
-
-```json
-{
-  "appId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "displayName": "countorsell-terraform",
-  "password": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "tenant": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-}
-```
-
-| Output field | Maps to |
-|-------------|---------|
-| `appId` | Client ID (wizard Step 4, and `AZURE_CLIENT_ID` GitHub secret) |
-| `password` | Client secret (wizard Step 4, and `AZURE_CLIENT_SECRET` GitHub secret) |
-| `tenant` | Tenant ID (wizard Step 4, and `AZURE_TENANT_ID` GitHub secret) |
-
-**Save the `password` value immediately.** It cannot be retrieved after the command completes.
-
-### Step 3 - Create state storage
-
-Terraform state for Azure is stored in Azure Blob Storage. This storage must exist before running `terraform init`. Create it with the Azure CLI:
-
-```
-# Create a dedicated resource group for state (separate from the app resource group)
-az group create \
-  --name countorsell-tfstate-rg \
-  --location eastus
-
-# Create the storage account (name must be globally unique, 3-24 lowercase alphanumeric)
-az storage account create \
-  --name countorselltfstate \
-  --resource-group countorsell-tfstate-rg \
-  --location eastus \
-  --sku Standard_LRS
-
-# Create the container
-az storage container create \
-  --name tfstate \
-  --account-name countorselltfstate
-```
-
-The values you choose here become the `state_resource_group_name` and `state_storage_account_name` Terraform variables, which the wizard collects in Step 4.
-
-### Step 4 - Set service principal credentials as environment variables
-
-The wizard calls Terraform on your behalf. Terraform authenticates to Azure using the `ARM_*` environment variables. Set these before running the wizard:
-
-```
-export ARM_CLIENT_ID=<appId from service principal creation>
-export ARM_CLIENT_SECRET=<password from service principal creation>
-export ARM_SUBSCRIPTION_ID=<your subscription ID>
-export ARM_TENANT_ID=<tenant from service principal creation>
-```
-
-The wizard inherits these from your shell environment and passes them to Terraform automatically.
-
-### Step 5 - Add GitHub Actions secrets
+### Step 4 - Add GitHub Actions secrets (optional)
 
 If you are using the included GitHub Actions workflow (`azure.yml`) to manage infrastructure, add these secrets to your GitHub repository (**Settings > Secrets and variables > Actions**):
 
 | Secret name | Value |
 |------------|-------|
-| `AZURE_CLIENT_ID` | `appId` from service principal creation |
-| `AZURE_CLIENT_SECRET` | `password` from service principal creation |
-| `AZURE_SUBSCRIPTION_ID` | Your subscription ID |
-| `AZURE_TENANT_ID` | `tenant` from service principal creation |
-| `TF_STATE_RESOURCE_GROUP` | Resource group containing your state storage account |
-| `TF_STATE_STORAGE_ACCOUNT` | Name of the storage account containing the `tfstate` container |
+| `AZURE_CLIENT_ID` | Service principal app ID (create one with `az ad sp create-for-rbac`) |
+| `AZURE_CLIENT_SECRET` | Service principal password |
+| `AZURE_SUBSCRIPTION_ID` | Your subscription ID (`az account show --query id -o tsv`) |
+| `AZURE_TENANT_ID` | Your tenant ID (`az account show --query tenantId -o tsv`) |
+| `TF_STATE_RESOURCE_GROUP` | The Terraform state resource group name you chose |
+| `TF_STATE_STORAGE_ACCOUNT` | The Terraform state storage account name you chose |
+
+The GitHub Actions workflow uses a service principal for unattended runs. The wizard uses your interactive login and does not require a service principal.
 
 ### Summary of values the wizard collects (Step 4)
 
 | Wizard prompt | Value |
 |--------------|-------|
-| Subscription ID | From `az account show` |
-| Tenant ID | From `az account show` or service principal output |
-| Resource group name | Name you choose for the app (Terraform creates it) |
-| Azure region | e.g. `eastus`, `westeurope` |
-| State resource group name | Resource group containing your state storage account |
-| State storage account name | Name of the storage account containing the `tfstate` container |
+| (auto-detected) Subscription ID | From `az account show` |
+| (auto-detected) Tenant ID | From `az account show` |
+| Application resource group name | Name you choose; Terraform creates it |
+| Azure location | e.g. `eastus`, `westeurope` |
+| Terraform state resource group name | Name you choose; wizard creates it |
+| Terraform state storage account name | Name you choose; wizard creates it |
 
 ---
 
@@ -187,124 +151,86 @@ If you are using the included GitHub Actions workflow (`azure.yml`) to manage in
 
 ### Overview of what you need
 
-| Item | Created by |
-|------|-----------|
-| AWS account | You |
-| IAM user with programmatic access (access key ID and secret access key) | You (instructions below) |
+| Item | Notes |
+|------|-------|
+| AWS CLI (`aws`) installed | Install instructions below |
+| Terraform installed | Install instructions below |
+| AWS credentials configured | Any standard AWS credential method (see below) |
 | AWS region | You choose |
-| S3 bucket for Terraform state | You (instructions below) |
+| Terraform state S3 bucket name | You choose; globally unique; the wizard creates it |
 
-### Step 1 - Create an IAM user for Terraform
+The wizard validates your credentials automatically and will prompt you if they are not working. No access key or secret needs to be entered into the wizard directly.
 
-Terraform needs an IAM identity with permissions to create and manage the resources it provisions: App Runner, RDS, Secrets Manager, S3, IAM roles, VPCs, and security groups.
+### Step 1 - Install prerequisites
 
-**Option A: Attach `AdministratorAccess` (simplest, least restrictive)**
-
-This is the fastest path but grants broad permissions. Use it for personal or development deployments.
-
+**AWS CLI:**
 ```
-aws iam create-user --user-name countorsell-terraform
+# macOS
+brew install awscli
 
-aws iam attach-user-policy \
-  --user-name countorsell-terraform \
-  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
-```
+# Windows (winget)
+winget install Amazon.AWSCLI
 
-**Option B: Attach specific managed policies (more restrictive)**
-
-For production deployments, attach the minimum required policies:
-
-```
-aws iam attach-user-policy \
-  --user-name countorsell-terraform \
-  --policy-arn arn:aws:iam::aws:policy/AmazonRDSFullAccess
-
-aws iam attach-user-policy \
-  --user-name countorsell-terraform \
-  --policy-arn arn:aws:iam::aws:policy/AWSAppRunnerFullAccess
-
-aws iam attach-user-policy \
-  --user-name countorsell-terraform \
-  --policy-arn arn:aws:iam::aws:policy/SecretsManagerReadWrite
-
-aws iam attach-user-policy \
-  --user-name countorsell-terraform \
-  --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
-
-aws iam attach-user-policy \
-  --user-name countorsell-terraform \
-  --policy-arn arn:aws:iam::aws:policy/IAMFullAccess
-
-aws iam attach-user-policy \
-  --user-name countorsell-terraform \
-  --policy-arn arn:aws:iam::aws:policy/AmazonVPCFullAccess
+# Linux: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ```
 
-### Step 2 - Create an access key
-
+**Terraform:**
 ```
-aws iam create-access-key --user-name countorsell-terraform
-```
+# macOS
+brew tap hashicorp/tap && brew install hashicorp/tap/terraform
 
-Output:
-
-```json
-{
-  "AccessKey": {
-    "AccessKeyId": "AKIAIOSFODNN7EXAMPLE",
-    "SecretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-  }
-}
+# Other platforms: https://developer.hashicorp.com/terraform/install
 ```
 
-**Save the `SecretAccessKey` immediately.** It cannot be retrieved after the command completes.
+### Step 2 - Configure AWS credentials
 
-### Step 3 - Create the Terraform state bucket
+The wizard uses whatever credentials are active in your shell. Any standard AWS credential method works:
 
-Terraform state for AWS is stored in S3. The bucket must exist before running `terraform init`. S3 bucket names are globally unique across all AWS accounts.
-
+**Option A: Interactive configuration (stores credentials in `~/.aws/credentials`)**
 ```
-# Replace with a name that is unique to you
-aws s3api create-bucket \
-  --bucket countorsell-tfstate-yourname \
-  --region us-east-1
-
-# Enable versioning (recommended - allows state recovery)
-aws s3api put-bucket-versioning \
-  --bucket countorsell-tfstate-yourname \
-  --versioning-configuration Status=Enabled
+aws configure
 ```
+Enter your access key ID, secret access key, and default region when prompted.
 
-For regions other than `us-east-1`, add `--create-bucket-configuration LocationConstraint=<region>`:
-
+**Option B: Environment variables**
 ```
-aws s3api create-bucket \
-  --bucket countorsell-tfstate-yourname \
-  --region eu-west-1 \
-  --create-bucket-configuration LocationConstraint=eu-west-1
+export AWS_ACCESS_KEY_ID=<your-access-key-id>
+export AWS_SECRET_ACCESS_KEY=<your-secret-access-key>
+export AWS_DEFAULT_REGION=us-east-1
 ```
 
-The bucket name you choose here is entered when the wizard asks for the S3 bucket name for Terraform state in Step 4.
+**Option C: IAM role** - If running on an EC2 instance or other AWS service with an attached IAM role, credentials are available automatically.
 
-### Step 4 - Add GitHub Actions secrets
+The credentials must have sufficient permissions to create App Runner services, RDS instances, Secrets Manager secrets, S3 buckets, IAM roles, and VPC resources.
+
+After configuring, verify credentials work:
+```
+aws sts get-caller-identity
+```
+
+### Step 3 - Choose your resource names
+
+- **AWS region:** The region for all resources (e.g. `us-east-1`, `eu-west-1`).
+- **Terraform state S3 bucket name:** Must be globally unique across all AWS accounts (e.g. `myorg-countorsell-tfstate`). The wizard creates this bucket.
+
+### Step 4 - Add GitHub Actions secrets (optional)
 
 If you are using the included GitHub Actions workflow (`aws.yml`) to manage infrastructure, add these secrets to your GitHub repository:
 
 | Secret name | Value |
 |------------|-------|
-| `AWS_ACCESS_KEY_ID` | `AccessKeyId` from access key creation |
-| `AWS_SECRET_ACCESS_KEY` | `SecretAccessKey` from access key creation |
+| `AWS_ACCESS_KEY_ID` | Access key ID for the IAM user used by CI |
+| `AWS_SECRET_ACCESS_KEY` | Secret access key for the IAM user used by CI |
 | `AWS_DEFAULT_REGION` | Your chosen AWS region (e.g. `us-east-1`) |
-| `TF_STATE_BUCKET` | S3 bucket name you created for Terraform state |
+| `TF_STATE_BUCKET` | The S3 bucket name you chose for Terraform state |
 
 ### Summary of values the wizard collects (Step 4)
 
 | Wizard prompt | Value |
 |--------------|-------|
-| AWS access key ID | `AccessKeyId` from access key creation |
-| AWS secret access key | `SecretAccessKey` from access key creation |
+| (auto-detected) AWS region | From `aws configure get region`, or you enter it |
 | AWS region | e.g. `us-east-1`, `eu-west-1` |
-| State bucket name | S3 bucket you created for Terraform state |
+| Terraform state S3 bucket name | Name you choose; wizard creates it |
 
 ---
 
@@ -312,131 +238,107 @@ If you are using the included GitHub Actions workflow (`aws.yml`) to manage infr
 
 ### Overview of what you need
 
-| Item | Created by |
-|------|-----------|
-| GCP account with a project | You |
-| Project ID | Your GCP project |
-| Service account with appropriate IAM roles | You (instructions below) |
-| Service account key file (JSON) | You (instructions below) |
-| GCS bucket for Terraform state | You (instructions below) |
-| Required APIs enabled | You (instructions below) |
+| Item | Notes |
+|------|-------|
+| Google Cloud CLI (`gcloud`) installed | Install instructions below |
+| Terraform installed | Install instructions below |
+| Active gcloud login | `gcloud auth login` before running the wizard |
+| Application default credentials | `gcloud auth application-default login` before running the wizard |
+| GCP project ID | From your existing GCP project |
+| GCP region | You choose |
+| Terraform state GCS bucket name | You choose; globally unique; the wizard creates it |
 
-### Step 1 - Find your project ID
+The wizard enables required GCP APIs and creates the Terraform state bucket automatically. No service account key file is required for the wizard.
+
+### Step 1 - Install prerequisites
+
+**Google Cloud CLI:**
+```
+# macOS
+brew install google-cloud-sdk
+
+# Other platforms: https://cloud.google.com/sdk/docs/install
+```
+
+**Terraform:**
+```
+# macOS
+brew tap hashicorp/tap && brew install hashicorp/tap/terraform
+
+# Other platforms: https://developer.hashicorp.com/terraform/install
+```
+
+### Step 2 - Log in
+
+Two separate login commands are required. Run both before starting the wizard.
+
+**User login** (for gcloud CLI commands the wizard runs):
+```
+gcloud auth login
+```
+
+**Application default credentials** (for Terraform's Google provider):
+```
+gcloud auth application-default login
+```
+
+Both open browser windows for authentication.
+
+### Step 3 - Identify your GCP project
 
 ```
 gcloud projects list
 ```
 
-Or from the GCP console, the project ID appears in the project selector at the top of the page. It is distinct from the project name and project number.
+The wizard auto-detects the currently active project (`gcloud config get-value project`). If no default project is set, you will be prompted to enter your project ID.
 
-### Step 2 - Enable required APIs
-
+To set a default project in advance:
 ```
-gcloud services enable \
-  run.googleapis.com \
-  sqladmin.googleapis.com \
-  secretmanager.googleapis.com \
-  storage.googleapis.com \
-  iam.googleapis.com \
-  cloudresourcemanager.googleapis.com \
-  --project <YOUR_PROJECT_ID>
+gcloud config set project <YOUR_PROJECT_ID>
 ```
 
-### Step 3 - Create a service account for Terraform
+### Step 4 - Choose your resource names
 
-```
-gcloud iam service-accounts create countorsell-terraform \
-  --display-name "CountOrSell Terraform" \
-  --project <YOUR_PROJECT_ID>
-```
+- **GCP region:** The region for all resources (e.g. `us-central1`, `europe-west1`).
+- **Terraform state GCS bucket name:** Must be globally unique (e.g. `myproject-countorsell-tfstate`). The wizard suggests `{project-id}-countorsell-tfstate` as a default. The wizard creates this bucket.
 
-### Step 4 - Grant IAM roles
-
-```
-PROJECT_ID=<YOUR_PROJECT_ID>
-SA_EMAIL=countorsell-terraform@${PROJECT_ID}.iam.gserviceaccount.com
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member "serviceAccount:${SA_EMAIL}" \
-  --role roles/run.admin
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member "serviceAccount:${SA_EMAIL}" \
-  --role roles/cloudsql.admin
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member "serviceAccount:${SA_EMAIL}" \
-  --role roles/secretmanager.admin
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member "serviceAccount:${SA_EMAIL}" \
-  --role roles/storage.admin
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member "serviceAccount:${SA_EMAIL}" \
-  --role roles/iam.serviceAccountAdmin
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member "serviceAccount:${SA_EMAIL}" \
-  --role roles/iam.serviceAccountUser
-```
-
-### Step 5 - Create a service account key
-
-```
-gcloud iam service-accounts keys create countorsell-terraform-key.json \
-  --iam-account countorsell-terraform@<YOUR_PROJECT_ID>.iam.gserviceaccount.com
-```
-
-This creates `countorsell-terraform-key.json` in the current directory. The wizard asks for the **path to this file** in Step 4. Store the file somewhere accessible to the wizard process.
-
-**Keep this file secure.** It provides full access to the permissions granted above. Do not commit it to version control.
-
-### Step 6 - Create the Terraform state bucket
-
-Terraform state for GCP is stored in Google Cloud Storage. The bucket must exist before running `terraform init`. GCS bucket names are globally unique.
-
-```
-# Replace with a name that is unique to you
-gcloud storage buckets create gs://countorsell-tfstate-yourname \
-  --project <YOUR_PROJECT_ID> \
-  --location us-central1
-```
-
-Enable versioning (recommended):
-
-```
-gcloud storage buckets update gs://countorsell-tfstate-yourname \
-  --versioning
-```
-
-The bucket name (without the `gs://` prefix) is entered when the wizard asks for the GCS bucket name for Terraform state in Step 4.
-
-### Step 7 - Add GitHub Actions secrets
+### Step 5 - Add GitHub Actions secrets (optional)
 
 If you are using the included GitHub Actions workflow (`gcp.yml`) to manage infrastructure, add these secrets to your GitHub repository:
 
 | Secret name | Value |
 |------------|-------|
-| `GCP_SERVICE_ACCOUNT_KEY` | The full contents of `countorsell-terraform-key.json` (the entire JSON object, not the file path) |
-| `TF_STATE_BUCKET` | GCS bucket name you created for Terraform state (without `gs://`) |
+| `GCP_SERVICE_ACCOUNT_KEY` | Full contents of a service account key JSON file (for CI use - separate from wizard login) |
+| `TF_STATE_BUCKET` | GCS bucket name you chose for Terraform state (without `gs://`) |
 
-To read the file contents:
-
+To create a service account and key for GitHub Actions:
 ```
+gcloud iam service-accounts create countorsell-terraform \
+  --display-name "CountOrSell Terraform" \
+  --project <YOUR_PROJECT_ID>
+
+# Grant required roles
+gcloud projects add-iam-policy-binding <YOUR_PROJECT_ID> \
+  --member "serviceAccount:countorsell-terraform@<YOUR_PROJECT_ID>.iam.gserviceaccount.com" \
+  --role roles/editor
+
+# Create key
+gcloud iam service-accounts keys create countorsell-terraform-key.json \
+  --iam-account countorsell-terraform@<YOUR_PROJECT_ID>.iam.gserviceaccount.com
+
 cat countorsell-terraform-key.json
 ```
 
-Paste the entire output as the secret value.
+Paste the entire JSON output as the `GCP_SERVICE_ACCOUNT_KEY` secret value.
 
 ### Summary of values the wizard collects (Step 4)
 
 | Wizard prompt | Value |
 |--------------|-------|
-| GCP project ID | Your project ID |
-| Service account key file path | Absolute path to `countorsell-terraform-key.json` |
+| (auto-detected) GCP project ID | From `gcloud config get-value project` |
+| GCP project ID | Your project ID (confirmed or entered) |
 | GCP region | e.g. `us-central1`, `europe-west1` |
-| State bucket name | GCS bucket name you created (without `gs://`) |
+| Terraform state GCS bucket name | Name you choose; wizard creates it (default: `{project-id}-countorsell-tfstate`) |
 
 ---
 

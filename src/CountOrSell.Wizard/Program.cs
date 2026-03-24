@@ -12,7 +12,7 @@ var runner = new CommandRunner();
 await Step01_DeploymentType.RunAsync(config);
 await Step02_Prerequisites.RunAsync(config, new PrerequisiteChecker(runner));
 await Step03_DockerRegistry.RunAsync(config);
-await Step04_EnvironmentConfig.RunAsync(config);
+await Step04_EnvironmentConfig.RunAsync(config, runner);
 await Step05_HostingPreferences.RunAsync(config);
 await Step06_SslCertificate.RunAsync(config);
 await Step07_Branding.RunAsync(config);

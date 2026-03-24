@@ -200,9 +200,11 @@ No Docker socket access from within any container.
 
 The wizard collects all configuration needed for
 deployment and executes with minimal further interaction
-once information is gathered. Where user interaction is
-required (e.g. logging into cloud providers, installing
-software) the wizard provides detailed instructions.
+once information is gathered. For cloud deployments,
+the wizard checks for a valid cloud login, then
+provisions and builds everything automatically. Users
+only need to install prerequisites and log in to their
+cloud provider before starting.
 
 ### Wizard Sequence
 1. Deployment type selection (Azure, AWS, GCP, Docker)
@@ -212,10 +214,18 @@ software) the wizard provides detailed instructions.
      dependency cannot be auto-installed (e.g. Docker
      Desktop must be installed by the user)
    - Do not proceed until all prerequisites are met
-3. Docker image registry prompt (Docker deployments only)
-4. Environment-specific configuration:
-   - Cloud credentials and region (cloud deployments)
-   - Docker-specific settings (Docker deployments)
+3. Docker image registry prompt (Docker deployments only,
+   default: ghcr.io/darkgrotto)
+4. Environment-specific configuration (cloud deployments):
+   - Verify active cloud login; prompt user to log in
+     if not already authenticated
+   - Auto-detect account details (subscription, tenant,
+     project) from the active login session
+   - Collect resource naming choices (resource groups,
+     region, state storage names)
+   - Terraform state storage is created automatically
+     by the wizard during deployment - no pre-creation
+     required
 5. Hosting preferences:
    - Subdomain configuration
    - Port selection
@@ -240,7 +250,10 @@ software) the wizard provides detailed instructions.
 13. Backup retention configuration (default: four)
 14. Initial update download prompt (yes or no)
 15. Compose file and update.sh generation (Docker only)
-16. Deployment execution
+16. Deployment execution:
+    - Cloud deployments: provision Terraform state
+      storage, then run terraform init and apply
+    - Docker deployments: docker compose up -d
 17. Random daily update check time generation
 
 ### Wizard Constraints

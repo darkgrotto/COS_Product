@@ -1,14 +1,16 @@
 using CountOrSell.Wizard.Models;
+using CountOrSell.Wizard.Services;
+using System.Text.Json;
 
 namespace CountOrSell.Wizard.Steps;
 
 public static class Step04_EnvironmentConfig
 {
-    public static Task RunAsync(WizardConfig config)
+    public static async Task RunAsync(WizardConfig config, ICommandRunner runner)
     {
         if (config.DeploymentType == DeploymentType.Docker)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         Console.WriteLine("Step 4 of 17: Environment Configuration");
@@ -17,60 +19,155 @@ public static class Step04_EnvironmentConfig
         switch (config.DeploymentType)
         {
             case DeploymentType.Azure:
-                ConfigureAzure(config);
+                await ConfigureAzureAsync(config, runner);
                 break;
             case DeploymentType.Aws:
-                ConfigureAws(config);
+                await ConfigureAwsAsync(config, runner);
                 break;
             case DeploymentType.Gcp:
-                ConfigureGcp(config);
+                await ConfigureGcpAsync(config, runner);
                 break;
         }
 
         Console.WriteLine();
-        return Task.CompletedTask;
     }
 
-    private static void ConfigureAzure(WizardConfig config)
+    private static async Task ConfigureAzureAsync(WizardConfig config, ICommandRunner runner)
     {
-        Console.WriteLine("Azure configuration:");
-        Console.WriteLine();
+        Console.WriteLine("Checking Azure login...");
 
-        config.CloudSubscriptionId = PromptRequired("Azure Subscription ID");
-        config.CloudTenantId = PromptRequired("Azure Tenant ID");
-        config.CloudResourceGroup = PromptRequired("Resource group name");
+        while (true)
+        {
+            var (exitCode, output) = await runner.RunWithOutputAsync("az", "account show --output json");
+            if (exitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                try
+                {
+                    var doc = JsonDocument.Parse(output);
+                    config.CloudSubscriptionId = doc.RootElement.GetProperty("id").GetString() ?? string.Empty;
+                    config.CloudTenantId = doc.RootElement.GetProperty("tenantId").GetString() ?? string.Empty;
+                    Console.WriteLine($"Logged in. Subscription: {config.CloudSubscriptionId}");
+                    Console.WriteLine($"Tenant: {config.CloudTenantId}");
+                    break;
+                }
+                catch
+                {
+                    // fall through to login prompt
+                }
+            }
+
+            Console.WriteLine("Not logged in to Azure.");
+            Console.WriteLine("Run the following command in another terminal, then press Enter:");
+            Console.WriteLine("  az login");
+            Console.Write("Press Enter when logged in: ");
+            Console.ReadLine();
+        }
+
+        Console.WriteLine();
+        config.CloudResourceGroup = PromptRequired("Application resource group name (Terraform will create this)");
         config.CloudRegion = PromptWithDefault("Azure location", "eastus");
         Console.WriteLine();
-        Console.WriteLine("Terraform state storage (created during credential setup):");
-        config.CloudStateResourceGroup = PromptRequired("State storage resource group name");
-        config.CloudStateStorageAccount = PromptRequired("State storage account name");
+        Console.WriteLine("Terraform state storage will be created automatically by the wizard.");
+        config.CloudStateResourceGroup = PromptWithDefault("State resource group name", "countorsell-tfstate-rg");
+        config.CloudStateStorageAccount = PromptRequired("State storage account name (globally unique, 3-24 lowercase alphanumeric)");
     }
 
-    private static void ConfigureAws(WizardConfig config)
+    private static async Task ConfigureAwsAsync(WizardConfig config, ICommandRunner runner)
     {
-        Console.WriteLine("AWS configuration:");
+        Console.WriteLine("Checking AWS credentials...");
+
+        while (true)
+        {
+            var (exitCode, _) = await runner.RunWithOutputAsync("aws", "sts get-caller-identity --output json");
+            if (exitCode == 0)
+            {
+                Console.WriteLine("AWS credentials valid.");
+                break;
+            }
+
+            Console.WriteLine("AWS credentials are not configured or are invalid.");
+            Console.WriteLine("Configure credentials in another terminal using one of:");
+            Console.WriteLine("  aws configure");
+            Console.WriteLine("  export AWS_ACCESS_KEY_ID=... && export AWS_SECRET_ACCESS_KEY=...");
+            Console.Write("Press Enter when credentials are ready: ");
+            Console.ReadLine();
+        }
+
         Console.WriteLine();
 
-        config.CloudAccessKeyId = PromptRequired("AWS Access Key ID");
-        Console.Write("AWS Secret Access Key: ");
-        config.CloudSecretAccessKey = ReadPasswordLine();
-        config.CloudRegion = PromptWithDefault("AWS region", "us-east-1");
+        var (regionCode, detectedRegion) = await runner.RunWithOutputAsync("aws", "configure get region");
+        var defaultRegion = regionCode == 0 && !string.IsNullOrWhiteSpace(detectedRegion)
+            ? detectedRegion
+            : "us-east-1";
+
+        config.CloudRegion = PromptWithDefault("AWS region", defaultRegion);
         Console.WriteLine();
-        Console.WriteLine("Terraform state storage (created during credential setup):");
-        config.CloudStateBucket = PromptRequired("S3 bucket name for Terraform state");
+        Console.WriteLine("A Terraform state S3 bucket will be created automatically by the wizard.");
+        Console.WriteLine("S3 bucket names are globally unique. Choose a name that is specific to your deployment.");
+        config.CloudStateBucket = PromptRequired("Terraform state S3 bucket name");
     }
 
-    private static void ConfigureGcp(WizardConfig config)
+    private static async Task ConfigureGcpAsync(WizardConfig config, ICommandRunner runner)
     {
-        Console.WriteLine("GCP configuration:");
+        Console.WriteLine("Checking gcloud user login...");
+
+        while (true)
+        {
+            var (exitCode, _) = await runner.RunWithOutputAsync("gcloud", "auth print-access-token");
+            if (exitCode == 0)
+            {
+                Console.WriteLine("gcloud user login confirmed.");
+                break;
+            }
+
+            Console.WriteLine("Not logged in to gcloud.");
+            Console.WriteLine("Run the following command in another terminal, then press Enter:");
+            Console.WriteLine("  gcloud auth login");
+            Console.Write("Press Enter when logged in: ");
+            Console.ReadLine();
+        }
+
+        Console.WriteLine("Checking application default credentials...");
+
+        while (true)
+        {
+            var (exitCode, _) = await runner.RunWithOutputAsync("gcloud", "auth application-default print-access-token");
+            if (exitCode == 0)
+            {
+                Console.WriteLine("Application default credentials confirmed.");
+                break;
+            }
+
+            Console.WriteLine("Application default credentials are not configured.");
+            Console.WriteLine("Run the following command in another terminal, then press Enter:");
+            Console.WriteLine("  gcloud auth application-default login");
+            Console.Write("Press Enter when complete: ");
+            Console.ReadLine();
+        }
+
         Console.WriteLine();
 
-        config.CloudProjectId = PromptRequired("GCP Project ID");
-        config.CloudServiceAccountKeyPath = PromptRequired("Service account key file path");
+        var (projectCode, detectedProject) = await runner.RunWithOutputAsync("gcloud", "config get-value project");
+        string defaultProject = projectCode == 0 && !string.IsNullOrWhiteSpace(detectedProject)
+            ? detectedProject
+            : string.Empty;
+
+        if (!string.IsNullOrEmpty(defaultProject))
+        {
+            Console.WriteLine($"Detected GCP project: {defaultProject}");
+            config.CloudProjectId = PromptWithDefault("GCP project ID", defaultProject);
+        }
+        else
+        {
+            config.CloudProjectId = PromptRequired("GCP project ID");
+        }
+
         config.CloudRegion = PromptWithDefault("GCP region", "us-central1");
         Console.WriteLine();
-        Console.WriteLine("Terraform state storage (created during credential setup):");
-        config.CloudStateBucket = PromptRequired("GCS bucket name for Terraform state");
+        Console.WriteLine("A Terraform state GCS bucket will be created automatically by the wizard.");
+        Console.WriteLine("GCS bucket names are globally unique. Choose a name that is specific to your deployment.");
+        var defaultBucket = $"{config.CloudProjectId}-countorsell-tfstate";
+        config.CloudStateBucket = PromptWithDefault("Terraform state GCS bucket name", defaultBucket);
     }
 
     private static string PromptRequired(string label)
@@ -92,28 +189,5 @@ public static class Step04_EnvironmentConfig
         Console.Write($"{label} [{defaultValue}]: ");
         var value = Console.ReadLine()?.Trim();
         return string.IsNullOrEmpty(value) ? defaultValue : value;
-    }
-
-    private static string ReadPasswordLine()
-    {
-        var sb = new System.Text.StringBuilder();
-        while (true)
-        {
-            var key = Console.ReadKey(intercept: true);
-            if (key.Key == ConsoleKey.Enter)
-            {
-                Console.WriteLine();
-                break;
-            }
-            if (key.Key == ConsoleKey.Backspace && sb.Length > 0)
-            {
-                sb.Remove(sb.Length - 1, 1);
-            }
-            else if (key.Key != ConsoleKey.Backspace)
-            {
-                sb.Append(key.KeyChar);
-            }
-        }
-        return sb.ToString();
     }
 }

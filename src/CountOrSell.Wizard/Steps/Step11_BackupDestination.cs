@@ -1,10 +1,11 @@
 using CountOrSell.Wizard.Models;
+using System.Diagnostics;
 
 namespace CountOrSell.Wizard.Steps;
 
 public static class Step11_BackupDestination
 {
-    public static Task RunAsync(WizardConfig config)
+    public static async Task RunAsync(WizardConfig config)
     {
         Console.WriteLine("Step 11 of 17: Backup Destination");
         Console.WriteLine("-----------------------------------");
@@ -26,20 +27,20 @@ public static class Step11_BackupDestination
             {
                 case "1":
                     config.BackupDestination = "azure-blob";
-                    ConfigureAzureBlob(config);
-                    return Task.CompletedTask;
+                    await ConfigureAzureBlobAsync(config);
+                    return;
                 case "2":
                     config.BackupDestination = "aws-s3";
                     ConfigureAwsS3(config);
-                    return Task.CompletedTask;
+                    return;
                 case "3":
                     config.BackupDestination = "gcp-storage";
                     ConfigureGcpStorage(config);
-                    return Task.CompletedTask;
+                    return;
                 case "4":
                     config.BackupDestination = "local";
                     ConfigureLocalFile(config);
-                    return Task.CompletedTask;
+                    return;
                 default:
                     Console.WriteLine("Invalid selection. Please enter 1, 2, 3, or 4.");
                     break;
@@ -47,10 +48,39 @@ public static class Step11_BackupDestination
         }
     }
 
-    private static void ConfigureAzureBlob(WizardConfig config)
+    private static async Task ConfigureAzureBlobAsync(WizardConfig config)
     {
         Console.WriteLine();
         Console.WriteLine("Azure Blob Storage configuration:");
+        Console.Write("Storage account name: ");
+        var accountName = Console.ReadLine()?.Trim() ?? string.Empty;
+
+        if (!string.IsNullOrEmpty(accountName))
+        {
+            Console.WriteLine("Retrieving connection string from Azure...");
+            var (exitCode, connectionString) = await RunAndCaptureAsync("az",
+                $"storage account show-connection-string --name {accountName} --output tsv --query connectionString");
+
+            if (exitCode == 0 && !string.IsNullOrWhiteSpace(connectionString))
+            {
+                config.BackupConnectionString = connectionString;
+                Console.WriteLine("Connection string retrieved automatically.");
+                Console.WriteLine("Azure Blob Storage backup destination configured.");
+                Console.WriteLine();
+                return;
+            }
+
+            Console.WriteLine("Could not retrieve connection string automatically.");
+            Console.WriteLine("This may be because you are not logged in to Azure CLI, or the account");
+            Console.WriteLine("is in a different subscription. Enter the connection string manually.");
+            Console.WriteLine();
+            Console.WriteLine("To find it in the Azure portal:");
+            Console.WriteLine("  1. Open your storage account.");
+            Console.WriteLine("  2. Go to Security + networking > Access keys.");
+            Console.WriteLine("  3. Copy the Connection string for key1 or key2.");
+            Console.WriteLine();
+        }
+
         Console.Write("Connection string: ");
         config.BackupConnectionString = Console.ReadLine()?.Trim() ?? string.Empty;
         Console.WriteLine("Azure Blob Storage backup destination configured.");
@@ -90,5 +120,33 @@ public static class Step11_BackupDestination
         config.BackupConnectionString = string.IsNullOrEmpty(path) ? "./backups" : path;
         Console.WriteLine($"Local backup path: {config.BackupConnectionString}");
         Console.WriteLine();
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunAndCaptureAsync(
+        string command,
+        string arguments)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = command,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var proc = Process.Start(psi);
+            if (proc == null) return (-1, string.Empty);
+            var output = await proc.StandardOutput.ReadToEndAsync();
+            await proc.WaitForExitAsync();
+            return (proc.ExitCode, output.Trim());
+        }
+        catch
+        {
+            return (-1, string.Empty);
+        }
     }
 }

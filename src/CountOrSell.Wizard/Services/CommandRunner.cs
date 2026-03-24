@@ -27,4 +27,29 @@ public class CommandRunner : ICommandRunner
             return false;
         }
     }
+
+    public async Task<(int ExitCode, string Output)> RunWithOutputAsync(string command, string arguments)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = command,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) return (-1, string.Empty);
+            var output = await proc.StandardOutput.ReadToEndAsync();
+            await proc.WaitForExitAsync();
+            return (proc.ExitCode, output.Trim());
+        }
+        catch
+        {
+            return (-1, string.Empty);
+        }
+    }
 }

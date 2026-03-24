@@ -4,6 +4,7 @@ public class WizardConfig
 {
     public DeploymentType DeploymentType { get; set; }
     public string? DockerRegistry { get; set; }
+    public string DockerImageTag { get; set; } = "latest";
     public string Hostname { get; set; } = string.Empty;
     public int Port { get; set; } = 443;
     public string InstanceName { get; set; } = string.Empty;
@@ -27,8 +28,5 @@ public class WizardConfig
     public string? CloudStateResourceGroup { get; set; }
     public string? CloudStateStorageAccount { get; set; }
     public string? CloudProjectId { get; set; }
-    public string? CloudAccessKeyId { get; set; }
-    public string? CloudSecretAccessKey { get; set; }
     public string? CloudStateBucket { get; set; }
-    public string? CloudServiceAccountKeyPath { get; set; }
 }
