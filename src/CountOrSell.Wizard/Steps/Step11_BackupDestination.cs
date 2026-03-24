@@ -130,9 +130,9 @@ public static class Step11_BackupDestination
                 FileName = command,
                 Arguments = arguments,
                 UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
+                RedirectStandardOutput = false,
+                RedirectStandardError = false,
+                CreateNoWindow = false
             };
 
             using var proc = Process.Start(psi);
