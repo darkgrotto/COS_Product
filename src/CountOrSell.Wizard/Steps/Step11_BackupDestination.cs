@@ -55,8 +55,7 @@ public static class Step11_BackupDestination
         Console.WriteLine("The wizard will create the storage account and retrieve the connection string.");
         Console.WriteLine();
 
-        Console.Write("Storage account name (globally unique, 3-24 lowercase alphanumeric): ");
-        var accountName = Console.ReadLine()?.Trim() ?? string.Empty;
+        var accountName = PromptStorageAccountName();
 
         var defaultRg = "countorsell-backup-rg";
         Console.Write($"Resource group [{defaultRg}]: ");
@@ -119,6 +118,31 @@ public static class Step11_BackupDestination
         config.BackupConnectionString = Console.ReadLine()?.Trim() ?? string.Empty;
         Console.WriteLine("Azure Blob Storage backup destination configured.");
         Console.WriteLine();
+    }
+
+    private static string PromptStorageAccountName()
+    {
+        while (true)
+        {
+            Console.Write("Storage account name (3-24 lowercase alphanumeric, no hyphens or special characters): ");
+            var value = Console.ReadLine()?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(value))
+            {
+                Console.WriteLine("Storage account name cannot be empty.");
+                continue;
+            }
+            if (value.Length < 3 || value.Length > 24)
+            {
+                Console.WriteLine($"Storage account name must be 3-24 characters (got {value.Length}).");
+                continue;
+            }
+            if (!value.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c)))
+            {
+                Console.WriteLine("Storage account name may only contain lowercase letters and digits.");
+                continue;
+            }
+            return value;
+        }
     }
 
     private static async Task<int> RunCommandAsync(string command, string arguments)

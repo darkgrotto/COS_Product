@@ -69,7 +69,7 @@ public static class Step04_EnvironmentConfig
         Console.WriteLine();
         Console.WriteLine("Terraform state storage will be created automatically by the wizard.");
         config.CloudStateResourceGroup = PromptWithDefault("State resource group name", "countorsell-tfstate-rg");
-        config.CloudStateStorageAccount = PromptRequired("State storage account name (globally unique, 3-24 lowercase alphanumeric)");
+        config.CloudStateStorageAccount = PromptStorageAccountName("Terraform state storage account name");
     }
 
     private static async Task ConfigureAwsAsync(WizardConfig config, ICommandRunner runner)
@@ -181,6 +181,31 @@ public static class Step04_EnvironmentConfig
                 return value;
             }
             Console.WriteLine($"{label} cannot be empty.");
+        }
+    }
+
+    private static string PromptStorageAccountName(string label)
+    {
+        while (true)
+        {
+            Console.Write($"{label} (3-24 lowercase alphanumeric, no hyphens or special characters): ");
+            var value = Console.ReadLine()?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(value))
+            {
+                Console.WriteLine("Storage account name cannot be empty.");
+                continue;
+            }
+            if (value.Length < 3 || value.Length > 24)
+            {
+                Console.WriteLine($"Storage account name must be 3-24 characters (got {value.Length}).");
+                continue;
+            }
+            if (!value.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c)))
+            {
+                Console.WriteLine("Storage account name may only contain lowercase letters and digits.");
+                continue;
+            }
+            return value;
         }
     }
 
