@@ -10,6 +10,7 @@ var config = new WizardConfig();
 var runner = new CommandRunner();
 
 await Step01_DeploymentType.RunAsync(config);
+ConfigFileLoader.Load(config);
 await Step02_Prerequisites.RunAsync(config, new PrerequisiteChecker(runner));
 await Step03_DockerRegistry.RunAsync(config);
 await Step04_EnvironmentConfig.RunAsync(config, runner);

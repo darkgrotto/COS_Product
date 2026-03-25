@@ -3,6 +3,7 @@ namespace CountOrSell.Wizard.Models;
 public class WizardConfig
 {
     public DeploymentType DeploymentType { get; set; }
+    public Dictionary<string, string> ConfigValues { get; } = new(StringComparer.OrdinalIgnoreCase);
     public string? DockerRegistry { get; set; }
     public string DockerImageTag { get; set; } = "latest";
     public string Hostname { get; set; } = string.Empty;

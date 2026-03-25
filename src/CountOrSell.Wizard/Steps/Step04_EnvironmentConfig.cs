@@ -64,12 +64,16 @@ public static class Step04_EnvironmentConfig
         }
 
         Console.WriteLine();
-        config.CloudResourceGroup = PromptRequired("Application resource group name (Terraform will create this)");
-        config.CloudRegion = PromptWithDefault("Azure location", "eastus");
+        config.ConfigValues.TryGetValue("application_resource_group", out var cfgAppRg);
+        config.CloudResourceGroup = PromptRequired("Application resource group name (Terraform will create this)", cfgAppRg ?? "");
+        config.ConfigValues.TryGetValue("location", out var cfgLocation);
+        config.CloudRegion = PromptWithDefault("Azure location", cfgLocation ?? "eastus");
         Console.WriteLine();
         Console.WriteLine("Terraform state storage will be created automatically by the wizard.");
-        config.CloudStateResourceGroup = PromptWithDefault("State resource group name", "countorsell-tfstate-rg");
-        config.CloudStateStorageAccount = PromptStorageAccountName("Terraform state storage account name");
+        config.ConfigValues.TryGetValue("state_resource_group", out var cfgStateRg);
+        config.CloudStateResourceGroup = PromptWithDefault("State resource group name", cfgStateRg ?? "countorsell-tfstate-rg");
+        config.ConfigValues.TryGetValue("state_storage_account", out var cfgStateAccount);
+        config.CloudStateStorageAccount = PromptStorageAccountName("Terraform state storage account name", cfgStateAccount ?? "");
     }
 
     private static async Task ConfigureAwsAsync(WizardConfig config, ICommandRunner runner)
@@ -96,15 +100,17 @@ public static class Step04_EnvironmentConfig
         Console.WriteLine();
 
         var (regionCode, detectedRegion) = await runner.RunWithOutputAsync("aws", "configure get region");
-        var defaultRegion = regionCode == 0 && !string.IsNullOrWhiteSpace(detectedRegion)
-            ? detectedRegion
-            : "us-east-1";
+        config.ConfigValues.TryGetValue("region", out var cfgRegion);
+        var defaultRegion = cfgRegion
+            ?? (regionCode == 0 && !string.IsNullOrWhiteSpace(detectedRegion) ? detectedRegion : null)
+            ?? "us-east-1";
 
         config.CloudRegion = PromptWithDefault("AWS region", defaultRegion);
         Console.WriteLine();
         Console.WriteLine("A Terraform state S3 bucket will be created automatically by the wizard.");
         Console.WriteLine("S3 bucket names are globally unique. Choose a name that is specific to your deployment.");
-        config.CloudStateBucket = PromptRequired("Terraform state S3 bucket name");
+        config.ConfigValues.TryGetValue("state_bucket", out var cfgStateBucket);
+        config.CloudStateBucket = PromptRequired("Terraform state S3 bucket name", cfgStateBucket ?? "");
     }
 
     private static async Task ConfigureGcpAsync(WizardConfig config, ICommandRunner runner)
@@ -148,13 +154,15 @@ public static class Step04_EnvironmentConfig
         Console.WriteLine();
 
         var (projectCode, detectedProject) = await runner.RunWithOutputAsync("gcloud", "config get-value project");
-        string defaultProject = projectCode == 0 && !string.IsNullOrWhiteSpace(detectedProject)
-            ? detectedProject
-            : string.Empty;
+        config.ConfigValues.TryGetValue("project_id", out var cfgProject);
+        var defaultProject = cfgProject
+            ?? (projectCode == 0 && !string.IsNullOrWhiteSpace(detectedProject) ? detectedProject : null)
+            ?? string.Empty;
 
         if (!string.IsNullOrEmpty(defaultProject))
         {
-            Console.WriteLine($"Detected GCP project: {defaultProject}");
+            if (string.IsNullOrEmpty(cfgProject))
+                Console.WriteLine($"Detected GCP project: {defaultProject}");
             config.CloudProjectId = PromptWithDefault("GCP project ID", defaultProject);
         }
         else
@@ -162,34 +170,43 @@ public static class Step04_EnvironmentConfig
             config.CloudProjectId = PromptRequired("GCP project ID");
         }
 
-        config.CloudRegion = PromptWithDefault("GCP region", "us-central1");
+        config.ConfigValues.TryGetValue("region", out var cfgGcpRegion);
+        config.CloudRegion = PromptWithDefault("GCP region", cfgGcpRegion ?? "us-central1");
         Console.WriteLine();
         Console.WriteLine("A Terraform state GCS bucket will be created automatically by the wizard.");
         Console.WriteLine("GCS bucket names are globally unique. Choose a name that is specific to your deployment.");
-        var defaultBucket = $"{config.CloudProjectId}-countorsell-tfstate";
+        config.ConfigValues.TryGetValue("state_bucket", out var cfgGcpBucket);
+        var defaultBucket = cfgGcpBucket ?? $"{config.CloudProjectId}-countorsell-tfstate";
         config.CloudStateBucket = PromptWithDefault("Terraform state GCS bucket name", defaultBucket);
     }
 
-    private static string PromptRequired(string label)
+    private static string PromptRequired(string label, string defaultValue = "")
     {
         while (true)
         {
-            Console.Write($"{label}: ");
+            if (!string.IsNullOrEmpty(defaultValue))
+                Console.Write($"{label} [{defaultValue}]: ");
+            else
+                Console.Write($"{label}: ");
             var value = Console.ReadLine()?.Trim();
             if (!string.IsNullOrEmpty(value))
-            {
                 return value;
-            }
+            if (!string.IsNullOrEmpty(defaultValue))
+                return defaultValue;
             Console.WriteLine($"{label} cannot be empty.");
         }
     }
 
-    private static string PromptStorageAccountName(string label)
+    private static string PromptStorageAccountName(string label, string defaultValue = "")
     {
         while (true)
         {
-            Console.Write($"{label} (3-24 lowercase alphanumeric, no hyphens or special characters): ");
-            var value = Console.ReadLine()?.Trim() ?? string.Empty;
+            if (!string.IsNullOrEmpty(defaultValue))
+                Console.Write($"{label} (3-24 lowercase alphanumeric, no hyphens or special characters) [{defaultValue}]: ");
+            else
+                Console.Write($"{label} (3-24 lowercase alphanumeric, no hyphens or special characters): ");
+            var raw = Console.ReadLine()?.Trim() ?? string.Empty;
+            var value = string.IsNullOrEmpty(raw) ? defaultValue : raw;
             if (string.IsNullOrEmpty(value))
             {
                 Console.WriteLine("Storage account name cannot be empty.");

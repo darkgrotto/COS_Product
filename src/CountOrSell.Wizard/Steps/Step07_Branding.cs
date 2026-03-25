@@ -11,10 +11,15 @@ public static class Step07_Branding
         Console.WriteLine("The instance name appears in the page title, header, and browser tab.");
         Console.WriteLine();
 
+        config.ConfigValues.TryGetValue("instance_name", out var cfgInstanceName);
         while (true)
         {
-            Console.Write("Instance name: ");
-            var name = Console.ReadLine()?.Trim();
+            if (!string.IsNullOrEmpty(cfgInstanceName))
+                Console.Write($"Instance name [{cfgInstanceName}]: ");
+            else
+                Console.Write("Instance name: ");
+            var nameInput = Console.ReadLine()?.Trim();
+            var name = string.IsNullOrEmpty(nameInput) ? cfgInstanceName : nameInput;
             if (!string.IsNullOrEmpty(name))
             {
                 config.InstanceName = name;

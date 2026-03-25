@@ -14,10 +14,15 @@ public static class Step09_ProductAdminAccount
         Console.WriteLine("Minimum password length: 15 characters.");
         Console.WriteLine();
 
+        config.ConfigValues.TryGetValue("product_admin_username", out var cfgProductAdminUsername);
         while (true)
         {
-            Console.Write("Product admin username: ");
-            var username = Console.ReadLine()?.Trim();
+            if (!string.IsNullOrEmpty(cfgProductAdminUsername))
+                Console.Write($"Product admin username [{cfgProductAdminUsername}]: ");
+            else
+                Console.Write("Product admin username: ");
+            var usernameInput = Console.ReadLine()?.Trim();
+            var username = string.IsNullOrEmpty(usernameInput) ? cfgProductAdminUsername : usernameInput;
             if (!string.IsNullOrEmpty(username))
             {
                 config.ProductAdminUsername = username;

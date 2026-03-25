@@ -14,10 +14,15 @@ public static class Step10_GeneralUserAccount
         Console.WriteLine("Minimum password length: 15 characters.");
         Console.WriteLine();
 
+        config.ConfigValues.TryGetValue("general_user_username", out var cfgGeneralUserUsername);
         while (true)
         {
-            Console.Write("General user username: ");
-            var username = Console.ReadLine()?.Trim();
+            if (!string.IsNullOrEmpty(cfgGeneralUserUsername))
+                Console.Write($"General user username [{cfgGeneralUserUsername}]: ");
+            else
+                Console.Write("General user username: ");
+            var usernameInput = Console.ReadLine()?.Trim();
+            var username = string.IsNullOrEmpty(usernameInput) ? cfgGeneralUserUsername : usernameInput;
             if (!string.IsNullOrEmpty(username))
             {
                 config.GeneralUserUsername = username;

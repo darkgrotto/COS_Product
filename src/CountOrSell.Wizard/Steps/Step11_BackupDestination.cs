@@ -18,10 +18,24 @@ public static class Step11_BackupDestination
         Console.WriteLine("  4) Local file export");
         Console.WriteLine();
 
+        config.ConfigValues.TryGetValue("backup_destination", out var cfgBackupDest);
+        var defaultSelection = cfgBackupDest switch
+        {
+            "azure-blob"  => "1",
+            "aws-s3"      => "2",
+            "gcp-storage" => "3",
+            "local"       => "4",
+            _             => null
+        };
+
         while (true)
         {
-            Console.Write("Enter selection [1-4]: ");
-            var input = Console.ReadLine()?.Trim();
+            if (defaultSelection != null)
+                Console.Write($"Enter selection [1-4] [{defaultSelection}]: ");
+            else
+                Console.Write("Enter selection [1-4]: ");
+            var raw = Console.ReadLine()?.Trim();
+            var input = string.IsNullOrEmpty(raw) ? defaultSelection : raw;
 
             switch (input)
             {
@@ -55,9 +69,11 @@ public static class Step11_BackupDestination
         Console.WriteLine("The wizard will create the storage account and retrieve the connection string.");
         Console.WriteLine();
 
-        var accountName = PromptStorageAccountName();
+        config.ConfigValues.TryGetValue("backup_azure_account", out var cfgAzureAccount);
+        var accountName = PromptStorageAccountName(cfgAzureAccount ?? "");
 
-        var defaultRg = "countorsell-backup-rg";
+        config.ConfigValues.TryGetValue("backup_azure_resource_group", out var cfgAzureRg);
+        var defaultRg = cfgAzureRg ?? "countorsell-backup-rg";
         Console.Write($"Resource group [{defaultRg}]: ");
         var rgInput = Console.ReadLine()?.Trim();
         var resourceGroup = string.IsNullOrEmpty(rgInput) ? defaultRg : rgInput;
@@ -120,12 +136,16 @@ public static class Step11_BackupDestination
         Console.WriteLine();
     }
 
-    private static string PromptStorageAccountName()
+    private static string PromptStorageAccountName(string defaultValue = "")
     {
         while (true)
         {
-            Console.Write("Storage account name (3-24 lowercase alphanumeric, no hyphens or special characters): ");
-            var value = Console.ReadLine()?.Trim() ?? string.Empty;
+            if (!string.IsNullOrEmpty(defaultValue))
+                Console.Write($"Storage account name (3-24 lowercase alphanumeric, no hyphens or special characters) [{defaultValue}]: ");
+            else
+                Console.Write("Storage account name (3-24 lowercase alphanumeric, no hyphens or special characters): ");
+            var raw = Console.ReadLine()?.Trim() ?? string.Empty;
+            var value = string.IsNullOrEmpty(raw) ? defaultValue : raw;
             if (string.IsNullOrEmpty(value))
             {
                 Console.WriteLine("Storage account name cannot be empty.");
@@ -174,10 +194,21 @@ public static class Step11_BackupDestination
     {
         Console.WriteLine();
         Console.WriteLine("AWS S3 configuration:");
-        Console.Write("S3 bucket name: ");
-        var bucket = Console.ReadLine()?.Trim() ?? string.Empty;
-        Console.Write("AWS region: ");
-        var region = Console.ReadLine()?.Trim() ?? "us-east-1";
+
+        config.ConfigValues.TryGetValue("backup_aws_bucket", out var cfgAwsBucket);
+        if (!string.IsNullOrEmpty(cfgAwsBucket))
+            Console.Write($"S3 bucket name [{cfgAwsBucket}]: ");
+        else
+            Console.Write("S3 bucket name: ");
+        var bucketInput = Console.ReadLine()?.Trim();
+        var bucket = string.IsNullOrEmpty(bucketInput) ? (cfgAwsBucket ?? string.Empty) : bucketInput;
+
+        config.ConfigValues.TryGetValue("backup_aws_region", out var cfgAwsRegion);
+        var defaultRegion = cfgAwsRegion ?? (config.CloudRegion ?? "us-east-1");
+        Console.Write($"AWS region [{defaultRegion}]: ");
+        var regionInput = Console.ReadLine()?.Trim();
+        var region = string.IsNullOrEmpty(regionInput) ? defaultRegion : regionInput;
+
         config.BackupConnectionString = $"s3://{bucket}?region={region}";
         Console.WriteLine("AWS S3 backup destination configured.");
         Console.WriteLine();
@@ -187,8 +218,15 @@ public static class Step11_BackupDestination
     {
         Console.WriteLine();
         Console.WriteLine("GCP Storage configuration:");
-        Console.Write("GCS bucket name: ");
-        var bucket = Console.ReadLine()?.Trim() ?? string.Empty;
+
+        config.ConfigValues.TryGetValue("backup_gcp_bucket", out var cfgGcpBucket);
+        if (!string.IsNullOrEmpty(cfgGcpBucket))
+            Console.Write($"GCS bucket name [{cfgGcpBucket}]: ");
+        else
+            Console.Write("GCS bucket name: ");
+        var bucketInput = Console.ReadLine()?.Trim();
+        var bucket = string.IsNullOrEmpty(bucketInput) ? (cfgGcpBucket ?? string.Empty) : bucketInput;
+
         config.BackupConnectionString = $"gs://{bucket}";
         Console.WriteLine("GCP Storage backup destination configured.");
         Console.WriteLine();
@@ -198,9 +236,12 @@ public static class Step11_BackupDestination
     {
         Console.WriteLine();
         Console.WriteLine("Local file export configuration:");
-        Console.Write("Local backup directory path [./backups]: ");
-        var path = Console.ReadLine()?.Trim();
-        config.BackupConnectionString = string.IsNullOrEmpty(path) ? "./backups" : path;
+
+        config.ConfigValues.TryGetValue("backup_local_path", out var cfgLocalPath);
+        var defaultPath = cfgLocalPath ?? "./backups";
+        Console.Write($"Local backup directory path [{defaultPath}]: ");
+        var pathInput = Console.ReadLine()?.Trim();
+        config.BackupConnectionString = string.IsNullOrEmpty(pathInput) ? defaultPath : pathInput;
         Console.WriteLine($"Local backup path: {config.BackupConnectionString}");
         Console.WriteLine();
     }

@@ -1,0 +1,84 @@
+# CountOrSell wizard configuration file for AWS deployments
+# Copy this file to wizard-aws.conf and fill in the values for your environment.
+# The wizard will use these values as defaults, prompting you to confirm or change each one.
+# Passwords are never read from this file - you will always be prompted interactively.
+#
+# All lines beginning with # are comments and are ignored.
+# Format: key = value
+
+# -----------------------------------------------------------------------
+# Step 4: Environment Configuration
+# -----------------------------------------------------------------------
+
+# AWS region for all resources
+# region = us-east-1
+
+# S3 bucket name for Terraform state (globally unique, specific to your deployment)
+# state_bucket = my-org-countorsell-tfstate
+
+# -----------------------------------------------------------------------
+# Step 5: Hosting Preferences
+# -----------------------------------------------------------------------
+
+# Hostname or subdomain for the application
+# hostname = my-instance.example.com
+
+# -----------------------------------------------------------------------
+# Step 7: Instance Branding
+# -----------------------------------------------------------------------
+
+# Instance name shown in page title, header, and browser tab
+# instance_name = My CountOrSell
+
+# -----------------------------------------------------------------------
+# Step 8: Database Admin Account
+# -----------------------------------------------------------------------
+
+# Database administrator username (password is always prompted interactively)
+# db_admin_username = dbadmin
+
+# -----------------------------------------------------------------------
+# Step 9: Product Admin Account
+# -----------------------------------------------------------------------
+
+# Product administrator username (password is always prompted interactively)
+# product_admin_username = admin
+
+# -----------------------------------------------------------------------
+# Step 10: General User Account
+# -----------------------------------------------------------------------
+
+# General user username (password is always prompted interactively)
+# general_user_username = user
+
+# -----------------------------------------------------------------------
+# Step 11: Backup Destination
+# -----------------------------------------------------------------------
+
+# Primary backup destination: azure-blob, aws-s3, gcp-storage, or local
+# backup_destination = aws-s3
+
+# AWS S3 backup settings (used when backup_destination = aws-s3)
+# backup_aws_bucket = my-org-countorsell-backups
+# backup_aws_region = us-east-1
+
+# -----------------------------------------------------------------------
+# Step 12: Backup Schedule
+# -----------------------------------------------------------------------
+
+# Backup schedule: daily, weekly, monthly, or a cron expression
+# backup_schedule = weekly
+
+# -----------------------------------------------------------------------
+# Step 13: Backup Retention
+# -----------------------------------------------------------------------
+
+# Number of backups to retain (applies separately to scheduled and pre-update backups)
+# backup_retention = 4
+
+# -----------------------------------------------------------------------
+# Step 14: Initial Content Update
+# -----------------------------------------------------------------------
+
+# Download and apply initial content update after deployment (true or false)
+# initial_update = true

@@ -13,10 +13,15 @@ public static class Step08_DatabaseAdminAccount
         Console.WriteLine("Minimum password length: 15 characters.");
         Console.WriteLine();
 
+        config.ConfigValues.TryGetValue("db_admin_username", out var cfgDbAdminUsername);
         while (true)
         {
-            Console.Write("Database admin username: ");
-            var username = Console.ReadLine()?.Trim();
+            if (!string.IsNullOrEmpty(cfgDbAdminUsername))
+                Console.Write($"Database admin username [{cfgDbAdminUsername}]: ");
+            else
+                Console.Write("Database admin username: ");
+            var usernameInput = Console.ReadLine()?.Trim();
+            var username = string.IsNullOrEmpty(usernameInput) ? cfgDbAdminUsername : usernameInput;
             if (!string.IsNullOrEmpty(username))
             {
                 config.DbAdminUsername = username;

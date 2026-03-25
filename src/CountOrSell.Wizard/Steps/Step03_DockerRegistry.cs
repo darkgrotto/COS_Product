@@ -20,15 +20,19 @@ public static class Step03_DockerRegistry
         Console.WriteLine("Use a custom value only if you are hosting the image in your own registry.");
         Console.WriteLine();
 
-        Console.Write($"Docker image registry [{DefaultRegistry}]: ");
+        config.ConfigValues.TryGetValue("docker_registry", out var cfgRegistry);
+        var defaultRegistry = cfgRegistry ?? DefaultRegistry;
+        Console.Write($"Docker image registry [{defaultRegistry}]: ");
         var registryInput = Console.ReadLine()?.Trim();
-        config.DockerRegistry = string.IsNullOrEmpty(registryInput) ? DefaultRegistry : registryInput;
+        config.DockerRegistry = string.IsNullOrEmpty(registryInput) ? defaultRegistry : registryInput;
         Console.WriteLine($"Registry set to: {config.DockerRegistry}");
         Console.WriteLine();
 
-        Console.Write("Image tag [latest]: ");
+        config.ConfigValues.TryGetValue("docker_image_tag", out var cfgTag);
+        var defaultTag = cfgTag ?? "latest";
+        Console.Write($"Image tag [{defaultTag}]: ");
         var tagInput = Console.ReadLine()?.Trim();
-        var tag = string.IsNullOrEmpty(tagInput) ? "latest" : tagInput;
+        var tag = string.IsNullOrEmpty(tagInput) ? defaultTag : tagInput;
 
         if (tag != "latest")
         {

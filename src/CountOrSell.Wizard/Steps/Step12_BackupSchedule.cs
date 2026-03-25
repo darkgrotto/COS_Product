@@ -20,8 +20,11 @@ public static class Step12_BackupSchedule
         Console.WriteLine("Default: weekly (every Sunday at 02:00)");
         Console.WriteLine();
 
-        Console.Write("Backup schedule [weekly]: ");
-        var input = Console.ReadLine()?.Trim();
+        config.ConfigValues.TryGetValue("backup_schedule", out var cfgSchedule);
+        var defaultScheduleLabel = string.IsNullOrEmpty(cfgSchedule) ? "weekly" : cfgSchedule;
+        Console.Write($"Backup schedule [{defaultScheduleLabel}]: ");
+        var inputRaw = Console.ReadLine()?.Trim();
+        var input = string.IsNullOrEmpty(inputRaw) ? cfgSchedule : inputRaw;
 
         if (string.IsNullOrEmpty(input))
         {

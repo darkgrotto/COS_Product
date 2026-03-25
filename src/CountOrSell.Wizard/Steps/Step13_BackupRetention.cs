@@ -12,21 +12,25 @@ public static class Step13_BackupRetention
         Console.WriteLine("Default: 4");
         Console.WriteLine();
 
-        Console.Write("Number of backups to retain [4]: ");
-        var input = Console.ReadLine()?.Trim();
+        config.ConfigValues.TryGetValue("backup_retention", out var cfgRetention);
+        var defaultRetention = 4;
+        if (!string.IsNullOrEmpty(cfgRetention) && int.TryParse(cfgRetention, out int parsedCfgRetention) && parsedCfgRetention >= 1)
+            defaultRetention = parsedCfgRetention;
+        Console.Write($"Number of backups to retain [{defaultRetention}]: ");
+        var inputRaw = Console.ReadLine()?.Trim();
 
-        if (string.IsNullOrEmpty(input))
+        if (string.IsNullOrEmpty(inputRaw))
         {
-            config.BackupRetention = 4;
+            config.BackupRetention = defaultRetention;
         }
-        else if (int.TryParse(input, out int retention) && retention >= 1)
+        else if (int.TryParse(inputRaw, out int retention) && retention >= 1)
         {
             config.BackupRetention = retention;
         }
         else
         {
-            Console.WriteLine("Invalid value. Using default of 4.");
-            config.BackupRetention = 4;
+            Console.WriteLine($"Invalid value. Using default of {defaultRetention}.");
+            config.BackupRetention = defaultRetention;
         }
 
         Console.WriteLine($"Backup retention: {config.BackupRetention}");

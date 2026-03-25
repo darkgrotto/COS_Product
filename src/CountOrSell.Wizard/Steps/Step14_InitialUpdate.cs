@@ -12,10 +12,15 @@ public static class Step14_InitialUpdate
         Console.WriteLine("from countorsell.com after deployment.");
         Console.WriteLine();
 
-        Console.Write("Download and apply initial content update after deployment? [Y/n]: ");
-        var input = Console.ReadLine()?.Trim().ToUpperInvariant();
+        config.ConfigValues.TryGetValue("initial_update", out var cfgInitialUpdate);
+        var defaultUpdate = cfgInitialUpdate?.ToUpperInvariant() != "N" && cfgInitialUpdate?.ToUpperInvariant() != "NO" && cfgInitialUpdate?.ToUpperInvariant() != "FALSE";
+        Console.Write($"Download and apply initial content update after deployment? [{(defaultUpdate ? "Y/n" : "y/N")}]: ");
+        var inputRaw = Console.ReadLine()?.Trim().ToUpperInvariant();
 
-        config.DownloadInitialUpdate = input != "N" && input != "NO";
+        if (string.IsNullOrEmpty(inputRaw))
+            config.DownloadInitialUpdate = defaultUpdate;
+        else
+            config.DownloadInitialUpdate = inputRaw != "N" && inputRaw != "NO";
 
         if (config.DownloadInitialUpdate)
         {
