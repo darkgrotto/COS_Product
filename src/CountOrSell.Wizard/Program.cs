@@ -24,8 +24,18 @@ await Step12_BackupSchedule.RunAsync(config);
 await Step13_BackupRetention.RunAsync(config);
 await Step14_InitialUpdate.RunAsync(config);
 await Step15_GenerateFiles.RunAsync(config);
-await Step16_Deploy.RunAsync(config);
-await Step17_UpdateCheckTime.RunAsync(config);
+bool deployed = await Step16_Deploy.RunAsync(config);
 
-Console.WriteLine();
-Console.WriteLine("Setup complete. CountOrSell is ready.");
+if (deployed)
+{
+    await Step17_UpdateCheckTime.RunAsync(config);
+    Console.WriteLine();
+    Console.WriteLine("Setup complete. CountOrSell is ready.");
+}
+else
+{
+    Console.WriteLine();
+    Console.WriteLine("Deployment did not complete successfully. Review the errors above.");
+    Console.WriteLine("Your infrastructure may be partially provisioned.");
+    Console.WriteLine("Use the undo script to revert any changes before retrying.");
+}

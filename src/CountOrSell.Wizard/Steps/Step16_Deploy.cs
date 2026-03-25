@@ -6,31 +6,25 @@ namespace CountOrSell.Wizard.Steps;
 
 public static class Step16_Deploy
 {
-    public static async Task RunAsync(WizardConfig config)
+    public static async Task<bool> RunAsync(WizardConfig config)
     {
         Console.WriteLine("Step 16 of 17: Deployment");
         Console.WriteLine("--------------------------");
 
-        switch (config.DeploymentType)
+        bool success = config.DeploymentType switch
         {
-            case DeploymentType.Docker:
-                await DeployDockerAsync(config);
-                break;
-            case DeploymentType.Azure:
-                await DeployAzureAsync(config);
-                break;
-            case DeploymentType.Aws:
-                await DeployAwsAsync(config);
-                break;
-            case DeploymentType.Gcp:
-                await DeployGcpAsync(config);
-                break;
-        }
+            DeploymentType.Docker => await DeployDockerAsync(config),
+            DeploymentType.Azure  => await DeployAzureAsync(config),
+            DeploymentType.Aws    => await DeployAwsAsync(config),
+            DeploymentType.Gcp    => await DeployGcpAsync(config),
+            _                     => false
+        };
 
         Console.WriteLine();
+        return success;
     }
 
-    private static async Task DeployDockerAsync(WizardConfig config)
+    private static async Task<bool> DeployDockerAsync(WizardConfig config)
     {
         var baseDir = FindRepoRoot();
         var composePath = Path.Combine(baseDir, "docker", "compose", "docker-compose.yml");
@@ -39,7 +33,7 @@ public static class Step16_Deploy
         {
             Console.WriteLine($"ERROR: Compose file not found at {composePath}");
             Console.WriteLine("Please ensure Step 15 completed successfully.");
-            return;
+            return false;
         }
 
         Console.WriteLine("Starting Docker Compose services...");
@@ -51,15 +45,15 @@ public static class Step16_Deploy
         {
             Console.WriteLine("Docker Compose services started successfully.");
             Console.WriteLine($"Application available at: https://{config.Hostname}:{config.Port}");
+            return true;
         }
-        else
-        {
-            Console.WriteLine($"Docker Compose exited with code {exitCode}.");
-            Console.WriteLine("Check the output above for errors.");
-        }
+
+        Console.WriteLine($"Docker Compose exited with code {exitCode}.");
+        Console.WriteLine("Check the output above for errors.");
+        return false;
     }
 
-    private static async Task DeployAzureAsync(WizardConfig config)
+    private static async Task<bool> DeployAzureAsync(WizardConfig config)
     {
         var region = config.CloudRegion ?? "eastus";
         var stateRg = config.CloudStateResourceGroup ?? "countorsell-tfstate-rg";
@@ -107,7 +101,7 @@ public static class Step16_Deploy
         if (connCode != 0 || string.IsNullOrWhiteSpace(connectionString))
         {
             Console.WriteLine("ERROR: Could not retrieve storage account connection string.");
-            return;
+            return false;
         }
 
         int containerCode = await RunCommandAsync("az",
@@ -144,9 +138,11 @@ public static class Step16_Deploy
 
             Console.WriteLine($"If you need to undo this deployment, run: {undo.FilePath}");
         }
+
+        return applied;
     }
 
-    private static async Task DeployAwsAsync(WizardConfig config)
+    private static async Task<bool> DeployAwsAsync(WizardConfig config)
     {
         var region = config.CloudRegion ?? "us-east-1";
         var bucket = config.CloudStateBucket ?? string.Empty;
@@ -205,9 +201,11 @@ public static class Step16_Deploy
 
             Console.WriteLine($"If you need to undo this deployment, run: {undo.FilePath}");
         }
+
+        return applied;
     }
 
-    private static async Task DeployGcpAsync(WizardConfig config)
+    private static async Task<bool> DeployGcpAsync(WizardConfig config)
     {
         var project = config.CloudProjectId ?? string.Empty;
         var region = config.CloudRegion ?? "us-central1";
@@ -272,6 +270,8 @@ public static class Step16_Deploy
 
             Console.WriteLine($"If you need to undo this deployment, run: {undo.FilePath}");
         }
+
+        return applied;
     }
 
     private static async Task<bool> RunTerraformAsync(
