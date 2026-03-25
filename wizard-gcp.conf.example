@@ -69,10 +69,22 @@
 # -----------------------------------------------------------------------
 
 # Primary backup destination: azure-blob, aws-s3, gcp-storage, or local
+# Defaults to gcp-storage for GCP deployments but any destination can be used.
 # backup_destination = gcp-storage
 
 # GCP Storage backup settings (used when backup_destination = gcp-storage)
 # backup_gcp_bucket = my-project-123456-countorsell-backups
+
+# AWS S3 backup settings (used when backup_destination = aws-s3)
+# backup_aws_bucket = my-org-countorsell-backups
+# backup_aws_region = us-east-1
+
+# Azure Blob Storage backup settings (used when backup_destination = azure-blob)
+# backup_azure_account = cosbackupstorage
+# backup_azure_resource_group = countorsell-backup-rg
+
+# Local file backup settings (used when backup_destination = local)
+# backup_local_path = ./backups
 
 # -----------------------------------------------------------------------
 # Step 12: Backup Schedule
