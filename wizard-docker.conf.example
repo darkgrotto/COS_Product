@@ -14,7 +14,7 @@
 # When auto_accept = false (default) all configured values are shown as
 # defaults and you confirm or change them at each prompt.
 #
-# auto_accept = false
+auto_accept = true
 
 # -----------------------------------------------------------------------
 # Step 3: Docker Image Registry
