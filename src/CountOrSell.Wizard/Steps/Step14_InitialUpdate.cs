@@ -13,14 +13,24 @@ public static class Step14_InitialUpdate
         Console.WriteLine();
 
         config.ConfigValues.TryGetValue("initial_update", out var cfgInitialUpdate);
-        var defaultUpdate = cfgInitialUpdate?.ToUpperInvariant() != "N" && cfgInitialUpdate?.ToUpperInvariant() != "NO" && cfgInitialUpdate?.ToUpperInvariant() != "FALSE";
-        Console.Write($"Download and apply initial content update after deployment? [{(defaultUpdate ? "Y/n" : "y/N")}]: ");
-        var inputRaw = Console.ReadLine()?.Trim().ToUpperInvariant();
+        var cfgUpper = cfgInitialUpdate?.ToUpperInvariant();
+        var defaultUpdate = cfgUpper != "N" && cfgUpper != "NO" && cfgUpper != "FALSE";
 
-        if (string.IsNullOrEmpty(inputRaw))
+        if (config.AutoAccept && cfgInitialUpdate != null)
+        {
             config.DownloadInitialUpdate = defaultUpdate;
+            Console.WriteLine($"Initial content update: {(config.DownloadInitialUpdate ? "yes" : "no")}");
+        }
         else
-            config.DownloadInitialUpdate = inputRaw != "N" && inputRaw != "NO";
+        {
+            Console.Write($"Download and apply initial content update after deployment? [{(defaultUpdate ? "Y/n" : "y/N")}]: ");
+            var inputRaw = Console.ReadLine()?.Trim().ToUpperInvariant();
+
+            if (string.IsNullOrEmpty(inputRaw))
+                config.DownloadInitialUpdate = defaultUpdate;
+            else
+                config.DownloadInitialUpdate = inputRaw != "N" && inputRaw != "NO";
+        }
 
         if (config.DownloadInitialUpdate)
         {

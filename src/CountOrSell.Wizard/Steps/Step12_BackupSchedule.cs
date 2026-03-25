@@ -21,23 +21,24 @@ public static class Step12_BackupSchedule
         Console.WriteLine();
 
         config.ConfigValues.TryGetValue("backup_schedule", out var cfgSchedule);
-        var defaultScheduleLabel = string.IsNullOrEmpty(cfgSchedule) ? "weekly" : cfgSchedule;
-        Console.Write($"Backup schedule [{defaultScheduleLabel}]: ");
-        var inputRaw = Console.ReadLine()?.Trim();
-        var input = string.IsNullOrEmpty(inputRaw) ? cfgSchedule : inputRaw;
-
-        if (string.IsNullOrEmpty(input))
+        if (config.AutoAccept && cfgSchedule != null)
         {
-            config.BackupSchedule = "0 2 * * 0";
-        }
-        else if (FriendlyNames.TryGetValue(input, out var cron))
-        {
-            config.BackupSchedule = cron;
+            config.BackupSchedule = FriendlyNames.TryGetValue(cfgSchedule, out var autoCron) ? autoCron : cfgSchedule;
+            Console.WriteLine($"Backup schedule: {config.BackupSchedule}");
         }
         else
         {
-            // Accept as raw cron expression
-            config.BackupSchedule = input;
+            var defaultScheduleLabel = string.IsNullOrEmpty(cfgSchedule) ? "weekly" : cfgSchedule;
+            Console.Write($"Backup schedule [{defaultScheduleLabel}]: ");
+            var inputRaw = Console.ReadLine()?.Trim();
+            var input = string.IsNullOrEmpty(inputRaw) ? cfgSchedule : inputRaw;
+
+            if (string.IsNullOrEmpty(input))
+                config.BackupSchedule = "0 2 * * 0";
+            else if (FriendlyNames.TryGetValue(input, out var cron))
+                config.BackupSchedule = cron;
+            else
+                config.BackupSchedule = input;
         }
 
         Console.WriteLine($"Backup schedule: {config.BackupSchedule}");

@@ -65,15 +65,59 @@ public static class Step04_EnvironmentConfig
 
         Console.WriteLine();
         config.ConfigValues.TryGetValue("application_resource_group", out var cfgAppRg);
-        config.CloudResourceGroup = PromptRequired("Application resource group name (Terraform will create this)", cfgAppRg ?? "");
+        if (config.AutoAccept && cfgAppRg != null)
+        {
+            config.CloudResourceGroup = cfgAppRg;
+            Console.WriteLine($"Application resource group: {cfgAppRg}");
+        }
+        else
+        {
+            config.CloudResourceGroup = PromptRequired("Application resource group name (Terraform will create this)", cfgAppRg ?? "");
+        }
+
         config.ConfigValues.TryGetValue("location", out var cfgLocation);
-        config.CloudRegion = PromptWithDefault("Azure location", cfgLocation ?? "eastus");
+        if (config.AutoAccept && cfgLocation != null)
+        {
+            config.CloudRegion = cfgLocation;
+            Console.WriteLine($"Azure location: {cfgLocation}");
+        }
+        else
+        {
+            config.CloudRegion = PromptWithDefault("Azure location", cfgLocation ?? "eastus");
+        }
+
         Console.WriteLine();
         Console.WriteLine("Terraform state storage will be created automatically by the wizard.");
+
         config.ConfigValues.TryGetValue("state_resource_group", out var cfgStateRg);
-        config.CloudStateResourceGroup = PromptWithDefault("State resource group name", cfgStateRg ?? "countorsell-tfstate-rg");
+        if (config.AutoAccept && cfgStateRg != null)
+        {
+            config.CloudStateResourceGroup = cfgStateRg;
+            Console.WriteLine($"State resource group: {cfgStateRg}");
+        }
+        else
+        {
+            config.CloudStateResourceGroup = PromptWithDefault("State resource group name", cfgStateRg ?? "countorsell-tfstate-rg");
+        }
+
         config.ConfigValues.TryGetValue("state_storage_account", out var cfgStateAccount);
-        config.CloudStateStorageAccount = PromptStorageAccountName("Terraform state storage account name", cfgStateAccount ?? "");
+        if (config.AutoAccept && cfgStateAccount != null)
+        {
+            if (IsValidStorageAccountName(cfgStateAccount))
+            {
+                config.CloudStateStorageAccount = cfgStateAccount;
+                Console.WriteLine($"Terraform state storage account: {cfgStateAccount}");
+            }
+            else
+            {
+                Console.WriteLine($"WARNING: Configured state_storage_account '{cfgStateAccount}' is not a valid Azure storage account name.");
+                config.CloudStateStorageAccount = PromptStorageAccountName("Terraform state storage account name", cfgStateAccount);
+            }
+        }
+        else
+        {
+            config.CloudStateStorageAccount = PromptStorageAccountName("Terraform state storage account name", cfgStateAccount ?? "");
+        }
     }
 
     private static async Task ConfigureAwsAsync(WizardConfig config, ICommandRunner runner)
@@ -101,16 +145,33 @@ public static class Step04_EnvironmentConfig
 
         var (regionCode, detectedRegion) = await runner.RunWithOutputAsync("aws", "configure get region");
         config.ConfigValues.TryGetValue("region", out var cfgRegion);
-        var defaultRegion = cfgRegion
-            ?? (regionCode == 0 && !string.IsNullOrWhiteSpace(detectedRegion) ? detectedRegion : null)
-            ?? "us-east-1";
+        if (config.AutoAccept && cfgRegion != null)
+        {
+            config.CloudRegion = cfgRegion;
+            Console.WriteLine($"AWS region: {cfgRegion}");
+        }
+        else
+        {
+            var defaultRegion = cfgRegion
+                ?? (regionCode == 0 && !string.IsNullOrWhiteSpace(detectedRegion) ? detectedRegion : null)
+                ?? "us-east-1";
+            config.CloudRegion = PromptWithDefault("AWS region", defaultRegion);
+        }
 
-        config.CloudRegion = PromptWithDefault("AWS region", defaultRegion);
         Console.WriteLine();
         Console.WriteLine("A Terraform state S3 bucket will be created automatically by the wizard.");
         Console.WriteLine("S3 bucket names are globally unique. Choose a name that is specific to your deployment.");
+
         config.ConfigValues.TryGetValue("state_bucket", out var cfgStateBucket);
-        config.CloudStateBucket = PromptRequired("Terraform state S3 bucket name", cfgStateBucket ?? "");
+        if (config.AutoAccept && cfgStateBucket != null)
+        {
+            config.CloudStateBucket = cfgStateBucket;
+            Console.WriteLine($"Terraform state S3 bucket: {cfgStateBucket}");
+        }
+        else
+        {
+            config.CloudStateBucket = PromptRequired("Terraform state S3 bucket name", cfgStateBucket ?? "");
+        }
     }
 
     private static async Task ConfigureGcpAsync(WizardConfig config, ICommandRunner runner)
@@ -155,30 +216,58 @@ public static class Step04_EnvironmentConfig
 
         var (projectCode, detectedProject) = await runner.RunWithOutputAsync("gcloud", "config get-value project");
         config.ConfigValues.TryGetValue("project_id", out var cfgProject);
-        var defaultProject = cfgProject
-            ?? (projectCode == 0 && !string.IsNullOrWhiteSpace(detectedProject) ? detectedProject : null)
-            ?? string.Empty;
-
-        if (!string.IsNullOrEmpty(defaultProject))
+        if (config.AutoAccept && cfgProject != null)
         {
-            if (string.IsNullOrEmpty(cfgProject))
-                Console.WriteLine($"Detected GCP project: {defaultProject}");
-            config.CloudProjectId = PromptWithDefault("GCP project ID", defaultProject);
+            config.CloudProjectId = cfgProject;
+            Console.WriteLine($"GCP project ID: {cfgProject}");
         }
         else
         {
-            config.CloudProjectId = PromptRequired("GCP project ID");
+            var defaultProject = cfgProject
+                ?? (projectCode == 0 && !string.IsNullOrWhiteSpace(detectedProject) ? detectedProject : null)
+                ?? string.Empty;
+            if (!string.IsNullOrEmpty(defaultProject))
+            {
+                if (string.IsNullOrEmpty(cfgProject))
+                    Console.WriteLine($"Detected GCP project: {defaultProject}");
+                config.CloudProjectId = PromptWithDefault("GCP project ID", defaultProject);
+            }
+            else
+            {
+                config.CloudProjectId = PromptRequired("GCP project ID");
+            }
         }
 
         config.ConfigValues.TryGetValue("region", out var cfgGcpRegion);
-        config.CloudRegion = PromptWithDefault("GCP region", cfgGcpRegion ?? "us-central1");
+        if (config.AutoAccept && cfgGcpRegion != null)
+        {
+            config.CloudRegion = cfgGcpRegion;
+            Console.WriteLine($"GCP region: {cfgGcpRegion}");
+        }
+        else
+        {
+            config.CloudRegion = PromptWithDefault("GCP region", cfgGcpRegion ?? "us-central1");
+        }
+
         Console.WriteLine();
         Console.WriteLine("A Terraform state GCS bucket will be created automatically by the wizard.");
         Console.WriteLine("GCS bucket names are globally unique. Choose a name that is specific to your deployment.");
+
         config.ConfigValues.TryGetValue("state_bucket", out var cfgGcpBucket);
-        var defaultBucket = cfgGcpBucket ?? $"{config.CloudProjectId}-countorsell-tfstate";
-        config.CloudStateBucket = PromptWithDefault("Terraform state GCS bucket name", defaultBucket);
+        if (config.AutoAccept && cfgGcpBucket != null)
+        {
+            config.CloudStateBucket = cfgGcpBucket;
+            Console.WriteLine($"Terraform state GCS bucket: {cfgGcpBucket}");
+        }
+        else
+        {
+            var defaultBucket = cfgGcpBucket ?? $"{config.CloudProjectId}-countorsell-tfstate";
+            config.CloudStateBucket = PromptWithDefault("Terraform state GCS bucket name", defaultBucket);
+        }
     }
+
+    private static bool IsValidStorageAccountName(string value) =>
+        value.Length >= 3 && value.Length <= 24 && value.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c));
 
     private static string PromptRequired(string label, string defaultValue = "")
     {

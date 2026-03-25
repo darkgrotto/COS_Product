@@ -15,20 +15,28 @@ public static class Step10_GeneralUserAccount
         Console.WriteLine();
 
         config.ConfigValues.TryGetValue("general_user_username", out var cfgGeneralUserUsername);
-        while (true)
+        if (config.AutoAccept && cfgGeneralUserUsername != null)
         {
-            if (!string.IsNullOrEmpty(cfgGeneralUserUsername))
-                Console.Write($"General user username [{cfgGeneralUserUsername}]: ");
-            else
-                Console.Write("General user username: ");
-            var usernameInput = Console.ReadLine()?.Trim();
-            var username = string.IsNullOrEmpty(usernameInput) ? cfgGeneralUserUsername : usernameInput;
-            if (!string.IsNullOrEmpty(username))
+            config.GeneralUserUsername = cfgGeneralUserUsername;
+            Console.WriteLine($"General user username: {cfgGeneralUserUsername}");
+        }
+        else
+        {
+            while (true)
             {
-                config.GeneralUserUsername = username;
-                break;
+                if (!string.IsNullOrEmpty(cfgGeneralUserUsername))
+                    Console.Write($"General user username [{cfgGeneralUserUsername}]: ");
+                else
+                    Console.Write("General user username: ");
+                var usernameInput = Console.ReadLine()?.Trim();
+                var username = string.IsNullOrEmpty(usernameInput) ? cfgGeneralUserUsername : usernameInput;
+                if (!string.IsNullOrEmpty(username))
+                {
+                    config.GeneralUserUsername = username;
+                    break;
+                }
+                Console.WriteLine("Username cannot be empty.");
             }
-            Console.WriteLine("Username cannot be empty.");
         }
 
         while (true)

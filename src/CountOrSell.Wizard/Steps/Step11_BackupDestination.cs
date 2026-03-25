@@ -28,6 +28,30 @@ public static class Step11_BackupDestination
             _             => null
         };
 
+        if (config.AutoAccept && defaultSelection != null)
+        {
+            Console.WriteLine($"Backup destination: {cfgBackupDest}");
+            switch (defaultSelection)
+            {
+                case "1":
+                    config.BackupDestination = "azure-blob";
+                    await ConfigureAzureBlobAsync(config);
+                    return;
+                case "2":
+                    config.BackupDestination = "aws-s3";
+                    ConfigureAwsS3(config);
+                    return;
+                case "3":
+                    config.BackupDestination = "gcp-storage";
+                    ConfigureGcpStorage(config);
+                    return;
+                case "4":
+                    config.BackupDestination = "local";
+                    ConfigureLocalFile(config);
+                    return;
+            }
+        }
+
         while (true)
         {
             if (defaultSelection != null)
@@ -70,18 +94,47 @@ public static class Step11_BackupDestination
         Console.WriteLine();
 
         config.ConfigValues.TryGetValue("backup_azure_account", out var cfgAzureAccount);
-        var accountName = PromptStorageAccountName(cfgAzureAccount ?? "");
+        string accountName;
+        if (config.AutoAccept && cfgAzureAccount != null && IsValidStorageAccountName(cfgAzureAccount))
+        {
+            accountName = cfgAzureAccount;
+            Console.WriteLine($"Storage account name: {accountName}");
+        }
+        else
+        {
+            if (config.AutoAccept && cfgAzureAccount != null)
+                Console.WriteLine($"WARNING: Configured backup_azure_account '{cfgAzureAccount}' is not a valid Azure storage account name.");
+            accountName = PromptStorageAccountName(cfgAzureAccount ?? "");
+        }
 
         config.ConfigValues.TryGetValue("backup_azure_resource_group", out var cfgAzureRg);
-        var defaultRg = cfgAzureRg ?? "countorsell-backup-rg";
-        Console.Write($"Resource group [{defaultRg}]: ");
-        var rgInput = Console.ReadLine()?.Trim();
-        var resourceGroup = string.IsNullOrEmpty(rgInput) ? defaultRg : rgInput;
+        string resourceGroup;
+        if (config.AutoAccept && cfgAzureRg != null)
+        {
+            resourceGroup = cfgAzureRg;
+            Console.WriteLine($"Resource group: {resourceGroup}");
+        }
+        else
+        {
+            var defaultRg = cfgAzureRg ?? "countorsell-backup-rg";
+            Console.Write($"Resource group [{defaultRg}]: ");
+            var rgInput = Console.ReadLine()?.Trim();
+            resourceGroup = string.IsNullOrEmpty(rgInput) ? defaultRg : rgInput;
+        }
 
         var defaultLocation = !string.IsNullOrEmpty(config.CloudRegion) ? config.CloudRegion : "eastus";
-        Console.Write($"Azure location [{defaultLocation}]: ");
-        var locationInput = Console.ReadLine()?.Trim();
-        var location = string.IsNullOrEmpty(locationInput) ? defaultLocation : locationInput;
+        string location;
+        if (config.AutoAccept && config.CloudRegion != null)
+        {
+            location = defaultLocation;
+            Console.WriteLine($"Azure location: {location}");
+        }
+        else
+        {
+            Console.Write($"Azure location [{defaultLocation}]: ");
+            var locationInput = Console.ReadLine()?.Trim();
+            location = string.IsNullOrEmpty(locationInput) ? defaultLocation : locationInput;
+        }
 
         if (!string.IsNullOrEmpty(accountName))
         {
@@ -135,6 +188,9 @@ public static class Step11_BackupDestination
         Console.WriteLine("Azure Blob Storage backup destination configured.");
         Console.WriteLine();
     }
+
+    private static bool IsValidStorageAccountName(string value) =>
+        value.Length >= 3 && value.Length <= 24 && value.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c));
 
     private static string PromptStorageAccountName(string defaultValue = "")
     {
@@ -196,18 +252,36 @@ public static class Step11_BackupDestination
         Console.WriteLine("AWS S3 configuration:");
 
         config.ConfigValues.TryGetValue("backup_aws_bucket", out var cfgAwsBucket);
-        if (!string.IsNullOrEmpty(cfgAwsBucket))
-            Console.Write($"S3 bucket name [{cfgAwsBucket}]: ");
+        string bucket;
+        if (config.AutoAccept && cfgAwsBucket != null)
+        {
+            bucket = cfgAwsBucket;
+            Console.WriteLine($"S3 bucket name: {bucket}");
+        }
         else
-            Console.Write("S3 bucket name: ");
-        var bucketInput = Console.ReadLine()?.Trim();
-        var bucket = string.IsNullOrEmpty(bucketInput) ? (cfgAwsBucket ?? string.Empty) : bucketInput;
+        {
+            if (!string.IsNullOrEmpty(cfgAwsBucket))
+                Console.Write($"S3 bucket name [{cfgAwsBucket}]: ");
+            else
+                Console.Write("S3 bucket name: ");
+            var bucketInput = Console.ReadLine()?.Trim();
+            bucket = string.IsNullOrEmpty(bucketInput) ? (cfgAwsBucket ?? string.Empty) : bucketInput;
+        }
 
         config.ConfigValues.TryGetValue("backup_aws_region", out var cfgAwsRegion);
         var defaultRegion = cfgAwsRegion ?? (config.CloudRegion ?? "us-east-1");
-        Console.Write($"AWS region [{defaultRegion}]: ");
-        var regionInput = Console.ReadLine()?.Trim();
-        var region = string.IsNullOrEmpty(regionInput) ? defaultRegion : regionInput;
+        string region;
+        if (config.AutoAccept && cfgAwsRegion != null)
+        {
+            region = cfgAwsRegion;
+            Console.WriteLine($"AWS region: {region}");
+        }
+        else
+        {
+            Console.Write($"AWS region [{defaultRegion}]: ");
+            var regionInput = Console.ReadLine()?.Trim();
+            region = string.IsNullOrEmpty(regionInput) ? defaultRegion : regionInput;
+        }
 
         config.BackupConnectionString = $"s3://{bucket}?region={region}";
         Console.WriteLine("AWS S3 backup destination configured.");
@@ -220,12 +294,21 @@ public static class Step11_BackupDestination
         Console.WriteLine("GCP Storage configuration:");
 
         config.ConfigValues.TryGetValue("backup_gcp_bucket", out var cfgGcpBucket);
-        if (!string.IsNullOrEmpty(cfgGcpBucket))
-            Console.Write($"GCS bucket name [{cfgGcpBucket}]: ");
+        string bucket;
+        if (config.AutoAccept && cfgGcpBucket != null)
+        {
+            bucket = cfgGcpBucket;
+            Console.WriteLine($"GCS bucket name: {bucket}");
+        }
         else
-            Console.Write("GCS bucket name: ");
-        var bucketInput = Console.ReadLine()?.Trim();
-        var bucket = string.IsNullOrEmpty(bucketInput) ? (cfgGcpBucket ?? string.Empty) : bucketInput;
+        {
+            if (!string.IsNullOrEmpty(cfgGcpBucket))
+                Console.Write($"GCS bucket name [{cfgGcpBucket}]: ");
+            else
+                Console.Write("GCS bucket name: ");
+            var bucketInput = Console.ReadLine()?.Trim();
+            bucket = string.IsNullOrEmpty(bucketInput) ? (cfgGcpBucket ?? string.Empty) : bucketInput;
+        }
 
         config.BackupConnectionString = $"gs://{bucket}";
         Console.WriteLine("GCP Storage backup destination configured.");
@@ -239,9 +322,17 @@ public static class Step11_BackupDestination
 
         config.ConfigValues.TryGetValue("backup_local_path", out var cfgLocalPath);
         var defaultPath = cfgLocalPath ?? "./backups";
-        Console.Write($"Local backup directory path [{defaultPath}]: ");
-        var pathInput = Console.ReadLine()?.Trim();
-        config.BackupConnectionString = string.IsNullOrEmpty(pathInput) ? defaultPath : pathInput;
+        if (config.AutoAccept && cfgLocalPath != null)
+        {
+            config.BackupConnectionString = cfgLocalPath;
+            Console.WriteLine($"Local backup path: {cfgLocalPath}");
+        }
+        else
+        {
+            Console.Write($"Local backup directory path [{defaultPath}]: ");
+            var pathInput = Console.ReadLine()?.Trim();
+            config.BackupConnectionString = string.IsNullOrEmpty(pathInput) ? defaultPath : pathInput;
+        }
         Console.WriteLine($"Local backup path: {config.BackupConnectionString}");
         Console.WriteLine();
     }

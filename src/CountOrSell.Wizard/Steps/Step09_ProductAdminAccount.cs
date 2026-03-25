@@ -15,20 +15,28 @@ public static class Step09_ProductAdminAccount
         Console.WriteLine();
 
         config.ConfigValues.TryGetValue("product_admin_username", out var cfgProductAdminUsername);
-        while (true)
+        if (config.AutoAccept && cfgProductAdminUsername != null)
         {
-            if (!string.IsNullOrEmpty(cfgProductAdminUsername))
-                Console.Write($"Product admin username [{cfgProductAdminUsername}]: ");
-            else
-                Console.Write("Product admin username: ");
-            var usernameInput = Console.ReadLine()?.Trim();
-            var username = string.IsNullOrEmpty(usernameInput) ? cfgProductAdminUsername : usernameInput;
-            if (!string.IsNullOrEmpty(username))
+            config.ProductAdminUsername = cfgProductAdminUsername;
+            Console.WriteLine($"Product admin username: {cfgProductAdminUsername}");
+        }
+        else
+        {
+            while (true)
             {
-                config.ProductAdminUsername = username;
-                break;
+                if (!string.IsNullOrEmpty(cfgProductAdminUsername))
+                    Console.Write($"Product admin username [{cfgProductAdminUsername}]: ");
+                else
+                    Console.Write("Product admin username: ");
+                var usernameInput = Console.ReadLine()?.Trim();
+                var username = string.IsNullOrEmpty(usernameInput) ? cfgProductAdminUsername : usernameInput;
+                if (!string.IsNullOrEmpty(username))
+                {
+                    config.ProductAdminUsername = username;
+                    break;
+                }
+                Console.WriteLine("Username cannot be empty.");
             }
-            Console.WriteLine("Username cannot be empty.");
         }
 
         while (true)

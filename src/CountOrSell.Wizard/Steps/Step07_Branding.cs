@@ -12,6 +12,14 @@ public static class Step07_Branding
         Console.WriteLine();
 
         config.ConfigValues.TryGetValue("instance_name", out var cfgInstanceName);
+        if (config.AutoAccept && cfgInstanceName != null)
+        {
+            config.InstanceName = cfgInstanceName;
+            Console.WriteLine($"Instance name: {cfgInstanceName}");
+            Console.WriteLine();
+            return Task.CompletedTask;
+        }
+
         while (true)
         {
             if (!string.IsNullOrEmpty(cfgInstanceName))

@@ -1,10 +1,20 @@
 # CountOrSell wizard configuration file for Docker Compose deployments
 # Copy this file to wizard-docker.conf and fill in the values for your environment.
-# The wizard will use these values as defaults, prompting you to confirm or change each one.
 # Passwords are never read from this file - you will always be prompted interactively.
 #
 # All lines beginning with # are comments and are ignored.
 # Format: key = value
+
+# -----------------------------------------------------------------------
+# Auto-accept mode
+# -----------------------------------------------------------------------
+# When auto_accept = true the wizard uses configured values without prompting.
+# Only values present in this file are auto-accepted. Any value not listed
+# here will still be prompted for interactively.
+# When auto_accept = false (default) all configured values are shown as
+# defaults and you confirm or change them at each prompt.
+#
+# auto_accept = false
 
 # -----------------------------------------------------------------------
 # Step 3: Docker Image Registry

@@ -28,7 +28,17 @@ public static class ConfigFileLoader
             config.ConfigValues[kv.Key] = kv.Value;
         }
 
+        if (config.ConfigValues.TryGetValue("auto_accept", out var autoAcceptValue) &&
+            (autoAcceptValue.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+             autoAcceptValue.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+             autoAcceptValue == "1"))
+        {
+            config.AutoAccept = true;
+        }
+
         Console.WriteLine($"Loaded {values.Count} value(s) from {fileName}.");
+        if (config.AutoAccept)
+            Console.WriteLine("Auto-accept mode: configured values will be used without prompting.");
         Console.WriteLine("Passwords are never read from configuration files.");
         Console.WriteLine();
     }

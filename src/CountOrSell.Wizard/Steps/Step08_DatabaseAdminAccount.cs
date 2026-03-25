@@ -14,20 +14,28 @@ public static class Step08_DatabaseAdminAccount
         Console.WriteLine();
 
         config.ConfigValues.TryGetValue("db_admin_username", out var cfgDbAdminUsername);
-        while (true)
+        if (config.AutoAccept && cfgDbAdminUsername != null)
         {
-            if (!string.IsNullOrEmpty(cfgDbAdminUsername))
-                Console.Write($"Database admin username [{cfgDbAdminUsername}]: ");
-            else
-                Console.Write("Database admin username: ");
-            var usernameInput = Console.ReadLine()?.Trim();
-            var username = string.IsNullOrEmpty(usernameInput) ? cfgDbAdminUsername : usernameInput;
-            if (!string.IsNullOrEmpty(username))
+            config.DbAdminUsername = cfgDbAdminUsername;
+            Console.WriteLine($"Database admin username: {cfgDbAdminUsername}");
+        }
+        else
+        {
+            while (true)
             {
-                config.DbAdminUsername = username;
-                break;
+                if (!string.IsNullOrEmpty(cfgDbAdminUsername))
+                    Console.Write($"Database admin username [{cfgDbAdminUsername}]: ");
+                else
+                    Console.Write("Database admin username: ");
+                var usernameInput = Console.ReadLine()?.Trim();
+                var username = string.IsNullOrEmpty(usernameInput) ? cfgDbAdminUsername : usernameInput;
+                if (!string.IsNullOrEmpty(username))
+                {
+                    config.DbAdminUsername = username;
+                    break;
+                }
+                Console.WriteLine("Username cannot be empty.");
             }
-            Console.WriteLine("Username cannot be empty.");
         }
 
         while (true)

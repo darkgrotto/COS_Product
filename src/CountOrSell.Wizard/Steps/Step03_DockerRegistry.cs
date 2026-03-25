@@ -21,41 +21,62 @@ public static class Step03_DockerRegistry
         Console.WriteLine();
 
         config.ConfigValues.TryGetValue("docker_registry", out var cfgRegistry);
-        var defaultRegistry = cfgRegistry ?? DefaultRegistry;
-        Console.Write($"Docker image registry [{defaultRegistry}]: ");
-        var registryInput = Console.ReadLine()?.Trim();
-        config.DockerRegistry = string.IsNullOrEmpty(registryInput) ? defaultRegistry : registryInput;
-        Console.WriteLine($"Registry set to: {config.DockerRegistry}");
+        if (config.AutoAccept && cfgRegistry != null)
+        {
+            config.DockerRegistry = cfgRegistry;
+            Console.WriteLine($"Docker image registry: {cfgRegistry}");
+        }
+        else
+        {
+            var defaultRegistry = cfgRegistry ?? DefaultRegistry;
+            Console.Write($"Docker image registry [{defaultRegistry}]: ");
+            var registryInput = Console.ReadLine()?.Trim();
+            config.DockerRegistry = string.IsNullOrEmpty(registryInput) ? defaultRegistry : registryInput;
+            Console.WriteLine($"Registry set to: {config.DockerRegistry}");
+        }
         Console.WriteLine();
 
         config.ConfigValues.TryGetValue("docker_image_tag", out var cfgTag);
-        var defaultTag = cfgTag ?? "latest";
-        Console.Write($"Image tag [{defaultTag}]: ");
-        var tagInput = Console.ReadLine()?.Trim();
-        var tag = string.IsNullOrEmpty(tagInput) ? defaultTag : tagInput;
-
-        if (tag != "latest")
+        string tag;
+        if (config.AutoAccept && cfgTag != null)
         {
-            Console.WriteLine();
-            Console.WriteLine($"WARNING: You selected tag \"{tag}\".");
-            Console.WriteLine("Only the latest tag is recommended for production use.");
-            Console.WriteLine("Specific version tags may be used for testing or pinned deployments,");
-            Console.WriteLine("but will not receive automatic updates.");
-            Console.WriteLine();
-
-            while (true)
+            tag = cfgTag;
+            Console.WriteLine($"Image tag: {tag}");
+            if (tag != "latest")
             {
-                Console.Write($"Confirm use of tag \"{tag}\"? [y/N]: ");
-                var confirm = Console.ReadLine()?.Trim().ToUpperInvariant();
-                if (confirm == "Y" || confirm == "YES")
+                Console.WriteLine($"WARNING: Tag \"{tag}\" is configured. Only latest is recommended for production use.");
+            }
+        }
+        else
+        {
+            var defaultTag = cfgTag ?? "latest";
+            Console.Write($"Image tag [{defaultTag}]: ");
+            var tagInput = Console.ReadLine()?.Trim();
+            tag = string.IsNullOrEmpty(tagInput) ? defaultTag : tagInput;
+
+            if (tag != "latest")
+            {
+                Console.WriteLine();
+                Console.WriteLine($"WARNING: You selected tag \"{tag}\".");
+                Console.WriteLine("Only the latest tag is recommended for production use.");
+                Console.WriteLine("Specific version tags may be used for testing or pinned deployments,");
+                Console.WriteLine("but will not receive automatic updates.");
+                Console.WriteLine();
+
+                while (true)
                 {
-                    break;
-                }
-                if (string.IsNullOrEmpty(confirm) || confirm == "N" || confirm == "NO")
-                {
-                    tag = "latest";
-                    Console.WriteLine("Reverted to tag: latest");
-                    break;
+                    Console.Write($"Confirm use of tag \"{tag}\"? [y/N]: ");
+                    var confirm = Console.ReadLine()?.Trim().ToUpperInvariant();
+                    if (confirm == "Y" || confirm == "YES")
+                    {
+                        break;
+                    }
+                    if (string.IsNullOrEmpty(confirm) || confirm == "N" || confirm == "NO")
+                    {
+                        tag = "latest";
+                        Console.WriteLine("Reverted to tag: latest");
+                        break;
+                    }
                 }
             }
         }

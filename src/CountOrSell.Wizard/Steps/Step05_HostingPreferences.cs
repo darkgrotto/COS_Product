@@ -10,20 +10,28 @@ public static class Step05_HostingPreferences
         Console.WriteLine("-----------------------------------");
 
         config.ConfigValues.TryGetValue("hostname", out var cfgHostname);
-        while (true)
+        if (config.AutoAccept && cfgHostname != null)
         {
-            if (!string.IsNullOrEmpty(cfgHostname))
-                Console.Write($"Hostname or subdomain (e.g. my-instance.example.com) [{cfgHostname}]: ");
-            else
-                Console.Write("Hostname or subdomain (e.g. my-instance.example.com): ");
-            var hostnameInput = Console.ReadLine()?.Trim();
-            var hostname = string.IsNullOrEmpty(hostnameInput) ? cfgHostname : hostnameInput;
-            if (!string.IsNullOrEmpty(hostname))
+            config.Hostname = cfgHostname;
+            Console.WriteLine($"Hostname: {cfgHostname}");
+        }
+        else
+        {
+            while (true)
             {
-                config.Hostname = hostname;
-                break;
+                if (!string.IsNullOrEmpty(cfgHostname))
+                    Console.Write($"Hostname or subdomain (e.g. my-instance.example.com) [{cfgHostname}]: ");
+                else
+                    Console.Write("Hostname or subdomain (e.g. my-instance.example.com): ");
+                var hostnameInput = Console.ReadLine()?.Trim();
+                var hostname = string.IsNullOrEmpty(hostnameInput) ? cfgHostname : hostnameInput;
+                if (!string.IsNullOrEmpty(hostname))
+                {
+                    config.Hostname = hostname;
+                    break;
+                }
+                Console.WriteLine("Hostname cannot be empty.");
             }
-            Console.WriteLine("Hostname cannot be empty.");
         }
 
         if (config.DeploymentType == DeploymentType.Docker)
@@ -32,12 +40,21 @@ public static class Step05_HostingPreferences
             var defaultPort = 443;
             if (!string.IsNullOrEmpty(cfgPort) && int.TryParse(cfgPort, out int parsedCfgPort) && parsedCfgPort > 0 && parsedCfgPort <= 65535)
                 defaultPort = parsedCfgPort;
-            Console.Write($"HTTPS port [{defaultPort}]: ");
-            var portInput = Console.ReadLine()?.Trim();
-            if (!string.IsNullOrEmpty(portInput) && int.TryParse(portInput, out int port) && port > 0 && port <= 65535)
-                config.Port = port;
-            else
+
+            if (config.AutoAccept && cfgPort != null)
+            {
                 config.Port = defaultPort;
+                Console.WriteLine($"HTTPS port: {defaultPort}");
+            }
+            else
+            {
+                Console.Write($"HTTPS port [{defaultPort}]: ");
+                var portInput = Console.ReadLine()?.Trim();
+                if (!string.IsNullOrEmpty(portInput) && int.TryParse(portInput, out int port) && port > 0 && port <= 65535)
+                    config.Port = port;
+                else
+                    config.Port = defaultPort;
+            }
         }
 
         Console.WriteLine($"Hostname: {config.Hostname}");
