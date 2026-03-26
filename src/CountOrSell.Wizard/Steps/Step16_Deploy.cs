@@ -440,10 +440,16 @@ public static class Step16_Deploy
         }
 
         Console.WriteLine($"Pushing to {ecrImageUri} ...");
-        int pushCode = await RunCommandAsync("docker", $"push {ecrImageUri}");
+        var (pushCode, pushStderr) = await RunAndCaptureStderrAsync("docker", $"push {ecrImageUri}");
         if (pushCode != 0)
         {
             Console.WriteLine("ERROR: docker push failed.");
+            if (pushStderr.Contains("403"))
+            {
+                Console.WriteLine("The IAM credentials are missing ecr:PutImage permission.");
+                Console.WriteLine("Add ecr:PutImage to the ECR policy for this repository and retry.");
+                Console.WriteLine("See docs/deployment/credentials.md for the full required policy.");
+            }
             return null;
         }
 
