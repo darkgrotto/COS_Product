@@ -524,8 +524,76 @@ public static class Step16_Deploy
             }
         }
 
+        // For App Runner CREATE_FAILED, the Terraform provider doesn't surface the real reason.
+        // Fetch the system log from CloudWatch to show what actually went wrong.
+        if (provider == "aws" && applyOutput.Contains("CREATE_FAILED"))
+            await DiagnoseAppRunnerFailureAsync(applyOutput, config);
+
         Console.WriteLine($"Terraform apply exited with code {applyCode}. Check output above.");
         return false;
+    }
+
+    private static async Task DiagnoseAppRunnerFailureAsync(string applyOutput, WizardConfig config)
+    {
+        var arnMatch = Regex.Match(applyOutput,
+            @"arn:aws:apprunner:[\w-]+:\d+:service/[\w-]+/[\w]+");
+        if (!arnMatch.Success) return;
+
+        var serviceArn = arnMatch.Value;
+        var region = config.CloudRegion ?? "us-east-1";
+        var appName = SanitizeAppName(config.InstanceName);
+        var serviceId = serviceArn.Split('/').LastOrDefault() ?? string.Empty;
+
+        Console.WriteLine();
+        Console.WriteLine("Fetching App Runner diagnostic information...");
+
+        // Try to get any StatusReason from the service description.
+        var (descCode, statusReason) = await RunAndCaptureAsync("aws",
+            $"apprunner describe-service --service-arn {serviceArn} --region {region} " +
+            "--query \"Service.StatusReason\" --output text");
+        if (descCode == 0 && !string.IsNullOrWhiteSpace(statusReason) &&
+            statusReason.Trim() != "None")
+            Console.WriteLine($"  Status reason: {statusReason.Trim()}");
+
+        // Fetch the last entries from the system log (shows startup errors).
+        if (!string.IsNullOrEmpty(serviceId))
+        {
+            var logGroup = $"/aws/apprunner/{appName}/{serviceId}/system";
+            var (streamsCode, latestStream) = await RunAndCaptureAsync("aws",
+                $"logs describe-log-streams --log-group-name \"{logGroup}\" --region {region} " +
+                "--order-by LastEventTime --descending --max-items 1 " +
+                "--query \"logStreams[0].logStreamName\" --output text");
+
+            if (streamsCode == 0 && !string.IsNullOrWhiteSpace(latestStream) &&
+                latestStream.Trim() != "None")
+            {
+                var (logsCode, logOutput) = await RunAndCaptureAsync("aws",
+                    $"logs get-log-events --log-group-name \"{logGroup}\" --region {region} " +
+                    $"--log-stream-name \"{latestStream.Trim()}\" " +
+                    "--limit 30 --query \"events[*].message\" --output text");
+
+                if (logsCode == 0 && !string.IsNullOrWhiteSpace(logOutput))
+                {
+                    Console.WriteLine("  App Runner system log (last entries):");
+                    foreach (var line in logOutput.Split('\t', '\n')
+                        .Where(l => !string.IsNullOrWhiteSpace(l))
+                        .TakeLast(30))
+                        Console.WriteLine($"    {line.Trim()}");
+                }
+                else
+                {
+                    Console.WriteLine($"  Could not fetch system log. Check CloudWatch manually:");
+                    Console.WriteLine($"    Log group: {logGroup}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"  Could not find system log streams. Check CloudWatch manually:");
+                Console.WriteLine($"    Log group: {logGroup}");
+            }
+
+            Console.WriteLine($"  Application log group: /aws/apprunner/{appName}/{serviceId}/application");
+        }
     }
 
     private static void WriteTfvars(string tfDir, string provider, WizardConfig config)
