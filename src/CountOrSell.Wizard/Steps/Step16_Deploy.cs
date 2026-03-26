@@ -319,14 +319,31 @@ public static class Step16_Deploy
         var registryUrl = $"{accountId}.dkr.ecr.{region}.amazonaws.com";
         var ecrImageUri = $"{registryUrl}/{appName}:latest";
 
-        // Create ECR repository (ignore error if it already exists)
-        int repoCode = await RunCommandAsync("aws",
+        // Create ECR repository. AlreadyExists is safe to ignore; AccessDenied means
+        // the IAM credentials need ECR permissions added before the wizard can continue.
+        var (repoCode, repoStderr) = await RunAndCaptureStderrAsync("aws",
             $"ecr create-repository --repository-name {appName} --region {region} --output text");
         if (repoCode == 0)
         {
             undo.AddStep(
                 $"Delete ECR repository ({appName})",
                 $"aws ecr delete-repository --repository-name {appName} --region {region} --force");
+        }
+        else if (repoStderr.Contains("AccessDeniedException") || repoStderr.Contains("not authorized"))
+        {
+            Console.WriteLine("ERROR: The IAM credentials are missing required ECR permissions.");
+            Console.WriteLine("Add the following permissions to the IAM user or role and retry:");
+            Console.WriteLine("  ecr:CreateRepository");
+            Console.WriteLine("  ecr:GetAuthorizationToken");
+            Console.WriteLine("  ecr:BatchCheckLayerAvailability");
+            Console.WriteLine("  ecr:InitiateLayerUpload");
+            Console.WriteLine("  ecr:UploadLayerPart");
+            Console.WriteLine("  ecr:CompleteLayerUpload");
+            Console.WriteLine("  ecr:PutImage");
+            Console.WriteLine("ecr:GetAuthorizationToken requires Resource: \"*\".");
+            Console.WriteLine("The remaining six can be scoped to the repository ARN:");
+            Console.WriteLine($"  arn:aws:ecr:{region}:{accountId}:repository/{appName}");
+            return null;
         }
         else
         {
@@ -339,6 +356,7 @@ public static class Step16_Deploy
         if (tokenCode != 0 || string.IsNullOrWhiteSpace(loginToken))
         {
             Console.WriteLine("ERROR: Could not retrieve ECR login token.");
+            Console.WriteLine("Ensure the IAM credentials include ecr:GetAuthorizationToken on Resource: \"*\".");
             return null;
         }
 
@@ -514,6 +532,31 @@ public static class Step16_Deploy
         proc.StandardInput.Close();
         await proc.WaitForExitAsync();
         return proc.ExitCode;
+    }
+
+    // Captures stderr while letting stdout flow to the console.
+    // Used to inspect error text (e.g. to distinguish AccessDenied from AlreadyExists)
+    // without suppressing visible command output.
+    private static async Task<(int ExitCode, string Stderr)> RunAndCaptureStderrAsync(
+        string command,
+        string arguments)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = command,
+            Arguments = arguments,
+            UseShellExecute = false,
+            RedirectStandardOutput = false,
+            RedirectStandardError = true,
+            CreateNoWindow = false
+        };
+
+        using var proc = Process.Start(psi);
+        if (proc == null) return (-1, string.Empty);
+        var stderr = await proc.StandardError.ReadToEndAsync();
+        await proc.WaitForExitAsync();
+        if (stderr.Length > 0) Console.Error.Write(stderr);
+        return (proc.ExitCode, stderr);
     }
 
     private static async Task<(int ExitCode, string Output)> RunAndCaptureAsync(
