@@ -1,6 +1,11 @@
 output "db_endpoint" {
-  description = "Endpoint of the RDS instance"
+  description = "Endpoint of the RDS instance (host:port)"
   value       = aws_db_instance.main.endpoint
+}
+
+output "db_host" {
+  description = "Hostname of the RDS instance (without port)"
+  value       = split(":", aws_db_instance.main.endpoint)[0]
 }
 
 output "db_name" {

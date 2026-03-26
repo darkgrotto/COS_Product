@@ -94,6 +94,12 @@ resource "aws_apprunner_service" "main" {
           CLOUD_APP_RUNNER_SERVICE_NAME = var.app_name
           CLOUD_REGION                  = var.region
           CLOUD_ECR_REGISTRY            = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
+          POSTGRES_CONNECTION           = var.postgres_connection
+          INSTANCE_NAME                 = var.instance_name
+          UPDATE_CHECK_TIME             = var.update_check_time
+          BACKUP_SCHEDULE               = var.backup_schedule
+          BACKUP_RETENTION              = var.backup_retention
+          BLOB_BACKUP_CONNECTION        = var.s3_backup_bucket
         }
       }
       image_identifier      = var.docker_image
@@ -140,6 +146,31 @@ resource "aws_iam_role_policy" "app_runner_self_deploy" {
         Effect   = "Allow"
         Action   = "apprunner:ListServices"
         Resource = "*"
+      }
+    ]
+  })
+}
+
+# Allow the instance role to read and write the S3 backup bucket
+resource "aws_iam_role_policy" "app_runner_s3_backup" {
+  name = "s3-backup"
+  role = aws_iam_role.app_runner_instance.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.s3_backup_bucket}",
+          "arn:aws:s3:::${var.s3_backup_bucket}/*"
+        ]
       }
     ]
   })

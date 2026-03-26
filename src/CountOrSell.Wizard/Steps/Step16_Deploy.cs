@@ -552,6 +552,10 @@ public static class Step16_Deploy
                 break;
             case "aws":
                 lines.Add($"region             = \"{config.CloudRegion ?? "us-east-1"}\"");
+                lines.Add($"instance_name      = \"{EscapeTfString(config.InstanceName)}\"");
+                lines.Add($"update_check_time  = \"{config.UpdateCheckTime}\"");
+                lines.Add($"backup_schedule    = \"{EscapeTfString(config.BackupSchedule)}\"");
+                lines.Add($"backup_retention   = \"{config.BackupRetention}\"");
                 break;
             case "gcp":
                 lines.Add($"project_id         = \"{config.CloudProjectId}\"");

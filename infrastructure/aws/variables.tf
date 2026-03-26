@@ -25,3 +25,26 @@ variable "db_admin_password" {
   type        = string
   sensitive   = true
 }
+
+variable "instance_name" {
+  description = "Instance display name for branding"
+  type        = string
+}
+
+variable "update_check_time" {
+  description = "Daily update check time (HH:MM)"
+  type        = string
+  default     = "03:00"
+}
+
+variable "backup_schedule" {
+  description = "Backup schedule cron expression"
+  type        = string
+  default     = "0 0 * * 0"
+}
+
+variable "backup_retention" {
+  description = "Number of backups to retain"
+  type        = string
+  default     = "4"
+}
