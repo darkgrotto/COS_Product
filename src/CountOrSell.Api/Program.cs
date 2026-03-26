@@ -4,6 +4,7 @@ using CountOrSell.Api.Background.Backup;
 using CountOrSell.Api.Background.Updates;
 using CountOrSell.Api.Background;
 using CountOrSell.Api.Services;
+using CountOrSell.Api.Services.Deployment;
 using CountOrSell.Api.Services.Destinations;
 using CountOrSell.Data;
 using CountOrSell.Data.Images;
@@ -79,6 +80,24 @@ builder.Services.AddScoped<IAdminNotificationService, AdminNotificationService>(
 builder.Services.AddScoped<IEmailNotificationService, EmailNotificationService>();
 builder.Services.AddHttpClient<IAppVersionService, AppVersionService>();
 builder.Services.AddScoped<IUpdateRepository, UpdateRepository>();
+
+// Cloud deployment service - provider selected by CLOUD_PROVIDER environment variable
+var cloudProvider = Environment.GetEnvironmentVariable("CLOUD_PROVIDER") ?? string.Empty;
+switch (cloudProvider.ToLowerInvariant())
+{
+    case "azure":
+        builder.Services.AddSingleton<ICloudDeploymentService, AzureDeploymentService>();
+        break;
+    case "aws":
+        builder.Services.AddSingleton<ICloudDeploymentService, AwsDeploymentService>();
+        break;
+    case "gcp":
+        builder.Services.AddSingleton<ICloudDeploymentService, GcpDeploymentService>();
+        break;
+    default:
+        builder.Services.AddSingleton<ICloudDeploymentService, NullDeploymentService>();
+        break;
+}
 
 // Backup and restore services
 builder.Services.AddScoped<IProcessRunner, ProcessRunner>();

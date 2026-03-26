@@ -31,4 +31,6 @@ public class WizardConfig
     public string? CloudStateStorageAccount { get; set; }
     public string? CloudProjectId { get; set; }
     public string? CloudStateBucket { get; set; }
+    // AWS-specific: set during deployment after mirroring image to ECR
+    public string? CloudEcrImageUri { get; set; }
 }

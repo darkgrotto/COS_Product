@@ -1,3 +1,5 @@
+data "azurerm_subscription" "current" {}
+
 resource "azurerm_service_plan" "main" {
   name                = "${var.app_name}-plan"
   resource_group_name = var.resource_group_name
@@ -22,7 +24,21 @@ resource "azurerm_linux_web_app" "main" {
     type = "SystemAssigned"
   }
 
+  app_settings = {
+    CLOUD_PROVIDER        = "azure"
+    AZURE_SUBSCRIPTION_ID = data.azurerm_subscription.current.subscription_id
+    AZURE_RESOURCE_GROUP  = var.resource_group_name
+    AZURE_APP_NAME        = var.app_name
+  }
+
   https_only = true
+}
+
+# Allow the app's managed identity to restart itself (pulls new image on restart)
+resource "azurerm_role_assignment" "app_self_deploy" {
+  scope                = azurerm_linux_web_app.main.id
+  role_definition_name = "Website Contributor"
+  principal_id         = azurerm_linux_web_app.main.identity[0].principal_id
 }
 
 resource "azurerm_key_vault_access_policy" "app" {

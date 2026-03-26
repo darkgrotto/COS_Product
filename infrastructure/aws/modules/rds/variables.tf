@@ -14,8 +14,3 @@ variable "db_password" {
   sensitive   = true
 }
 
-variable "subnet_ids" {
-  description = "List of subnet IDs for the DB subnet group"
-  type        = list(string)
-  default     = []
-}

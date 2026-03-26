@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CountOrSell.Api.Background.Updates;
 using CountOrSell.Api.Filters;
 using CountOrSell.Api.Services;
+using CountOrSell.Api.Services.Deployment;
 using CountOrSell.Data.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,15 +17,18 @@ public class UpdatesController : ControllerBase
     private readonly IUpdateRepository _updateRepo;
     private readonly IUpdateCheckTrigger _updateTrigger;
     private readonly SchemaUpdateCoordinator _schemaCoordinator;
+    private readonly ICloudDeploymentService _deploymentService;
 
     public UpdatesController(
         IUpdateRepository updateRepo,
         IUpdateCheckTrigger updateTrigger,
-        SchemaUpdateCoordinator schemaCoordinator)
+        SchemaUpdateCoordinator schemaCoordinator,
+        ICloudDeploymentService deploymentService)
     {
         _updateRepo = updateRepo;
         _updateTrigger = updateTrigger;
         _schemaCoordinator = schemaCoordinator;
+        _deploymentService = deploymentService;
     }
 
     [HttpGet("status")]
@@ -94,6 +98,27 @@ public class UpdatesController : ControllerBase
             });
 
         return Ok();
+    }
+
+    [HttpGet("deploy/supported")]
+    public IActionResult GetDeploySupported()
+        => Ok(new { supported = _deploymentService.IsSupported });
+
+    [HttpPost("deploy")]
+    [DemoLocked]
+    public async Task<IActionResult> TriggerDeploy(CancellationToken ct)
+    {
+        if (!_deploymentService.IsSupported)
+            return UnprocessableEntity(new
+            {
+                error = "Application updates for this deployment type are managed via the generated update.sh script."
+            });
+
+        var result = await _deploymentService.TriggerUpdateAsync(ct);
+        if (!result.Success)
+            return UnprocessableEntity(new { error = result.Message });
+
+        return Ok(new { message = result.Message });
     }
 
     [HttpPost("notifications/{id}/read")]

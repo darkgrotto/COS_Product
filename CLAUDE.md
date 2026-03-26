@@ -958,6 +958,17 @@ TCGPLAYER_API_KEY=            # Optional, user/admin supplied
 DEMO_MODE=                    # "true" to activate demo mode
 DEMO_EXPIRES_AT=              # Optional ISO 8601 expiry for
                               # demo countdown clock
+CLOUD_PROVIDER=               # Set by Terraform: "azure",
+                              # "aws", "gcp", or absent for
+                              # Docker deployments
+AZURE_SUBSCRIPTION_ID=        # Azure only - set by Terraform
+AZURE_RESOURCE_GROUP=         # Azure only - set by Terraform
+AZURE_APP_NAME=               # Azure only - set by Terraform
+CLOUD_APP_RUNNER_SERVICE_NAME=# AWS only - set by Terraform
+CLOUD_REGION=                 # AWS only - set by Terraform
+GCP_PROJECT_ID=               # GCP only - set by Terraform
+GCP_REGION=                   # GCP only - set by Terraform
+GCP_SERVICE_NAME=             # GCP only - set by Terraform
 ```
 
 ---

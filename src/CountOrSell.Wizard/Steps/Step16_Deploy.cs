@@ -170,9 +170,23 @@ public static class Step16_Deploy
         }
         else
         {
+            // Versioned buckets require purging all object versions and delete markers before
+            // the bucket itself can be deleted. aws s3 rb --force only removes current versions.
+            var purgeVersions =
+                $"VOBJ=$(aws s3api list-object-versions --bucket {bucket}" +
+                $" --query '{{Objects: Versions[].{{Key:Key,VersionId:VersionId}}, Quiet: `true`}}'" +
+                $" --output json 2>/dev/null);" +
+                $" echo \"$VOBJ\" | grep -q '\"Key\"' &&" +
+                $" aws s3api delete-objects --bucket {bucket} --delete \"$VOBJ\" --output none 2>/dev/null";
+            var purgeMarkers =
+                $"MOBJ=$(aws s3api list-object-versions --bucket {bucket}" +
+                $" --query '{{Objects: DeleteMarkers[].{{Key:Key,VersionId:VersionId}}, Quiet: `true`}}'" +
+                $" --output json 2>/dev/null);" +
+                $" echo \"$MOBJ\" | grep -q '\"Key\"' &&" +
+                $" aws s3api delete-objects --bucket {bucket} --delete \"$MOBJ\" --output none 2>/dev/null";
             undo.AddStep(
                 $"Delete Terraform state S3 bucket ({bucket})",
-                $"aws s3 rb s3://{bucket} --force");
+                $"{purgeVersions}; {purgeMarkers}; aws s3 rb s3://{bucket}");
         }
 
         int versionCode = await RunCommandAsync("aws",
@@ -184,6 +198,16 @@ public static class Step16_Deploy
         }
 
         Console.WriteLine("Terraform state S3 bucket ready.");
+
+        // Mirror the image from ghcr.io to ECR - App Runner only accepts ECR image URIs.
+        var appName = SanitizeAppName(config.InstanceName);
+        var ecrImageUri = await MirrorImageToEcrAsync(config, region, appName, undo);
+        if (ecrImageUri == null)
+        {
+            Console.WriteLine("ERROR: Could not mirror image to ECR. Deployment cannot proceed.");
+            return false;
+        }
+        config.CloudEcrImageUri = ecrImageUri;
 
         var backendConfig = new Dictionary<string, string>
         {
@@ -277,6 +301,84 @@ public static class Step16_Deploy
         return applied;
     }
 
+    private static async Task<string?> MirrorImageToEcrAsync(
+        WizardConfig config, string region, string appName, UndoFileWriter undo)
+    {
+        Console.WriteLine("Mirroring image to ECR (App Runner requires ECR image URIs)...");
+
+        // Resolve AWS account ID
+        var (idCode, accountId) = await RunAndCaptureAsync("aws",
+            "sts get-caller-identity --query Account --output text");
+        if (idCode != 0 || string.IsNullOrWhiteSpace(accountId))
+        {
+            Console.WriteLine("ERROR: Could not determine AWS account ID.");
+            return null;
+        }
+        accountId = accountId.Trim();
+
+        var registryUrl = $"{accountId}.dkr.ecr.{region}.amazonaws.com";
+        var ecrImageUri = $"{registryUrl}/{appName}:latest";
+
+        // Create ECR repository (ignore error if it already exists)
+        int repoCode = await RunCommandAsync("aws",
+            $"ecr create-repository --repository-name {appName} --region {region} --output none");
+        if (repoCode == 0)
+        {
+            undo.AddStep(
+                $"Delete ECR repository ({appName})",
+                $"aws ecr delete-repository --repository-name {appName} --region {region} --force");
+        }
+        else
+        {
+            Console.WriteLine("NOTE: ECR repository may already exist. Continuing.");
+        }
+
+        // Authenticate Docker to ECR
+        var (tokenCode, loginToken) = await RunAndCaptureAsync("aws",
+            $"ecr get-login-password --region {region}");
+        if (tokenCode != 0 || string.IsNullOrWhiteSpace(loginToken))
+        {
+            Console.WriteLine("ERROR: Could not retrieve ECR login token.");
+            return null;
+        }
+
+        int loginCode = await RunCommandWithInputAsync("docker",
+            $"login --username AWS --password-stdin {registryUrl}", loginToken.Trim());
+        if (loginCode != 0)
+        {
+            Console.WriteLine("ERROR: Docker login to ECR failed.");
+            return null;
+        }
+
+        // Pull from ghcr.io, tag, and push to ECR
+        Console.WriteLine("Pulling ghcr.io/darkgrotto/countorsell:latest ...");
+        int pullCode = await RunCommandAsync("docker", "pull ghcr.io/darkgrotto/countorsell:latest");
+        if (pullCode != 0)
+        {
+            Console.WriteLine("ERROR: docker pull failed. Ensure Docker is running and you have network access.");
+            return null;
+        }
+
+        int tagCode = await RunCommandAsync("docker",
+            $"tag ghcr.io/darkgrotto/countorsell:latest {ecrImageUri}");
+        if (tagCode != 0)
+        {
+            Console.WriteLine("ERROR: docker tag failed.");
+            return null;
+        }
+
+        Console.WriteLine($"Pushing to {ecrImageUri} ...");
+        int pushCode = await RunCommandAsync("docker", $"push {ecrImageUri}");
+        if (pushCode != 0)
+        {
+            Console.WriteLine("ERROR: docker push failed.");
+            return null;
+        }
+
+        Console.WriteLine("Image mirrored to ECR successfully.");
+        return ecrImageUri;
+    }
+
     private static async Task<bool> RunTerraformAsync(
         string provider,
         WizardConfig config,
@@ -321,7 +423,9 @@ public static class Step16_Deploy
     private static void WriteTfvars(string tfDir, string provider, WizardConfig config)
     {
         var appName = SanitizeAppName(config.InstanceName);
-        var dockerImage = "ghcr.io/darkgrotto/countorsell:latest";
+        var dockerImage = provider == "aws" && config.CloudEcrImageUri != null
+            ? config.CloudEcrImageUri
+            : "ghcr.io/darkgrotto/countorsell:latest";
         var lines = new List<string>
         {
             $"app_name           = \"{appName}\"",
@@ -384,6 +488,30 @@ public static class Step16_Deploy
 
         using var proc = Process.Start(psi);
         if (proc == null) return -1;
+        await proc.WaitForExitAsync();
+        return proc.ExitCode;
+    }
+
+    private static async Task<int> RunCommandWithInputAsync(
+        string command,
+        string arguments,
+        string input)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = command,
+            Arguments = arguments,
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false,
+            CreateNoWindow = false
+        };
+
+        using var proc = Process.Start(psi);
+        if (proc == null) return -1;
+        await proc.StandardInput.WriteAsync(input);
+        proc.StandardInput.Close();
         await proc.WaitForExitAsync();
         return proc.ExitCode;
     }

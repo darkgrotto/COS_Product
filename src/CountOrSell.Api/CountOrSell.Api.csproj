@@ -17,6 +17,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Azure.Identity" Version="1.12.0" />
+    <PackageReference Include="Azure.ResourceManager.AppService" Version="1.2.0" />
+    <PackageReference Include="AWSSDK.AppRunner" Version="3.7.400.55" />
+    <PackageReference Include="Google.Cloud.Run.V2" Version="2.5.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../CountOrSell.Domain/CountOrSell.Domain.csproj" />
