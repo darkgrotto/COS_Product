@@ -306,6 +306,15 @@ public static class Step16_Deploy
     {
         Console.WriteLine("Mirroring image to ECR (App Runner requires ECR image URIs)...");
 
+        // Verify the Docker daemon is reachable before doing anything else.
+        int dockerInfoCode = await RunCommandAsync("docker", "info --format '.'");
+        if (dockerInfoCode != 0)
+        {
+            Console.WriteLine("ERROR: Cannot connect to the Docker daemon.");
+            Console.WriteLine("Start Docker Desktop and wait for it to finish starting, then retry.");
+            return null;
+        }
+
         // Resolve AWS account ID
         var (idCode, accountId) = await RunAndCaptureAsync("aws",
             "sts get-caller-identity --query Account --output text");
