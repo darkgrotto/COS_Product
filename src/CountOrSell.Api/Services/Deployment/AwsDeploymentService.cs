@@ -4,12 +4,15 @@ using Amazon.AppRunner.Model;
 namespace CountOrSell.Api.Services.Deployment;
 
 // Triggers a new App Runner deployment, which re-pulls the Docker image.
-// Requires the instance role to have apprunner:StartDeployment and apprunner:ListServices.
-// Environment variables set by Terraform: CLOUD_APP_RUNNER_SERVICE_NAME, CLOUD_REGION.
+// Requires the instance role to have apprunner:StartDeployment, apprunner:DescribeService,
+// apprunner:UpdateService, and apprunner:ListServices.
+// Environment variables set by Terraform: CLOUD_APP_RUNNER_SERVICE_NAME, CLOUD_REGION,
+// CLOUD_ECR_REGISTRY.
 public sealed class AwsDeploymentService : ICloudDeploymentService
 {
     private readonly string _serviceName;
     private readonly string _region;
+    private readonly string? _ecrRegistry;
     private readonly ILogger<AwsDeploymentService> _logger;
 
     public bool IsSupported => true;
@@ -22,10 +25,12 @@ public sealed class AwsDeploymentService : ICloudDeploymentService
         _region = configuration["CLOUD_REGION"]
             ?? Environment.GetEnvironmentVariable("CLOUD_REGION")
             ?? "us-east-1";
+        _ecrRegistry = configuration["CLOUD_ECR_REGISTRY"]
+            ?? Environment.GetEnvironmentVariable("CLOUD_ECR_REGISTRY");
         _logger = logger;
     }
 
-    public async Task<DeploymentResult> TriggerUpdateAsync(CancellationToken ct)
+    public async Task<DeploymentResult> TriggerUpdateAsync(string? tag, CancellationToken ct)
     {
         try
         {
@@ -56,11 +61,48 @@ public sealed class AwsDeploymentService : ICloudDeploymentService
                 return DeploymentResult.Fail($"App Runner service '{_serviceName}' not found.");
             }
 
-            var deployRequest = new StartDeploymentRequest { ServiceArn = serviceArn };
-            await client.StartDeploymentAsync(deployRequest, ct);
+            if (!string.IsNullOrWhiteSpace(tag))
+            {
+                // Update the image URI to the new tag and trigger a deployment.
+                // App Runner only accepts ECR image URIs, so we construct from the ECR registry env var.
+                if (string.IsNullOrWhiteSpace(_ecrRegistry))
+                    return DeploymentResult.Fail(
+                        "CLOUD_ECR_REGISTRY is not configured. Cannot update to a specific tag.");
 
-            _logger.LogInformation("App Runner deployment triggered for {ServiceName}", _serviceName);
-            return DeploymentResult.Ok("App Runner deployment triggered. The new image will be pulled.");
+                var describeResponse = await client.DescribeServiceAsync(
+                    new DescribeServiceRequest { ServiceArn = serviceArn }, ct);
+                var currentConfig = describeResponse.Service.SourceConfiguration.ImageRepository.ImageConfiguration;
+
+                var newImageUri = $"{_ecrRegistry}/{_serviceName}:{tag}";
+                var updateRequest = new UpdateServiceRequest
+                {
+                    ServiceArn = serviceArn,
+                    SourceConfiguration = new SourceConfiguration
+                    {
+                        ImageRepository = new ImageRepository
+                        {
+                            ImageIdentifier     = newImageUri,
+                            ImageRepositoryType = ImageRepositoryType.ECR,
+                            ImageConfiguration  = currentConfig
+                        },
+                        AutoDeploymentsEnabled = false
+                    }
+                };
+                await client.UpdateServiceAsync(updateRequest, ct);
+
+                _logger.LogInformation(
+                    "App Runner service updated to image {Image} for {ServiceName}", newImageUri, _serviceName);
+                var message = $"App Runner updated to tag \"{tag}\" and deployment triggered.";
+                return DeploymentResult.Ok(message);
+            }
+            else
+            {
+                var deployRequest = new StartDeploymentRequest { ServiceArn = serviceArn };
+                await client.StartDeploymentAsync(deployRequest, ct);
+
+                _logger.LogInformation("App Runner deployment triggered for {ServiceName}", _serviceName);
+                return DeploymentResult.Ok("App Runner deployment triggered. The new image will be pulled.");
+            }
         }
         catch (Exception ex)
         {

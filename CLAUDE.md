@@ -966,6 +966,8 @@ AZURE_RESOURCE_GROUP=         # Azure only - set by Terraform
 AZURE_APP_NAME=               # Azure only - set by Terraform
 CLOUD_APP_RUNNER_SERVICE_NAME=# AWS only - set by Terraform
 CLOUD_REGION=                 # AWS only - set by Terraform
+CLOUD_ECR_REGISTRY=           # AWS only - set by Terraform
+                              # {account_id}.dkr.ecr.{region}.amazonaws.com
 GCP_PROJECT_ID=               # GCP only - set by Terraform
 GCP_REGION=                   # GCP only - set by Terraform
 GCP_SERVICE_NAME=             # GCP only - set by Terraform

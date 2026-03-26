@@ -28,7 +28,7 @@ public sealed class GcpDeploymentService : ICloudDeploymentService
         _logger = logger;
     }
 
-    public async Task<DeploymentResult> TriggerUpdateAsync(CancellationToken ct)
+    public async Task<DeploymentResult> TriggerUpdateAsync(string? tag, CancellationToken ct)
     {
         try
         {
@@ -37,10 +37,21 @@ public sealed class GcpDeploymentService : ICloudDeploymentService
             var serviceName = ServiceName.FromProjectLocationService(_projectId, _region, _serviceName);
             var service = await client.GetServiceAsync(serviceName.ToString(), ct);
 
-            // Adding or updating an annotation forces Cloud Run to create a new revision,
-            // which re-resolves the :latest tag to the current image digest.
-            service.Annotations["countorsell.com/deploy-triggered-at"] =
-                DateTimeOffset.UtcNow.ToString("O");
+            if (!string.IsNullOrWhiteSpace(tag))
+            {
+                // Update the container image to the new tag. Cloud Run creates a new revision
+                // that pulls the specified image.
+                service.Template.Containers[0].Image = $"ghcr.io/darkgrotto/countorsell:{tag}";
+                _logger.LogInformation(
+                    "Cloud Run image updated to tag {Tag} for {ServiceName}", tag, _serviceName);
+            }
+            else
+            {
+                // Adding or updating an annotation forces Cloud Run to create a new revision,
+                // which re-resolves the :latest tag to the current image digest.
+                service.Annotations["countorsell.com/deploy-triggered-at"] =
+                    DateTimeOffset.UtcNow.ToString("O");
+            }
 
             var updateRequest = new UpdateServiceRequest { Service = service };
             var operation = await client.UpdateServiceAsync(updateRequest, ct);
@@ -48,7 +59,10 @@ public sealed class GcpDeploymentService : ICloudDeploymentService
                 Google.Api.Gax.Grpc.CallSettings.FromCancellationToken(ct));
 
             _logger.LogInformation("Cloud Run revision triggered for {ServiceName}", _serviceName);
-            return DeploymentResult.Ok("Cloud Run revision triggered. The new image will be deployed.");
+            var message = string.IsNullOrWhiteSpace(tag)
+                ? "Cloud Run revision triggered. The new image will be deployed."
+                : $"Cloud Run updated to tag \"{tag}\" and revision triggered.";
+            return DeploymentResult.Ok(message);
         }
         catch (Exception ex)
         {

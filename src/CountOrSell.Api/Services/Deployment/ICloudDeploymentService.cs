@@ -3,7 +3,9 @@ namespace CountOrSell.Api.Services.Deployment;
 public interface ICloudDeploymentService
 {
     bool IsSupported { get; }
-    Task<DeploymentResult> TriggerUpdateAsync(CancellationToken ct);
+    // tag: specific image tag to deploy (e.g. "dev", "1.2.3"). Null means re-deploy the
+    // currently configured tag without changing it.
+    Task<DeploymentResult> TriggerUpdateAsync(string? tag, CancellationToken ct);
 }
 
 public sealed class DeploymentResult

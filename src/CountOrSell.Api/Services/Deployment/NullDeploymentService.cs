@@ -5,6 +5,6 @@ public sealed class NullDeploymentService : ICloudDeploymentService
 {
     public bool IsSupported => false;
 
-    public Task<DeploymentResult> TriggerUpdateAsync(CancellationToken ct)
+    public Task<DeploymentResult> TriggerUpdateAsync(string? tag, CancellationToken ct)
         => Task.FromResult(DeploymentResult.NotSupported());
 }

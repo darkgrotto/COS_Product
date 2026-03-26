@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 data "aws_vpc" "default" {
   default = true
 }
@@ -91,6 +93,7 @@ resource "aws_apprunner_service" "main" {
           CLOUD_PROVIDER                = "aws"
           CLOUD_APP_RUNNER_SERVICE_NAME = var.app_name
           CLOUD_REGION                  = var.region
+          CLOUD_ECR_REGISTRY            = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
         }
       }
       image_identifier      = var.docker_image
@@ -130,7 +133,7 @@ resource "aws_iam_role_policy" "app_runner_self_deploy" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = "apprunner:StartDeployment"
+        Action   = ["apprunner:StartDeployment", "apprunner:DescribeService", "apprunner:UpdateService"]
         Resource = aws_apprunner_service.main.arn
       },
       {

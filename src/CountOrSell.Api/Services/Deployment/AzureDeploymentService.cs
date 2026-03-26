@@ -30,7 +30,7 @@ public sealed class AzureDeploymentService : ICloudDeploymentService
         _logger = logger;
     }
 
-    public async Task<DeploymentResult> TriggerUpdateAsync(CancellationToken ct)
+    public async Task<DeploymentResult> TriggerUpdateAsync(string? tag, CancellationToken ct)
     {
         try
         {
@@ -41,15 +41,31 @@ public sealed class AzureDeploymentService : ICloudDeploymentService
                 _subscriptionId, _resourceGroup, _appName);
             var webApp = armClient.GetWebSiteResource(resourceId);
 
+            if (!string.IsNullOrWhiteSpace(tag))
+            {
+                // Update LinuxFxVersion to change the image tag, then restart.
+                // Format: DOCKER|registry/image:tag
+                var configResource = webApp.GetWebSiteConfig();
+                var configData = (await configResource.GetAsync(ct)).Value.Data;
+                configData.LinuxFxVersion = $"DOCKER|ghcr.io/darkgrotto/countorsell:{tag}";
+                await configResource.CreateOrUpdateAsync(
+                    Azure.WaitUntil.Completed, configData, ct);
+                _logger.LogInformation(
+                    "Azure App Service image tag updated to {Tag} for {AppName}", tag, _appName);
+            }
+
             await webApp.RestartAsync(softRestart: false, synchronous: false, cancellationToken: ct);
 
             _logger.LogInformation("Azure App Service restart triggered for {AppName}", _appName);
-            return DeploymentResult.Ok("App Service restart triggered. The new image will be pulled on restart.");
+            var message = string.IsNullOrWhiteSpace(tag)
+                ? "App Service restart triggered. The new image will be pulled on restart."
+                : $"App Service updated to tag \"{tag}\" and restart triggered.";
+            return DeploymentResult.Ok(message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to trigger Azure App Service restart for {AppName}", _appName);
-            return DeploymentResult.Fail($"Failed to trigger restart: {ex.Message}");
+            _logger.LogError(ex, "Failed to trigger Azure App Service update for {AppName}", _appName);
+            return DeploymentResult.Fail($"Failed to trigger update: {ex.Message}");
         }
     }
 }

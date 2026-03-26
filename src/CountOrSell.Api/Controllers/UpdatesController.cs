@@ -106,7 +106,7 @@ public class UpdatesController : ControllerBase
 
     [HttpPost("deploy")]
     [DemoLocked]
-    public async Task<IActionResult> TriggerDeploy(CancellationToken ct)
+    public async Task<IActionResult> TriggerDeploy([FromBody] DeployRequest? request, CancellationToken ct)
     {
         if (!_deploymentService.IsSupported)
             return UnprocessableEntity(new
@@ -114,7 +114,7 @@ public class UpdatesController : ControllerBase
                 error = "Application updates for this deployment type are managed via the generated update.sh script."
             });
 
-        var result = await _deploymentService.TriggerUpdateAsync(ct);
+        var result = await _deploymentService.TriggerUpdateAsync(request?.Tag, ct);
         if (!result.Success)
             return UnprocessableEntity(new { error = result.Message });
 
@@ -127,4 +127,11 @@ public class UpdatesController : ControllerBase
         await _updateRepo.MarkNotificationReadAsync(id, ct);
         return Ok();
     }
+}
+
+public sealed class DeployRequest
+{
+    // Optional image tag to deploy (e.g. "dev", "1.2.3"). Null or omitted means
+    // re-deploy the currently configured tag without changing it.
+    public string? Tag { get; init; }
 }
