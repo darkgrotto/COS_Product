@@ -1,6 +1,8 @@
 using CountOrSell.Wizard.Models;
 using CountOrSell.Wizard.Services;
 using System.Diagnostics;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace CountOrSell.Wizard.Steps;
 
@@ -488,12 +490,38 @@ public static class Step16_Deploy
         }
 
         Console.WriteLine("Running: terraform apply -auto-approve");
-        int applyCode = await RunCommandAsync("terraform",
-            "apply -auto-approve -input=false -var-file=terraform.tfvars", tfDir);
+        var (applyCode, applyOutput) = await RunStreamingCaptureStderrAsync(
+            "terraform", "apply -auto-approve -input=false -var-file=terraform.tfvars", tfDir);
+
         if (applyCode == 0)
         {
             Console.WriteLine("Terraform apply completed successfully.");
             return true;
+        }
+
+        // For AWS, detect resources left over from a previous failed run and import them,
+        // then retry apply once.
+        if (provider == "aws" && (
+            applyOutput.Contains("EntityAlreadyExists") ||
+            applyOutput.Contains("AlreadyExistsException") ||
+            applyOutput.Contains("InvalidGroup.Duplicate") ||
+            applyOutput.Contains("ResourceExistsException")))
+        {
+            var appName = SanitizeAppName(config.InstanceName);
+            var region = config.CloudRegion ?? "us-east-1";
+            bool imported = await TryImportExistingAwsResourcesAsync(
+                tfDir, applyOutput, appName, region);
+            if (imported)
+            {
+                Console.WriteLine("Running: terraform apply -auto-approve (retry after import)");
+                applyCode = await RunCommandAsync("terraform",
+                    "apply -auto-approve -input=false -var-file=terraform.tfvars", tfDir);
+                if (applyCode == 0)
+                {
+                    Console.WriteLine("Terraform apply completed successfully.");
+                    return true;
+                }
+            }
         }
 
         Console.WriteLine($"Terraform apply exited with code {applyCode}. Check output above.");
@@ -545,6 +573,118 @@ public static class Step16_Deploy
 
     private static string EscapeTfString(string value) =>
         value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    // Runs a command, streams its stderr to Console.Error in real time, and returns
+    // the accumulated stderr alongside the exit code. Use for long-running commands
+    // (e.g. terraform apply) where we need live output AND the full text for error analysis.
+    // Terraform writes its human-readable output to stderr; stdout is reserved for -json mode.
+    private static async Task<(int ExitCode, string Captured)> RunStreamingCaptureStderrAsync(
+        string command, string arguments, string? workingDir = null)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = command,
+            Arguments = arguments,
+            UseShellExecute = false,
+            RedirectStandardOutput = false,
+            RedirectStandardError = true,
+            CreateNoWindow = false,
+        };
+        if (!string.IsNullOrEmpty(workingDir))
+            psi.WorkingDirectory = workingDir;
+
+        var captured = new StringBuilder();
+        using var proc = Process.Start(psi);
+        if (proc == null) return (-1, string.Empty);
+
+        // Read stderr chunks as they arrive so the user sees output live while we accumulate.
+        var stderrTask = Task.Run(async () =>
+        {
+            var buf = new char[256];
+            int read;
+            while ((read = await proc.StandardError.ReadAsync(buf, 0, buf.Length)) > 0)
+            {
+                var chunk = new string(buf, 0, read);
+                captured.Append(chunk);
+                Console.Error.Write(chunk);
+            }
+        });
+
+        await proc.WaitForExitAsync();
+        await stderrTask;
+        return (proc.ExitCode, captured.ToString());
+    }
+
+    // After a failed terraform apply, looks for "already exists" errors that indicate
+    // resources from a previous partial run. Imports each into the Terraform state and
+    // returns true if at least one import succeeded (apply should be retried).
+    private static async Task<bool> TryImportExistingAwsResourcesAsync(
+        string tfDir, string applyOutput, string appName, string region)
+    {
+        var imports = new List<(string Address, string? Id)>();
+
+        // IAM roles: "Role with name NAME already exists"
+        foreach (Match m in Regex.Matches(applyOutput, @"Role with name ([\w-]+) already exists"))
+        {
+            var name = m.Groups[1].Value;
+            if (name == $"{appName}-app-runner-access")
+                imports.Add(("module.app_runner.aws_iam_role.app_runner_access", name));
+            else if (name == $"{appName}-app-runner-instance")
+                imports.Add(("module.app_runner.aws_iam_role.app_runner_instance", name));
+        }
+
+        // ECR repos: "repository with name 'NAME' already exists"
+        foreach (Match m in Regex.Matches(applyOutput, @"repository with name '([\w-]+)' already exists"))
+            imports.Add(("module.app_runner.aws_ecr_repository.main", m.Groups[1].Value));
+
+        // Security groups need an ID lookup - the error gives us the name and VPC ID.
+        foreach (Match m in Regex.Matches(applyOutput,
+            @"security group '([\w-]+)' already exists for VPC '([^']+)'"))
+        {
+            var sgName = m.Groups[1].Value;
+            var vpcId = m.Groups[2].Value;
+            string? address = null;
+            if (sgName == $"{appName}-rds-sg")
+                address = "module.rds.aws_security_group.rds";
+            else if (sgName == $"{appName}-app-runner-sg")
+                address = "module.app_runner.aws_security_group.app_runner";
+            if (address == null) continue;
+
+            var (code, sgId) = await RunAndCaptureAsync("aws",
+                $"ec2 describe-security-groups --region {region} " +
+                $"--filters Name=group-name,Values={sgName} Name=vpc-id,Values={vpcId} " +
+                $"--query SecurityGroups[0].GroupId --output text");
+            imports.Add((address, code == 0 && sgId != "None" ? sgId.Trim() : null));
+        }
+
+        // Secrets Manager: "secret NAME already exists"
+        foreach (Match m in Regex.Matches(applyOutput, @"secret ([\w/.-]+) already exists"))
+            imports.Add(("module.secrets_manager.aws_secretsmanager_secret.app", m.Groups[1].Value));
+
+        var actionable = imports.Where(i => !string.IsNullOrEmpty(i.Id)).ToList();
+        if (actionable.Count == 0) return false;
+
+        Console.WriteLine(
+            $"Found {actionable.Count} resource(s) from a previous deployment. " +
+            "Importing into Terraform state...");
+        bool anyImported = false;
+        foreach (var (address, id) in actionable)
+        {
+            Console.Write($"  Importing {address} ... ");
+            int code = await RunCommandAsync("terraform",
+                $"import -var-file=terraform.tfvars {address} {id}", tfDir);
+            if (code == 0)
+            {
+                Console.WriteLine("done.");
+                anyImported = true;
+            }
+            else
+            {
+                Console.WriteLine("failed (will continue).");
+            }
+        }
+        return anyImported;
+    }
 
     private static async Task<int> RunCommandAsync(
         string command,
