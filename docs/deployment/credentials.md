@@ -119,21 +119,6 @@ Decide on names before running the wizard:
 - **Terraform state resource group name:** A separate resource group to hold Terraform state storage (e.g. `countorsell-tfstate-rg`). The wizard creates this.
 - **Terraform state storage account name:** Must be globally unique across all Azure accounts, 3-24 lowercase alphanumeric characters (e.g. `myorgcountorselltf`). The wizard creates this.
 
-### Step 4 - Add GitHub Actions secrets (optional)
-
-If you are using the included GitHub Actions workflow (`azure.yml`) to manage infrastructure, add these secrets to your GitHub repository (**Settings > Secrets and variables > Actions**):
-
-| Secret name | Value |
-|------------|-------|
-| `AZURE_CLIENT_ID` | Service principal app ID (create one with `az ad sp create-for-rbac`) |
-| `AZURE_CLIENT_SECRET` | Service principal password |
-| `AZURE_SUBSCRIPTION_ID` | Your subscription ID (`az account show --query id -o tsv`) |
-| `AZURE_TENANT_ID` | Your tenant ID (`az account show --query tenantId -o tsv`) |
-| `TF_STATE_RESOURCE_GROUP` | The Terraform state resource group name you chose |
-| `TF_STATE_STORAGE_ACCOUNT` | The Terraform state storage account name you chose |
-
-The GitHub Actions workflow uses a service principal for unattended runs. The wizard uses your interactive login and does not require a service principal.
-
 ### Summary of values the wizard collects (Step 4)
 
 | Wizard prompt | Value |
@@ -154,8 +139,10 @@ The GitHub Actions workflow uses a service principal for unattended runs. The wi
 | Item | Notes |
 |------|-------|
 | AWS CLI (`aws`) installed | Install instructions below |
+| Docker installed and running | Required to mirror the image to ECR (see below) |
 | Terraform installed | Install instructions below |
 | AWS credentials configured | Any standard AWS credential method (see below) |
+| IAM permissions | Must include ECR and all infrastructure permissions (see below) |
 | AWS region | You choose |
 | Terraform state S3 bucket name | You choose; globally unique; the wizard creates it |
 
@@ -173,6 +160,10 @@ winget install Amazon.AWSCLI
 
 # Linux: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ```
+
+**Docker:** AWS App Runner only accepts images from Amazon ECR. The wizard pulls the CountOrSell image from `ghcr.io` and pushes it into a private ECR repository in your account before running Terraform. Docker must be installed and running on the machine where you run the wizard.
+
+Install Docker Desktop from https://www.docker.com/products/docker-desktop/ and ensure it is running before starting the wizard.
 
 **Terraform:**
 ```
@@ -201,28 +192,66 @@ export AWS_DEFAULT_REGION=us-east-1
 
 **Option C: IAM role** - If running on an EC2 instance or other AWS service with an attached IAM role, credentials are available automatically.
 
-The credentials must have sufficient permissions to create App Runner services, RDS instances, Secrets Manager secrets, S3 buckets, IAM roles, and VPC resources.
-
 After configuring, verify credentials work:
 ```
 aws sts get-caller-identity
 ```
 
-### Step 3 - Choose your resource names
+### Step 3 - Verify IAM permissions
+
+The credentials must have permission to create all CountOrSell infrastructure. This includes App Runner, RDS, Secrets Manager, S3, IAM roles, VPC resources, and ECR.
+
+#### ECR permissions
+
+The wizard mirrors the application image to a private ECR repository. This requires the following IAM permissions in addition to any Terraform infrastructure permissions the IAM user or role already has.
+
+Create and attach this policy to the IAM user or role before running the wizard:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:DescribeRepositories",
+        "ecr:ListTagsForResource",
+        "ecr:TagResource",
+        "ecr:DeleteRepository",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage",
+        "ecr:PutImageScanningConfiguration",
+        "ecr:PutImageTagMutability"
+      ],
+      "Resource": "arn:aws:ecr:<region>:<account-id>:repository/<app-name>"
+    }
+  ]
+}
+```
+
+Replace `<region>`, `<account-id>`, and `<app-name>` with your values. `<app-name>` is the sanitized form of the instance name you will enter in wizard Step 7 (lowercase, hyphens only, no spaces).
+
+`ecr:GetAuthorizationToken` must be `Resource: "*"` - this is an AWS requirement; the action has no resource-level restriction.
+
+**To apply this policy in the AWS Console:**
+1. Go to **IAM > Policies > Create policy**
+2. Switch to the **JSON** tab and paste the policy above (with your values substituted)
+3. Name it (e.g. `CountOrSellECR`) and create it
+4. Go to **IAM > Users** (or **Roles**), open the user or role used by the wizard, and attach the policy
+
+### Step 4 - Choose your resource names
 
 - **AWS region:** The region for all resources (e.g. `us-east-1`, `eu-west-1`).
 - **Terraform state S3 bucket name:** Must be globally unique across all AWS accounts (e.g. `myorg-countorsell-tfstate`). The wizard creates this bucket.
-
-### Step 4 - Add GitHub Actions secrets (optional)
-
-If you are using the included GitHub Actions workflow (`aws.yml`) to manage infrastructure, add these secrets to your GitHub repository:
-
-| Secret name | Value |
-|------------|-------|
-| `AWS_ACCESS_KEY_ID` | Access key ID for the IAM user used by CI |
-| `AWS_SECRET_ACCESS_KEY` | Secret access key for the IAM user used by CI |
-| `AWS_DEFAULT_REGION` | Your chosen AWS region (e.g. `us-east-1`) |
-| `TF_STATE_BUCKET` | The S3 bucket name you chose for Terraform state |
 
 ### Summary of values the wizard collects (Step 4)
 
@@ -301,35 +330,6 @@ gcloud config set project <YOUR_PROJECT_ID>
 
 - **GCP region:** The region for all resources (e.g. `us-central1`, `europe-west1`).
 - **Terraform state GCS bucket name:** Must be globally unique (e.g. `myproject-countorsell-tfstate`). The wizard suggests `{project-id}-countorsell-tfstate` as a default. The wizard creates this bucket.
-
-### Step 5 - Add GitHub Actions secrets (optional)
-
-If you are using the included GitHub Actions workflow (`gcp.yml`) to manage infrastructure, add these secrets to your GitHub repository:
-
-| Secret name | Value |
-|------------|-------|
-| `GCP_SERVICE_ACCOUNT_KEY` | Full contents of a service account key JSON file (for CI use - separate from wizard login) |
-| `TF_STATE_BUCKET` | GCS bucket name you chose for Terraform state (without `gs://`) |
-
-To create a service account and key for GitHub Actions:
-```
-gcloud iam service-accounts create countorsell-terraform \
-  --display-name "CountOrSell Terraform" \
-  --project <YOUR_PROJECT_ID>
-
-# Grant required roles
-gcloud projects add-iam-policy-binding <YOUR_PROJECT_ID> \
-  --member "serviceAccount:countorsell-terraform@<YOUR_PROJECT_ID>.iam.gserviceaccount.com" \
-  --role roles/editor
-
-# Create key
-gcloud iam service-accounts keys create countorsell-terraform-key.json \
-  --iam-account countorsell-terraform@<YOUR_PROJECT_ID>.iam.gserviceaccount.com
-
-cat countorsell-terraform-key.json
-```
-
-Paste the entire JSON output as the `GCP_SERVICE_ACCOUNT_KEY` secret value.
 
 ### Summary of values the wizard collects (Step 4)
 
