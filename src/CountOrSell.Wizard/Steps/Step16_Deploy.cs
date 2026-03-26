@@ -177,13 +177,13 @@ public static class Step16_Deploy
                 $" --query '{{Objects: Versions[].{{Key:Key,VersionId:VersionId}}, Quiet: `true`}}'" +
                 $" --output json 2>/dev/null);" +
                 $" echo \"$VOBJ\" | grep -q '\"Key\"' &&" +
-                $" aws s3api delete-objects --bucket {bucket} --delete \"$VOBJ\" --output none 2>/dev/null";
+                $" aws s3api delete-objects --bucket {bucket} --delete \"$VOBJ\" --output text 2>/dev/null";
             var purgeMarkers =
                 $"MOBJ=$(aws s3api list-object-versions --bucket {bucket}" +
                 $" --query '{{Objects: DeleteMarkers[].{{Key:Key,VersionId:VersionId}}, Quiet: `true`}}'" +
                 $" --output json 2>/dev/null);" +
                 $" echo \"$MOBJ\" | grep -q '\"Key\"' &&" +
-                $" aws s3api delete-objects --bucket {bucket} --delete \"$MOBJ\" --output none 2>/dev/null";
+                $" aws s3api delete-objects --bucket {bucket} --delete \"$MOBJ\" --output text 2>/dev/null";
             undo.AddStep(
                 $"Delete Terraform state S3 bucket ({bucket})",
                 $"{purgeVersions}; {purgeMarkers}; aws s3 rb s3://{bucket}");
@@ -321,7 +321,7 @@ public static class Step16_Deploy
 
         // Create ECR repository (ignore error if it already exists)
         int repoCode = await RunCommandAsync("aws",
-            $"ecr create-repository --repository-name {appName} --region {region} --output none");
+            $"ecr create-repository --repository-name {appName} --region {region} --output text");
         if (repoCode == 0)
         {
             undo.AddStep(
