@@ -71,6 +71,13 @@ public class PrerequisiteChecker
                 "AWS CLI is required. Install from https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"));
         }
 
+        if (!_runner.CommandExists("docker"))
+        {
+            missing.Add(new MissingPrerequisite("docker",
+                "Docker Desktop is required to mirror the application image to ECR. " +
+                "Install from https://docs.docker.com/get-docker/ and ensure it is running before starting the wizard."));
+        }
+
         return new PrerequisiteResult(missing.Count == 0, missing);
     }
 
