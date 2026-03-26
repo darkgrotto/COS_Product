@@ -136,7 +136,8 @@ public static class Step16_Deploy
                 $"cd \"{tfDir}\" && terraform init -input=false{initFlags} && " +
                 "terraform destroy -auto-approve -input=false -var-file=terraform.tfvars");
 
-            Console.WriteLine($"If you need to undo this deployment, run: {undo.FilePath}");
+            Console.WriteLine($"To apply future infrastructure changes, run: {Path.Combine(baseDir, "terraform-apply.sh")}");
+            Console.WriteLine($"To undo this deployment, run: {undo.FilePath}");
         }
 
         return applied;
@@ -199,7 +200,8 @@ public static class Step16_Deploy
                 $"cd \"{tfDir}\" && terraform init -input=false{initFlags} && " +
                 "terraform destroy -auto-approve -input=false -var-file=terraform.tfvars");
 
-            Console.WriteLine($"If you need to undo this deployment, run: {undo.FilePath}");
+            Console.WriteLine($"To apply future infrastructure changes, run: {Path.Combine(baseDir, "terraform-apply.sh")}");
+            Console.WriteLine($"To undo this deployment, run: {undo.FilePath}");
         }
 
         return applied;
@@ -268,7 +270,8 @@ public static class Step16_Deploy
                 $"cd \"{tfDir}\" && terraform init -input=false{initFlags} && " +
                 "terraform destroy -auto-approve -input=false -var-file=terraform.tfvars");
 
-            Console.WriteLine($"If you need to undo this deployment, run: {undo.FilePath}");
+            Console.WriteLine($"To apply future infrastructure changes, run: {Path.Combine(baseDir, "terraform-apply.sh")}");
+            Console.WriteLine($"To undo this deployment, run: {undo.FilePath}");
         }
 
         return applied;

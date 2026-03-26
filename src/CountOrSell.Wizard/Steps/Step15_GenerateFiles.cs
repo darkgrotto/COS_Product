@@ -16,14 +16,31 @@ public static class Step15_GenerateFiles
         }
         else
         {
-            Console.WriteLine("Cloud deployment: Terraform files are already in the infrastructure/ directory.");
-            Console.WriteLine("Terraform apply will be run in Step 16.");
+            GenerateCloudFiles(config);
         }
 
         WriteWizardEnvFile(config);
 
         Console.WriteLine();
         return Task.CompletedTask;
+    }
+
+    private static void GenerateCloudFiles(WizardConfig config)
+    {
+        var baseDir = FindRepoRoot();
+        var scriptPath = Path.Combine(baseDir, "terraform-apply.sh");
+
+        var content = TerraformApplyGenerator.Generate(config);
+        File.WriteAllText(scriptPath, content);
+
+        if (!OperatingSystem.IsWindows())
+        {
+            System.Diagnostics.Process.Start("chmod", $"+x \"{scriptPath}\"");
+        }
+
+        Console.WriteLine($"Generated: {scriptPath}");
+        Console.WriteLine("Terraform files are in the infrastructure/ directory.");
+        Console.WriteLine("Terraform apply will be run in Step 16.");
     }
 
     private static void GenerateDockerFiles(WizardConfig config)
