@@ -379,22 +379,50 @@ public static class Step16_Deploy
         }
 
         // Pull from ghcr.io, tag, and push to ECR.
-        // Log out of ghcr.io first to force an anonymous pull and avoid stale credentials
-        // interfering. The image is public so no authentication is required.
-        await RunCommandAsync("docker", "logout ghcr.io");
-
         var sourceImage = $"ghcr.io/darkgrotto/countorsell:{tag}";
+
+        // Authenticate to ghcr.io via the GitHub CLI token when available.
+        // This enables pulling private packages; public packages also work this way.
+        bool ghcrAuthenticated = false;
+        var (ghTokenCode, ghToken) = await RunAndCaptureAsync("gh", "auth token");
+        if (ghTokenCode == 0 && !string.IsNullOrWhiteSpace(ghToken))
+        {
+            var (ghUserCode, ghUser) = await RunAndCaptureAsync("gh", "api user --jq .login");
+            var loginUser = (ghUserCode == 0 && !string.IsNullOrWhiteSpace(ghUser))
+                ? ghUser.Trim()
+                : "gh";
+            int ghLoginCode = await RunCommandWithInputAsync("docker",
+                $"login ghcr.io --username {loginUser} --password-stdin", ghToken.Trim());
+            ghcrAuthenticated = ghLoginCode == 0;
+            if (ghcrAuthenticated)
+                Console.WriteLine("Authenticated with ghcr.io via GitHub CLI.");
+            else
+                Console.WriteLine("WARNING: ghcr.io login failed. Attempting anonymous pull.");
+        }
+        else
+        {
+            Console.WriteLine("GitHub CLI not logged in. Attempting anonymous pull (public images only).");
+            // Log out to clear any stale credentials that could produce a misleading error.
+            await RunCommandAsync("docker", "logout ghcr.io");
+        }
+
         Console.WriteLine($"Pulling {sourceImage} ...");
         int pullCode = await RunCommandAsync("docker", $"pull {sourceImage}");
         if (pullCode != 0)
         {
             Console.WriteLine($"ERROR: docker pull {sourceImage} failed.");
-            Console.WriteLine("Likely causes:");
-            Console.WriteLine($"  - The image tag \"{tag}\" has not been published yet.");
-            Console.WriteLine("  - The image visibility is set to Private on GitHub.");
-            Console.WriteLine("If the image is private, authenticate first:");
-            Console.WriteLine("  docker login ghcr.io -u <github-username> -p <github-token>");
-            Console.WriteLine("Then re-run the wizard.");
+            if (ghcrAuthenticated)
+            {
+                Console.WriteLine($"  - Verify that tag \"{tag}\" has been published to ghcr.io/darkgrotto/countorsell.");
+            }
+            else
+            {
+                Console.WriteLine("Likely causes:");
+                Console.WriteLine($"  - The image tag \"{tag}\" has not been published yet.");
+                Console.WriteLine("  - The image is private and requires authentication.");
+                Console.WriteLine("Log in with the GitHub CLI and retry:");
+                Console.WriteLine("  gh auth login");
+            }
             return null;
         }
 
