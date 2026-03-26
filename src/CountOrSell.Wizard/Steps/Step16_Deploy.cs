@@ -377,12 +377,22 @@ public static class Step16_Deploy
             return null;
         }
 
-        // Pull from ghcr.io, tag, and push to ECR
+        // Pull from ghcr.io, tag, and push to ECR.
+        // Log out of ghcr.io first to force an anonymous pull and avoid stale credentials
+        // interfering. The image is public so no authentication is required.
+        await RunCommandAsync("docker", "logout ghcr.io");
+
         Console.WriteLine("Pulling ghcr.io/darkgrotto/countorsell:latest ...");
         int pullCode = await RunCommandAsync("docker", "pull ghcr.io/darkgrotto/countorsell:latest");
         if (pullCode != 0)
         {
-            Console.WriteLine("ERROR: docker pull failed. Ensure Docker is running and you have network access.");
+            Console.WriteLine("ERROR: docker pull ghcr.io/darkgrotto/countorsell:latest failed.");
+            Console.WriteLine("Likely causes:");
+            Console.WriteLine("  - The image has not been published yet (no release tag exists).");
+            Console.WriteLine("  - The image visibility is set to Private on GitHub.");
+            Console.WriteLine("If the image is private, authenticate first:");
+            Console.WriteLine("  docker login ghcr.io -u <github-username> -p <github-token>");
+            Console.WriteLine("Then re-run the wizard.");
             return null;
         }
 
