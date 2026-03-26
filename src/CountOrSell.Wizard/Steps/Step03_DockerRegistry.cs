@@ -8,35 +8,39 @@ public static class Step03_DockerRegistry
 
     public static Task RunAsync(WizardConfig config)
     {
-        if (config.DeploymentType != DeploymentType.Docker)
-        {
-            return Task.CompletedTask;
-        }
-
-        Console.WriteLine("Step 3 of 17: Docker Image Registry");
-        Console.WriteLine("-------------------------------------");
-        Console.WriteLine("Specify the Docker image registry and organization where CountOrSell images are hosted.");
-        Console.WriteLine($"Default ({DefaultRegistry}) pulls from the official CountOrSell registry.");
-        Console.WriteLine("Use a custom value only if you are hosting the image in your own registry.");
-        Console.WriteLine();
+        Console.WriteLine("Step 3 of 17: Docker Image");
+        Console.WriteLine("--------------------------");
 
         config.ConfigValues.TryGetValue("docker_registry", out var cfgRegistry);
-        if (config.AutoAccept && cfgRegistry != null)
+        config.ConfigValues.TryGetValue("docker_image_tag", out var cfgTag);
+
+        if (config.DeploymentType == DeploymentType.Docker)
         {
-            config.DockerRegistry = cfgRegistry;
-            Console.WriteLine($"Docker image registry: {cfgRegistry}");
+            Console.WriteLine("Specify the Docker image registry and organization where CountOrSell images are hosted.");
+            Console.WriteLine($"Default ({DefaultRegistry}) pulls from the official CountOrSell registry.");
+            Console.WriteLine("Use a custom value only if you are hosting the image in your own registry.");
+            Console.WriteLine();
+
+            if (config.AutoAccept && cfgRegistry != null)
+            {
+                config.DockerRegistry = cfgRegistry;
+                Console.WriteLine($"Docker image registry: {cfgRegistry}");
+            }
+            else
+            {
+                var defaultRegistry = cfgRegistry ?? DefaultRegistry;
+                Console.Write($"Docker image registry [{defaultRegistry}]: ");
+                var registryInput = Console.ReadLine()?.Trim();
+                config.DockerRegistry = string.IsNullOrEmpty(registryInput) ? defaultRegistry : registryInput;
+                Console.WriteLine($"Registry set to: {config.DockerRegistry}");
+            }
+            Console.WriteLine();
         }
         else
         {
-            var defaultRegistry = cfgRegistry ?? DefaultRegistry;
-            Console.Write($"Docker image registry [{defaultRegistry}]: ");
-            var registryInput = Console.ReadLine()?.Trim();
-            config.DockerRegistry = string.IsNullOrEmpty(registryInput) ? defaultRegistry : registryInput;
-            Console.WriteLine($"Registry set to: {config.DockerRegistry}");
+            Console.WriteLine($"CountOrSell images are pulled from {DefaultRegistry}.");
+            Console.WriteLine();
         }
-        Console.WriteLine();
-
-        config.ConfigValues.TryGetValue("docker_image_tag", out var cfgTag);
         string tag;
         if (config.AutoAccept && cfgTag != null)
         {

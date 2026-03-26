@@ -325,8 +325,9 @@ public static class Step16_Deploy
         }
         accountId = accountId.Trim();
 
+        var tag = config.DockerImageTag;
         var registryUrl = $"{accountId}.dkr.ecr.{region}.amazonaws.com";
-        var ecrImageUri = $"{registryUrl}/{appName}:latest";
+        var ecrImageUri = $"{registryUrl}/{appName}:{tag}";
 
         // Create ECR repository. AlreadyExists is safe to ignore; AccessDenied means
         // the IAM credentials need ECR permissions added before the wizard can continue.
@@ -382,13 +383,14 @@ public static class Step16_Deploy
         // interfering. The image is public so no authentication is required.
         await RunCommandAsync("docker", "logout ghcr.io");
 
-        Console.WriteLine("Pulling ghcr.io/darkgrotto/countorsell:latest ...");
-        int pullCode = await RunCommandAsync("docker", "pull ghcr.io/darkgrotto/countorsell:latest");
+        var sourceImage = $"ghcr.io/darkgrotto/countorsell:{tag}";
+        Console.WriteLine($"Pulling {sourceImage} ...");
+        int pullCode = await RunCommandAsync("docker", $"pull {sourceImage}");
         if (pullCode != 0)
         {
-            Console.WriteLine("ERROR: docker pull ghcr.io/darkgrotto/countorsell:latest failed.");
+            Console.WriteLine($"ERROR: docker pull {sourceImage} failed.");
             Console.WriteLine("Likely causes:");
-            Console.WriteLine("  - The image has not been published yet (no release tag exists).");
+            Console.WriteLine($"  - The image tag \"{tag}\" has not been published yet.");
             Console.WriteLine("  - The image visibility is set to Private on GitHub.");
             Console.WriteLine("If the image is private, authenticate first:");
             Console.WriteLine("  docker login ghcr.io -u <github-username> -p <github-token>");
@@ -396,8 +398,7 @@ public static class Step16_Deploy
             return null;
         }
 
-        int tagCode = await RunCommandAsync("docker",
-            $"tag ghcr.io/darkgrotto/countorsell:latest {ecrImageUri}");
+        int tagCode = await RunCommandAsync("docker", $"tag {sourceImage} {ecrImageUri}");
         if (tagCode != 0)
         {
             Console.WriteLine("ERROR: docker tag failed.");
@@ -462,7 +463,7 @@ public static class Step16_Deploy
         var appName = SanitizeAppName(config.InstanceName);
         var dockerImage = provider == "aws" && config.CloudEcrImageUri != null
             ? config.CloudEcrImageUri
-            : "ghcr.io/darkgrotto/countorsell:latest";
+            : $"ghcr.io/darkgrotto/countorsell:{config.DockerImageTag}";
         var lines = new List<string>
         {
             $"app_name           = \"{appName}\"",
