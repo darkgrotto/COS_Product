@@ -446,8 +446,10 @@ public static class Step16_Deploy
             Console.WriteLine("ERROR: docker push failed.");
             if (pushStderr.Contains("403"))
             {
-                Console.WriteLine("The IAM credentials are missing ecr:PutImage permission.");
-                Console.WriteLine("Add ecr:PutImage to the ECR policy for this repository and retry.");
+                Console.WriteLine("The IAM credentials are missing the ecr:BatchGetImage permission.");
+                Console.WriteLine("Docker checks whether the manifest already exists before writing it,");
+                Console.WriteLine("and ECR requires ecr:BatchGetImage for that check.");
+                Console.WriteLine("Add ecr:BatchGetImage to the ECR policy for this repository and retry.");
                 Console.WriteLine("See docs/deployment/credentials.md for the full required policy.");
             }
             return null;

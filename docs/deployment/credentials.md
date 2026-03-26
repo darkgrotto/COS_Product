@@ -225,6 +225,7 @@ Create and attach this policy to the IAM user or role before running the wizard:
         "ecr:TagResource",
         "ecr:DeleteRepository",
         "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
         "ecr:InitiateLayerUpload",
         "ecr:UploadLayerPart",
         "ecr:CompleteLayerUpload",
