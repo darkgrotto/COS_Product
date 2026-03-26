@@ -407,11 +407,17 @@ public static class Step16_Deploy
         }
 
         Console.WriteLine($"Pulling {sourceImage} ...");
-        int pullCode = await RunCommandAsync("docker", $"pull {sourceImage}");
+        var (pullCode, pullStderr) = await RunAndCaptureStderrAsync("docker", $"pull {sourceImage}");
         if (pullCode != 0)
         {
             Console.WriteLine($"ERROR: docker pull {sourceImage} failed.");
-            if (ghcrAuthenticated)
+            if (ghcrAuthenticated && pullStderr.Contains("403"))
+            {
+                Console.WriteLine("The GitHub token is missing the read:packages scope.");
+                Console.WriteLine("Run the following, then retry the wizard:");
+                Console.WriteLine("  gh auth refresh -s read:packages");
+            }
+            else if (ghcrAuthenticated)
             {
                 Console.WriteLine($"  - Verify that tag \"{tag}\" has been published to ghcr.io/darkgrotto/countorsell.");
             }
