@@ -150,6 +150,7 @@ public class AppDbContext : DbContext
             e.Property(s => s.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
             e.Property(s => s.TotalCards).HasColumnName("total_cards").IsRequired();
             e.Property(s => s.ReleaseDate).HasColumnName("release_date");
+            e.Property(s => s.Digital).HasColumnName("digital").HasDefaultValue(false).IsRequired();
             e.Property(s => s.UpdatedAt).HasColumnName("updated_at").IsRequired();
         });
     }
@@ -182,13 +183,18 @@ public class AppDbContext : DbContext
     {
         b.Entity<SealedProduct>(e =>
         {
-            e.ToTable("sealed_products");
+            e.ToTable("sealed_products", t =>
+            {
+                // UPC-A (12 digits) or EAN-13 (13 digits)
+                t.HasCheckConstraint("CK_sealed_products_upc", "upc IS NULL OR upc ~ '^\\d{12,13}$'");
+            });
             e.HasKey(s => s.Identifier);
             e.Property(s => s.Identifier).HasColumnName("identifier").HasMaxLength(100);
             e.Property(s => s.SetCode).HasColumnName("set_code").HasMaxLength(4).IsRequired();
             e.Property(s => s.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
             e.Property(s => s.CategorySlug).HasColumnName("category_slug").HasMaxLength(100);
             e.Property(s => s.SubTypeSlug).HasColumnName("sub_type_slug").HasMaxLength(100);
+            e.Property(s => s.Upc).HasColumnName("upc").HasMaxLength(13);
             e.Property(s => s.CurrentMarketValue).HasColumnName("current_market_value").HasPrecision(10, 2);
             e.Property(s => s.ImagePath).HasColumnName("image_path").HasMaxLength(500);
             e.Property(s => s.UpdatedAt).HasColumnName("updated_at").IsRequired();
@@ -210,13 +216,13 @@ public class AppDbContext : DbContext
             e.ToTable("cards", t =>
             {
                 // Card identifier validation:
-                // - Basic format: 3-4 alphanumeric chars (set code) + 3-4 digits (numeric suffix)
+                // - Basic format: 3-4 alphanumeric chars (set code) + 3-4 digits (numeric suffix) + optional trailing letter
                 // - Four-digit suffix must be >= 1000 (no zero-padded four-digit suffixes like "0123")
                 t.HasCheckConstraint("CK_cards_identifier",
-                    @"identifier ~ '^[a-z0-9]{3,4}[0-9]{3,4}$' AND identifier !~ '^[a-z0-9]{3,4}0[0-9]{3}$'");
+                    @"identifier ~ '^[a-z0-9]{3,4}[0-9]{3,4}[a-z]?$' AND identifier !~ '^[a-z0-9]{3,4}0[0-9]{3}[a-z]?$'");
             });
             e.HasKey(c => c.Identifier);
-            e.Property(c => c.Identifier).HasColumnName("identifier").HasMaxLength(8);
+            e.Property(c => c.Identifier).HasColumnName("identifier").HasMaxLength(9);
             e.Property(c => c.SetCode).HasColumnName("set_code").HasMaxLength(4).IsRequired();
             e.Property(c => c.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
             e.Property(c => c.Color).HasColumnName("color").HasMaxLength(20);
@@ -232,10 +238,10 @@ public class AppDbContext : DbContext
     }
 
     // Card identifier constraint for foreign-keyed columns:
-    // Basic format: 3-4 alphanumeric (set code) + 3-4 digits (suffix)
+    // Basic format: 3-4 alphanumeric (set code) + 3-4 digits (suffix) + optional trailing letter
     // Four-digit suffix must be >= 1000 (no zero-padded four-digit suffixes like "0123")
     private static string CardIdentifierConstraint =>
-        @"card_identifier ~ '^[a-z0-9]{3,4}[0-9]{3,4}$' AND card_identifier !~ '^[a-z0-9]{3,4}0[0-9]{3}$'";
+        @"card_identifier ~ '^[a-z0-9]{3,4}[0-9]{3,4}[a-z]?$' AND card_identifier !~ '^[a-z0-9]{3,4}0[0-9]{3}[a-z]?$'";
 
     private static void ConfigureCollectionEntries(ModelBuilder b)
     {
@@ -249,7 +255,7 @@ public class AppDbContext : DbContext
             e.HasKey(c => c.Id);
             e.Property(c => c.Id).HasColumnName("id");
             e.Property(c => c.UserId).HasColumnName("user_id").IsRequired();
-            e.Property(c => c.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(8).IsRequired();
+            e.Property(c => c.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(9).IsRequired();
             e.Property(c => c.TreatmentKey).HasColumnName("treatment_key").HasMaxLength(50).IsRequired();
             e.Property(c => c.Quantity).HasColumnName("quantity").IsRequired();
             e.Property(c => c.Condition).HasColumnName("condition")
@@ -279,7 +285,7 @@ public class AppDbContext : DbContext
             e.HasKey(s => s.Id);
             e.Property(s => s.Id).HasColumnName("id");
             e.Property(s => s.UserId).HasColumnName("user_id").IsRequired();
-            e.Property(s => s.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(8).IsRequired();
+            e.Property(s => s.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(9).IsRequired();
             e.Property(s => s.TreatmentKey).HasColumnName("treatment_key").HasMaxLength(50).IsRequired();
             e.Property(s => s.SerialNumber).HasColumnName("serial_number").IsRequired();
             e.Property(s => s.PrintRunTotal).HasColumnName("print_run_total").IsRequired();
@@ -312,7 +318,7 @@ public class AppDbContext : DbContext
             e.HasKey(s => s.Id);
             e.Property(s => s.Id).HasColumnName("id");
             e.Property(s => s.UserId).HasColumnName("user_id").IsRequired();
-            e.Property(s => s.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(8).IsRequired();
+            e.Property(s => s.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(9).IsRequired();
             e.Property(s => s.TreatmentKey).HasColumnName("treatment_key").HasMaxLength(50).IsRequired();
             e.Property(s => s.GradingAgencyCode).HasColumnName("grading_agency_code").HasMaxLength(20).IsRequired();
             e.Property(s => s.Grade).HasColumnName("grade").HasMaxLength(50).IsRequired();
@@ -382,7 +388,7 @@ public class AppDbContext : DbContext
             e.HasKey(w => w.Id);
             e.Property(w => w.Id).HasColumnName("id");
             e.Property(w => w.UserId).HasColumnName("user_id").IsRequired();
-            e.Property(w => w.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(8).IsRequired();
+            e.Property(w => w.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(9).IsRequired();
             e.Property(w => w.CreatedAt).HasColumnName("created_at").IsRequired();
             e.HasOne(w => w.User).WithMany().HasForeignKey(w => w.UserId);
             e.HasIndex(w => w.UserId);

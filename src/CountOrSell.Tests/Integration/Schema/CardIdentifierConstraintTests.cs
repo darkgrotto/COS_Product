@@ -107,10 +107,13 @@ public class CardIdentifierConstraintTests : IClassFixture<PostgreSqlFixture>
     }
 
     [Theory]
-    [InlineData("eoe019")]   // 3-digit suffix
-    [InlineData("eoe999")]   // 3-digit suffix max
-    [InlineData("eoe1234")]  // 4-digit suffix > 1000
-    [InlineData("3ed019")]   // numeric char in set code
+    [InlineData("eoe019")]    // 3-digit suffix
+    [InlineData("eoe999")]    // 3-digit suffix max
+    [InlineData("eoe1234")]   // 4-digit suffix > 1000
+    [InlineData("3ed019")]    // numeric char in set code
+    [InlineData("pala001a")]  // trailing letter variant a
+    [InlineData("pala001b")]  // trailing letter variant b - distinct card
+    [InlineData("eoe1234a")]  // 4-digit suffix with trailing letter
     public async Task CardIdentifier_ValidFormats_AreAccepted(string identifier)
     {
         var (db, userId, treatmentKey) = await SeedPrerequisitesAsync(_fixture);

@@ -6,4 +6,5 @@ public class SetDto
     public string Name { get; set; } = string.Empty;
     public int TotalCards { get; set; }
     public DateOnly? ReleaseDate { get; set; }
+    public bool Digital { get; set; }
 }

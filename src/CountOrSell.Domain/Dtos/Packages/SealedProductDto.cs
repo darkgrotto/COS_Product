@@ -7,5 +7,6 @@ public class SealedProductDto
     public string Name { get; set; } = string.Empty;
     public string? CategorySlug { get; set; }
     public string? SubTypeSlug { get; set; }
+    public string? Upc { get; set; }
     public decimal? CurrentMarketValue { get; set; }
 }

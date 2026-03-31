@@ -114,6 +114,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 Name = d.Name,
                 TotalCards = d.TotalCards,
                 ReleaseDate = d.ReleaseDate,
+                Digital = d.Digital,
                 UpdatedAt = DateTime.UtcNow
             });
         _db.Sets.AddRange(toAdd);
@@ -125,6 +126,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.Name = dto.Name;
                 entity.TotalCards = dto.TotalCards;
                 entity.ReleaseDate = dto.ReleaseDate;
+                entity.Digital = dto.Digital;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }
@@ -177,6 +179,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 Name = d.Name,
                 CategorySlug = d.CategorySlug,
                 SubTypeSlug = d.SubTypeSlug,
+                Upc = d.Upc,
                 CurrentMarketValue = d.CurrentMarketValue,
                 UpdatedAt = DateTime.UtcNow
             });
@@ -190,6 +193,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.Name = dto.Name;
                 entity.CategorySlug = dto.CategorySlug;
                 entity.SubTypeSlug = dto.SubTypeSlug;
+                entity.Upc = dto.Upc;
                 entity.CurrentMarketValue = dto.CurrentMarketValue;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
