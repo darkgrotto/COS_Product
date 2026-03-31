@@ -34,10 +34,14 @@ Card identifier:
   letter-suffixed collector numbers (e.g. "1a", "1b")
 - Cards differing only by trailing letter are distinct
   (e.g. "eoe001a" and "eoe001b" are different cards)
+- The letter "x" is permanently reserved as the synthetic
+  mapping for Scryfall collector numbers ending in dagger
+  (†), e.g. DRK/77† maps to "drk077x". "x" will never
+  appear as a real collector number letter.
 - Stored: lowercase always (e.g. "eoe019", "eoe1234", "pala001a")
 - Displayed: uppercase by convention in all UI (e.g. "EOE019")
 - Valid examples: "eoe019", "eoe999", "eoe1234", "3ed019",
-  "pala001a", "pala001b"
+  "pala001a", "pala001b", "drk077x", "arn002x"
 
 ## What This Repo Is
 The self-hostable CountOrSell product. A web application
@@ -1190,6 +1194,10 @@ stored lowercase, displayed uppercase.
 trailing letter (e.g. "pala001a", "pala001b") to support
 cards with letter-suffixed collector numbers. Cards
 differing only by trailing letter are distinct cards.
+2026-03-31 - Trailing letter "x" permanently reserved as
+synthetic mapping for Scryfall dagger (†) collector numbers
+(e.g. DRK/77† maps to drk077x, ARN variants like arn002x).
+"x" will never appear as a real collector number letter.
 2026-03-08 - iOS/Android and React Native dropped.
 Responsive web only. Do not reintroduce.
 2026-03-08 - Linode removed as supported deployment

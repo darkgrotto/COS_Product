@@ -114,6 +114,8 @@ public class CardIdentifierConstraintTests : IClassFixture<PostgreSqlFixture>
     [InlineData("pala001a")]  // trailing letter variant a
     [InlineData("pala001b")]  // trailing letter variant b - distinct card
     [InlineData("eoe1234a")]  // 4-digit suffix with trailing letter
+    [InlineData("drk077x")]   // dagger (†) variant - synthetic "x" suffix
+    [InlineData("arn002x")]   // ARN light/dark tap symbol variant
     public async Task CardIdentifier_ValidFormats_AreAccepted(string identifier)
     {
         var (db, userId, treatmentKey) = await SeedPrerequisitesAsync(_fixture);
