@@ -45,4 +45,10 @@ public class CardRepository : ICardRepository
         _db.Cards
             .Where(c => identifiers.Contains(c.Identifier))
             .ToDictionaryAsync(c => c.Identifier, c => c.CurrentMarketValue, ct);
+
+    public Task<Card?> GetRandomWithFlavorTextAsync(CancellationToken ct = default) =>
+        _db.Cards
+            .Where(c => c.FlavorText != null)
+            .OrderBy(_ => EF.Functions.Random())
+            .FirstOrDefaultAsync(ct);
 }

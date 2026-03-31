@@ -147,6 +147,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 CurrentMarketValue = d.MarketValue,
                 IsReserved = d.IsReserved,
                 OracleRulingUrl = d.OracleRulingUrl,
+                FlavorText = d.FlavorText,
                 UpdatedAt = DateTime.UtcNow
             });
         _db.Cards.AddRange(toAdd);
@@ -162,6 +163,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.CurrentMarketValue = dto.MarketValue;
                 entity.IsReserved = dto.IsReserved;
                 entity.OracleRulingUrl = dto.OracleRulingUrl;
+                entity.FlavorText = dto.FlavorText;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }

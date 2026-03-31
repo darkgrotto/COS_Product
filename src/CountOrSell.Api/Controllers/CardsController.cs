@@ -19,6 +19,24 @@ public class CardsController : ControllerBase
         _tcgPlayer = tcgPlayer;
     }
 
+    // GET /api/cards/random-flavor
+    // Returns a random card that has flavor text. Returns 204 if no cards with flavor text exist.
+    [HttpGet("random-flavor")]
+    public async Task<IActionResult> GetRandomFlavor(CancellationToken ct)
+    {
+        var card = await _cards.GetRandomWithFlavorTextAsync(ct);
+        if (card == null) return NoContent();
+
+        return Ok(new
+        {
+            Identifier = card.Identifier.ToUpperInvariant(),
+            card.SetCode,
+            card.Name,
+            card.FlavorText,
+            card.CurrentMarketValue
+        });
+    }
+
     [HttpGet("{identifier}")]
     public async Task<IActionResult> GetByIdentifier(string identifier, CancellationToken ct)
     {
@@ -33,6 +51,7 @@ public class CardsController : ControllerBase
             card.Color,
             card.CardType,
             card.OracleRulingUrl,
+            card.FlavorText,
             card.CurrentMarketValue,
             card.UpdatedAt,
             card.IsReserved

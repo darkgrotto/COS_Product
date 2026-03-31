@@ -232,6 +232,7 @@ public class AppDbContext : DbContext
                 .HasPrecision(10, 2);
             e.Property(c => c.UpdatedAt).HasColumnName("updated_at").IsRequired();
             e.Property(c => c.IsReserved).HasColumnName("is_reserved").HasDefaultValue(false);
+            e.Property(c => c.FlavorText).HasColumnName("flavor_text").HasMaxLength(1000);
             e.HasOne<Set>().WithMany().HasForeignKey(c => c.SetCode);
             e.HasIndex(c => c.SetCode);
         });

@@ -23,6 +23,8 @@ import { usersApi } from './api/users';
 import { TcgPlayerProvider } from './context/TcgPlayerContext';
 import { DemoProvider } from './context/DemoContext';
 import { DemoBanner } from './components/DemoBanner';
+import { FlavorButton } from './components/FlavorButton';
+import { CardDetail } from './Cards/CardDetail';
 
 function DefaultPage() {
   const [defaultPage, setDefaultPage] = useState<string | null | undefined>(undefined);
@@ -60,6 +62,7 @@ export function App() {
         <NavLink to="/admin/updates">Updates</NavLink>
         <NavLink to="/preferences">Preferences</NavLink>
         <NavLink to="/about">About</NavLink>
+        <FlavorButton />
       </nav>
       <main>
         <Routes>
@@ -81,6 +84,7 @@ export function App() {
           <Route path="/preferences" element={<UserPreferencesPage />} />
           <Route path="/about" element={<AboutView />} />
           <Route path="/invite/:token" element={<InviteAccept />} />
+          <Route path="/cards/:identifier" element={<CardDetail />} />
         </Routes>
       </main>
     </BrowserRouter>

@@ -10,4 +10,5 @@ public class CardDto
     public decimal? MarketValue { get; set; }
     public bool IsReserved { get; set; }
     public string? OracleRulingUrl { get; set; }
+    public string? FlavorText { get; set; }
 }

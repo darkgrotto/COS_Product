@@ -13,4 +13,5 @@ public class Card
     public decimal? CurrentMarketValue { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsReserved { get; set; }
+    public string? FlavorText { get; set; }
 }

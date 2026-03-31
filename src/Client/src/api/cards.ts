@@ -4,8 +4,20 @@ export interface CardSummary {
   identifier: string;
   name: string;
   setCode: string;
+  color?: string | null;
+  cardType?: string | null;
+  oracleRulingUrl?: string | null;
+  flavorText?: string | null;
   currentMarketValue: number | null;
   isReserved: boolean;
+}
+
+export interface RandomFlavorResult {
+  identifier: string;
+  name: string;
+  setCode: string;
+  flavorText: string;
+  currentMarketValue: number | null;
 }
 
 export interface MarketValueResult {
@@ -17,6 +29,9 @@ export interface MarketValueResult {
 export const cardsApi = {
   getByIdentifier: (identifier: string): Promise<CardSummary> =>
     api.get<CardSummary>(`/api/cards/${identifier}`),
+
+  getRandomFlavor: (): Promise<RandomFlavorResult | null> =>
+    api.get<RandomFlavorResult | null>('/api/cards/random-flavor').catch(() => null),
 
   search: (query: string): Promise<CardSummary[]> =>
     api.get<CardSummary[]>(`/api/cards/search?q=${encodeURIComponent(query)}`),

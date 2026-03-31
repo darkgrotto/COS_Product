@@ -203,6 +203,11 @@ namespace CountOrSell.Data.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("card_type");
 
+                    b.Property<string>("FlavorText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("flavor_text");
+
                     b.Property<string>("Color")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
