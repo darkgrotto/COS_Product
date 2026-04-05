@@ -1,4 +1,13 @@
-# Stage 1: Build
+# Stage 1: Build frontend
+FROM node:20-alpine AS frontend
+WORKDIR /client
+COPY src/CountOrSell.Api/Client/package.json ./
+RUN npm install
+COPY src/CountOrSell.Api/Client/ ./
+RUN npm run build
+# vite outDir is '../wwwroot' relative to config, so output lands at /wwwroot
+
+# Stage 2: Build backend
 # Use BUILDPLATFORM to run the SDK natively (faster than QEMU emulation).
 # TARGETARCH is injected by buildx and used to select the correct .NET RID.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:8.0 AS build
@@ -6,6 +15,7 @@ ARG TARGETARCH
 WORKDIR /source
 
 COPY src/ ./src/
+COPY --from=frontend /wwwroot ./src/CountOrSell.Api/wwwroot/
 
 # Map Docker arch names (amd64, arm64) to .NET RID arch names (x64, arm64).
 # amd64 -> x64; arm64 stays arm64.
@@ -18,7 +28,7 @@ RUN DOTNET_ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "x64" || echo "$TARGETARCH
         -r linux-${DOTNET_ARCH} \
         -o /app/publish
 
-# Stage 2: Runtime
+# Stage 3: Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 

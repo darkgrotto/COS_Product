@@ -174,6 +174,8 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -197,6 +199,8 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
             System.Text.Json.JsonSerializer.Serialize(new { status, database = dbStatus }));
     }
 });
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
