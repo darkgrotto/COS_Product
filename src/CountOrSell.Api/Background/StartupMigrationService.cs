@@ -41,27 +41,39 @@ public class StartupMigrationService : IHostedService
                     return;
                 }
 
-                _logger.LogInformation(
-                    "Found {Count} pending migrations, taking pre-update backup...",
-                    pendingMigrations.Count);
+                var appliedMigrations = (await db.Database.GetAppliedMigrationsAsync(cancellationToken)).ToList();
+                var isFreshDatabase = !appliedMigrations.Any();
 
-                var backupOk = await preBackup.TakeBackupAsync("startup-migration", cancellationToken);
-                if (!backupOk)
+                if (isFreshDatabase)
                 {
-                    _logger.LogError("Startup migration aborted: pre-update backup failed");
-                    try
+                    _logger.LogInformation(
+                        "Found {Count} pending migrations on a fresh database, skipping pre-update backup",
+                        pendingMigrations.Count);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Found {Count} pending migrations, taking pre-update backup...",
+                        pendingMigrations.Count);
+
+                    var backupOk = await preBackup.TakeBackupAsync("startup-migration", cancellationToken);
+                    if (!backupOk)
                     {
-                        await notifications.NotifyAsync(
-                            "Startup migration aborted: pre-update backup failed. " +
-                            "Fix backup configuration and restart.",
-                            "schema", cancellationToken);
+                        _logger.LogError("Startup migration aborted: pre-update backup failed");
+                        try
+                        {
+                            await notifications.NotifyAsync(
+                                "Startup migration aborted: pre-update backup failed. " +
+                                "Fix backup configuration and restart.",
+                                "schema", cancellationToken);
+                        }
+                        catch (Exception notifyEx)
+                        {
+                            _logger.LogError(notifyEx, "Failed to send notification after backup failure");
+                        }
+                        _lifetime.StopApplication();
+                        return;
                     }
-                    catch (Exception notifyEx)
-                    {
-                        _logger.LogError(notifyEx, "Failed to send notification after backup failure");
-                    }
-                    _lifetime.StopApplication();
-                    return;
                 }
 
                 var latestBackup = await db.BackupRecords
@@ -101,15 +113,18 @@ public class StartupMigrationService : IHostedService
                         }
                     }
 
-                    try
+                    if (!isFreshDatabase)
                     {
-                        await notifications.NotifyAsync(
-                            $"Startup migration failed: {ex.Message}. Application will not start.",
-                            "schema", cancellationToken);
-                    }
-                    catch (Exception notifyEx)
-                    {
-                        _logger.LogError(notifyEx, "Failed to send notification after migration failure");
+                        try
+                        {
+                            await notifications.NotifyAsync(
+                                $"Startup migration failed: {ex.Message}. Application will not start.",
+                                "schema", cancellationToken);
+                        }
+                        catch (Exception notifyEx)
+                        {
+                            _logger.LogError(notifyEx, "Failed to send notification after migration failure");
+                        }
                     }
                     _lifetime.StopApplication();
                 }
