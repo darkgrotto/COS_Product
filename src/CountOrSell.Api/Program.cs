@@ -30,9 +30,11 @@ builder.Services.AddSession(options =>
 });
 
 // Database
-var connectionString = builder.Configuration.GetConnectionString("Default")
-    ?? Environment.GetEnvironmentVariable("POSTGRES_CONNECTION")
-    ?? "Host=localhost;Database=countorsell;Username=countorsell;Password=countorsell";
+var connectionString =
+    builder.Configuration.GetConnectionString("Default") is { Length: > 0 } cs
+        ? cs
+        : Environment.GetEnvironmentVariable("POSTGRES_CONNECTION")
+          ?? "Host=localhost;Database=countorsell;Username=countorsell;Password=countorsell";
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));

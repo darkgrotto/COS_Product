@@ -84,6 +84,7 @@ public static class Step15_GenerateFiles
             $"BACKUP_SCHEDULE={config.BackupSchedule}",
             $"BACKUP_RETENTION={config.BackupRetention}",
             $"DB_USER={config.DbAdminUsername}",
+            $"DB_PASSWORD={config.DbAdminPassword}",
             $"REGISTRY={config.DockerRegistry ?? string.Empty}",
             $"PORT={config.Port}",
             $"BLOB_BACKUP_CONNECTION={config.BackupConnectionString}"
