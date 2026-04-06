@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using CountOrSell.Api.Auth;
+using CountOrSell.Data.Repositories;
+using CountOrSell.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -13,11 +15,13 @@ public class AuthController : ControllerBase
 {
     private readonly ILocalAuthService _localAuth;
     private readonly IOAuthConfigService _oauthConfig;
+    private readonly IUserRepository _users;
 
-    public AuthController(ILocalAuthService localAuth, IOAuthConfigService oauthConfig)
+    public AuthController(ILocalAuthService localAuth, IOAuthConfigService oauthConfig, IUserRepository users)
     {
         _localAuth = localAuth;
         _oauthConfig = oauthConfig;
+        _users = users;
     }
 
     [HttpGet("me")]
@@ -60,6 +64,27 @@ public class AuthController : ControllerBase
         return Ok(new { userId = user.Id, username = user.Username, role = user.Role.ToString() });
     }
 
+    [HttpPatch("password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken ct)
+    {
+        if (request.NewPassword.Length < 15)
+            return BadRequest(new { error = "New password must be at least 15 characters." });
+
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var user = await _users.GetByIdAsync(userId, ct);
+        if (user is null) return NotFound();
+        if (user.AuthType != AuthType.Local)
+            return BadRequest(new { error = "Password change is not available for OAuth accounts." });
+        if (user.PasswordHash is null || !_localAuth.VerifyPassword(request.CurrentPassword, user.PasswordHash))
+            return BadRequest(new { error = "Current password is incorrect." });
+
+        user.PasswordHash = _localAuth.HashPassword(request.NewPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        await _users.UpdateAsync(user, ct);
+        return Ok();
+    }
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
@@ -91,3 +116,4 @@ public class AuthController : ControllerBase
 }
 
 public record LoginRequest(string Username, string Password);
+public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
