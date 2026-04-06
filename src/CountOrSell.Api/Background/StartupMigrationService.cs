@@ -1,4 +1,5 @@
 using CountOrSell.Data;
+using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
 using CountOrSell.Domain.Services;
 using Microsoft.EntityFrameworkCore;
@@ -76,11 +77,6 @@ public class StartupMigrationService : IHostedService
                     }
                 }
 
-                var latestBackup = await db.BackupRecords
-                    .Where(b => b.BackupType == BackupType.PreUpdate)
-                    .OrderByDescending(b => b.CreatedAt)
-                    .FirstOrDefaultAsync(cancellationToken);
-
                 try
                 {
                     await db.Database.MigrateAsync(cancellationToken);
@@ -89,6 +85,15 @@ public class StartupMigrationService : IHostedService
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Startup migration failed, attempting restore from backup");
+
+                    BackupRecord? latestBackup = null;
+                    if (!isFreshDatabase)
+                    {
+                        latestBackup = await db.BackupRecords
+                            .Where(b => b.BackupType == BackupType.PreUpdate)
+                            .OrderByDescending(b => b.CreatedAt)
+                            .FirstOrDefaultAsync(cancellationToken);
+                    }
 
                     if (latestBackup != null)
                     {
