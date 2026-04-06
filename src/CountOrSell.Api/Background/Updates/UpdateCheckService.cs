@@ -58,8 +58,41 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             var manifest = await manifestClient.FetchManifestAsync(ct);
             if (manifest == null) return;
 
+            if (manifest.Packages.Count == 0)
+            {
+                _logger.LogInformation("No update packages available in manifest");
+                return;
+            }
+
+            var schemaPackage = manifest.Packages.FirstOrDefault(p => p.Type == "schema");
+            if (schemaPackage != null)
+            {
+                var existing = await updateRepo.GetPendingSchemaUpdateAsync(ct);
+                if (existing == null || existing.SchemaVersion != schemaPackage.Version)
+                {
+                    await updateRepo.AddPendingSchemaUpdateAsync(new PendingSchemaUpdate
+                    {
+                        SchemaVersion = schemaPackage.Version,
+                        Description = schemaPackage.Description ?? string.Empty,
+                        DownloadUrl = schemaPackage.DownloadUrl,
+                        ZipSha256 = schemaPackage.ZipSha256,
+                        DetectedAt = DateTime.UtcNow
+                    }, ct);
+                    await notificationService.NotifyAsync(
+                        $"Schema update {schemaPackage.Version} is available and requires admin approval.",
+                        "schema", ct);
+                }
+            }
+
+            var contentPackage = manifest.Packages.FirstOrDefault(p => p.Type == "content");
+            if (contentPackage == null)
+            {
+                _logger.LogInformation("No content package in manifest");
+                return;
+            }
+
             var currentSchemaVersion = await updateRepo.GetCurrentSchemaVersionAsync(ct);
-            if (currentSchemaVersion < manifest.Content.MinimumProductSchemaVersion)
+            if (currentSchemaVersion < contentPackage.MinimumSchemaVersion)
             {
                 await notificationService.NotifyAsync(
                     "Schema update required before content update can be applied.",
@@ -67,39 +100,20 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                 return;
             }
 
-            if (manifest.Schema != null)
-            {
-                var existing = await updateRepo.GetPendingSchemaUpdateAsync(ct);
-                if (existing == null || existing.SchemaVersion != manifest.Schema.Version)
-                {
-                    await updateRepo.AddPendingSchemaUpdateAsync(new PendingSchemaUpdate
-                    {
-                        SchemaVersion = manifest.Schema.Version,
-                        Description = manifest.Schema.Description,
-                        DownloadUrl = manifest.Schema.DownloadUrl,
-                        ZipSha256 = manifest.Schema.ZipSha256,
-                        DetectedAt = DateTime.UtcNow
-                    }, ct);
-                    await notificationService.NotifyAsync(
-                        $"Schema update {manifest.Schema.Version} is available and requires admin approval.",
-                        "schema", ct);
-                }
-            }
-
             var currentContentVersion = await updateRepo.GetCurrentContentVersionAsync(ct);
-            if (currentContentVersion == manifest.Content.Version) return;
+            if (currentContentVersion == contentPackage.Version) return;
 
-            var packageStream = await downloader.DownloadPackageAsync(manifest.Content.DownloadUrl, ct);
-            if (!verifier.VerifyChecksum(packageStream, manifest.Content.ZipSha256))
+            var packageStream = await downloader.DownloadPackageAsync(contentPackage.DownloadUrl, ct);
+            if (!verifier.VerifyChecksum(packageStream, contentPackage.ZipSha256))
             {
-                _logger.LogError("Checksum mismatch for content update {Version}", manifest.Content.Version);
+                _logger.LogError("Checksum mismatch for content update {Version}", contentPackage.Version);
                 await notificationService.NotifyAsync(
-                    $"Content update {manifest.Content.Version} checksum verification failed.",
+                    $"Content update {contentPackage.Version} checksum verification failed.",
                     "update", ct);
                 return;
             }
 
-            await applicator.ApplyContentUpdateAsync(packageStream, manifest.Content.Version, ct);
+            await applicator.ApplyContentUpdateAsync(packageStream, contentPackage.Version, ct);
         }
         catch (Exception ex)
         {
