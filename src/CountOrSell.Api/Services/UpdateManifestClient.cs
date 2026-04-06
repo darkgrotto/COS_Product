@@ -25,7 +25,7 @@ public class UpdateManifestClient : IUpdateManifestClient
         try
         {
             var response = await _httpClient.GetAsync(
-                "https://countorsell.com/updates/manifest.json", ct);
+                "https://www.countorsell.com/updates/manifest.json", ct);
             response.EnsureSuccessStatusCode();
             var json = await response.Content.ReadAsStringAsync(ct);
             return JsonSerializer.Deserialize<UpdateManifest>(json, JsonOptions);

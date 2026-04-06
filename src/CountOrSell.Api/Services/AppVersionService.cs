@@ -27,7 +27,7 @@ public class AppVersionService : IAppVersionService
         {
             // Source URL is TBD - open decision
             var response = await _httpClient.GetAsync(
-                "https://countorsell.com/app-version.json", ct);
+                "https://www.countorsell.com/app-version.json", ct);
             response.EnsureSuccessStatusCode();
             var json = await response.Content.ReadAsStringAsync(ct);
             var doc = JsonSerializer.Deserialize<AppVersionResponse>(json, JsonOptions);
