@@ -37,12 +37,12 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
         }
     }
 
-    public async Task TriggerAsync(CancellationToken ct)
+    public async Task<UpdateCheckResult> TriggerAsync(CancellationToken ct)
     {
-        await RunUpdateCheckAsync(ct);
+        return await RunUpdateCheckAsync(ct);
     }
 
-    public async Task RunUpdateCheckAsync(CancellationToken ct)
+    public async Task<UpdateCheckResult> RunUpdateCheckAsync(CancellationToken ct)
     {
         try
         {
@@ -55,12 +55,13 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             var updateRepo = scope.ServiceProvider.GetRequiredService<IUpdateRepository>();
 
             var manifest = await manifestClient.FetchManifestAsync(ct);
-            if (manifest == null) return;
+            if (manifest == null)
+                return new UpdateCheckResult(false, "Could not reach update server. Check network connectivity.");
 
             if (manifest.Packages.Count == 0)
             {
                 _logger.LogInformation("No update packages available in manifest");
-                return;
+                return new UpdateCheckResult(false, "No update packages are available at this time.");
             }
 
             // Prefer the most recent package - last entry in the list
@@ -71,21 +72,21 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             if (packageManifest == null)
             {
                 _logger.LogWarning("Could not fetch per-package manifest from {Url}", packageRef.ManifestUrl);
-                return;
+                return new UpdateCheckResult(false, "Found a package but could not fetch its manifest.");
             }
 
             // Check current content version against what the package provides
             if (!packageManifest.ContentVersions.TryGetValue("cards", out var cardsVersion))
             {
                 _logger.LogWarning("Package manifest missing cards content version");
-                return;
+                return new UpdateCheckResult(false, "Package manifest is missing content version information.");
             }
 
             var currentContentVersion = await updateRepo.GetCurrentContentVersionAsync(ct);
             if (currentContentVersion == cardsVersion.Version)
             {
                 _logger.LogInformation("Content already up to date at version {Version}", currentContentVersion);
-                return;
+                return new UpdateCheckResult(false, $"Content is already up to date (version {currentContentVersion}).");
             }
 
             // Download the package ZIP
@@ -93,10 +94,14 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             // Apply the content update - the applicator verifies per-file checksums internally
             await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, ct);
+
+            return new UpdateCheckResult(true,
+                $"Content updated to version {cardsVersion.Version}.");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Update check failed");
+            return new UpdateCheckResult(false, "Update check encountered an error. Check the application logs.");
         }
     }
 

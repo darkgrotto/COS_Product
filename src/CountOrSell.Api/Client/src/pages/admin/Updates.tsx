@@ -33,6 +33,7 @@ export function UpdatesPage() {
   const [approving, setApproving] = useState(false)
   const [schemaConfirmOpen, setSchemaConfirmOpen] = useState(false)
   const [error, setError] = useState('')
+  const [checkMessage, setCheckMessage] = useState<{ text: string; applied: boolean } | null>(null)
 
   const load = useCallback(async () => {
     const [sr, nr] = await Promise.all([
@@ -48,10 +49,12 @@ export function UpdatesPage() {
   async function handleCheck() {
     setChecking(true)
     setError('')
+    setCheckMessage(null)
     try {
       const res = await fetch('/api/updates/check', { method: 'POST', credentials: 'include' })
       if (!res.ok) throw new Error('Check failed')
-      await new Promise(r => setTimeout(r, 2500))
+      const data = await res.json()
+      setCheckMessage({ text: data.message, applied: data.packagesAvailable })
       await load()
     } catch {
       setError('Update check failed. Check the application logs.')
@@ -105,6 +108,16 @@ export function UpdatesPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {checkMessage && (
+        <Alert variant={checkMessage.applied ? 'success' : 'default'}>
+          {checkMessage.applied
+            ? <CheckCircle className="h-4 w-4" />
+            : <Info className="h-4 w-4" />}
+          <AlertTitle>{checkMessage.applied ? 'Update Applied' : 'Check Complete'}</AlertTitle>
+          <AlertDescription>{checkMessage.text}</AlertDescription>
         </Alert>
       )}
 

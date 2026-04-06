@@ -2,5 +2,7 @@ namespace CountOrSell.Api.Background.Updates;
 
 public interface IUpdateCheckTrigger
 {
-    Task TriggerAsync(CancellationToken ct);
+    Task<UpdateCheckResult> TriggerAsync(CancellationToken ct);
 }
+
+public record UpdateCheckResult(bool PackagesAvailable, string Message);

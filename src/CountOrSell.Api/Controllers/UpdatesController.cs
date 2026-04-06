@@ -70,8 +70,8 @@ public class UpdatesController : ControllerBase
     [DemoLocked]
     public async Task<IActionResult> TriggerCheck(CancellationToken ct)
     {
-        await _updateTrigger.TriggerAsync(ct);
-        return Ok();
+        var result = await _updateTrigger.TriggerAsync(ct);
+        return Ok(new { result.PackagesAvailable, result.Message });
     }
 
     [HttpPost("schema/{id}/approve")]
