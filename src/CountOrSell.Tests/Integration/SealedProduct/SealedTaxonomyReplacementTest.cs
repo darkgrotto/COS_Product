@@ -1,6 +1,7 @@
 using CountOrSell.Api.Services;
 using CountOrSell.Data;
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain.Dtos.Packages;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
 using CountOrSell.Tests.Infrastructure;
@@ -24,6 +25,7 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
     private ContentUpdateApplicator CreateApplicator(AppDbContext db) =>
         new(db, new NoOpImageStore(),
             new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance),
+            new PackageVerifier(),
             NullLogger<ContentUpdateApplicator>.Instance);
 
     [Fact]
@@ -33,39 +35,28 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
         var applicator = CreateApplicator(db);
 
         var setCode = $"r{Guid.NewGuid():N}".Substring(0, 4);
-        var cv = $"v-tax-{Guid.NewGuid():N}";
 
-        var sealedCategories = new[]
+        var taxonomy = new TaxonomyDto
         {
-            new
+            Version = "1.0.0",
+            Categories = new List<SealedProductCategoryDto>
             {
-                slug = $"cat-b-{Guid.NewGuid():N}".Substring(0, 12),
-                displayName = "Category B",
-                sortOrder = 2,
-                subTypes = Array.Empty<object>()
-            },
-            new
-            {
-                slug = $"cat-a-{Guid.NewGuid():N}".Substring(0, 12),
-                displayName = "Category A",
-                sortOrder = 1,
-                subTypes = Array.Empty<object>()
+                new() { Slug = $"cat-b-{Guid.NewGuid():N}".Substring(0, 12), DisplayName = "Category B", SortOrder = 2 },
+                new() { Slug = $"cat-a-{Guid.NewGuid():N}".Substring(0, 12), DisplayName = "Category A", SortOrder = 1 }
             }
         };
 
-        var sets = new[] { new { code = setCode, name = "Tax Test Set", totalCards = 0, releaseDate = (string?)null } };
-        using var pkg = PackageBuilder.Build(sets: sets, sealedCategories: sealedCategories);
-        await applicator.ApplyContentUpdateAsync(pkg, cv, CancellationToken.None);
+        var sets = new List<SetDto> { new() { Code = setCode, Name = "Tax Test Set", TotalCards = 0 } };
+        var (pkg, manifest) = PackageBuilder.Build(sets: sets, taxonomy: taxonomy);
+        await applicator.ApplyContentUpdateAsync(pkg, manifest, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateContext();
-        var taxonomy = new SealedTaxonomyRepository(verifyDb, NullLogger<SealedTaxonomyRepository>.Instance);
-        var categories = await taxonomy.GetAllCategoriesAsync();
+        var taxonomyRepo = new SealedTaxonomyRepository(verifyDb, NullLogger<SealedTaxonomyRepository>.Instance);
+        var categories = await taxonomyRepo.GetAllCategoriesAsync();
 
-        // Both categories should exist
         Assert.Contains(categories, c => c.DisplayName == "Category A");
         Assert.Contains(categories, c => c.DisplayName == "Category B");
 
-        // Should be ordered by sort_order
         var taxCats = categories.Where(c => c.DisplayName is "Category A" or "Category B").OrderBy(c => c.SortOrder).ToList();
         Assert.Equal("Category A", taxCats[0].DisplayName);
         Assert.Equal("Category B", taxCats[1].DisplayName);
@@ -80,16 +71,21 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
         var catSlugOld = $"cat-old-{Guid.NewGuid():N}".Substring(0, 16);
         var catSlugNew = $"cat-new-{Guid.NewGuid():N}".Substring(0, 16);
         var setCode = $"n{Guid.NewGuid():N}".Substring(0, 4);
-        var cv1 = $"v-tax-rm1-{Guid.NewGuid():N}";
+
+        var sets = new List<SetDto> { new() { Code = setCode, Name = "Rm Tax Set", TotalCards = 0 } };
 
         // First apply: create old category
-        var categories1 = new[]
-        {
-            new { slug = catSlugOld, displayName = "Old Cat", sortOrder = 1, subTypes = Array.Empty<object>() }
-        };
-        var sets = new[] { new { code = setCode, name = "Rm Tax Set", totalCards = 0, releaseDate = (string?)null } };
-        using var pkg1 = PackageBuilder.Build(sets: sets, sealedCategories: categories1);
-        await setupApplicator.ApplyContentUpdateAsync(pkg1, cv1, CancellationToken.None);
+        var (pkg1, manifest1) = PackageBuilder.Build(
+            sets: sets,
+            taxonomy: new TaxonomyDto
+            {
+                Version = "1.0.0",
+                Categories = new List<SealedProductCategoryDto>
+                {
+                    new() { Slug = catSlugOld, DisplayName = "Old Cat", SortOrder = 1 }
+                }
+            });
+        await setupApplicator.ApplyContentUpdateAsync(pkg1, manifest1, CancellationToken.None);
 
         // Create a user with an inventory entry using the old category
         await using var db2 = _fixture.CreateContext();
@@ -126,13 +122,17 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
         // Second apply: replace with new category (old category removed)
         await using var db3 = _fixture.CreateContext();
         var applicator2 = CreateApplicator(db3);
-        var categories2 = new[]
-        {
-            new { slug = catSlugNew, displayName = "New Cat", sortOrder = 1, subTypes = Array.Empty<object>() }
-        };
-        var cv2 = $"v-tax-rm2-{Guid.NewGuid():N}";
-        using var pkg2 = PackageBuilder.Build(sets: sets, sealedCategories: categories2);
-        await applicator2.ApplyContentUpdateAsync(pkg2, cv2, CancellationToken.None);
+        var (pkg2, manifest2) = PackageBuilder.Build(
+            sets: sets,
+            taxonomy: new TaxonomyDto
+            {
+                Version = "1.0.1",
+                Categories = new List<SealedProductCategoryDto>
+                {
+                    new() { Slug = catSlugNew, DisplayName = "New Cat", SortOrder = 1 }
+                }
+            });
+        await applicator2.ApplyContentUpdateAsync(pkg2, manifest2, CancellationToken.None);
 
         // Verify inventory entry has been nulled
         await using var verifyDb = _fixture.CreateContext();
@@ -141,11 +141,9 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
         Assert.Null(updatedEntry.CategorySlug);
         Assert.Null(updatedEntry.SubTypeSlug);
 
-        // Verify old category is gone
         var oldCatExists = await verifyDb.SealedProductCategories.AnyAsync(c => c.Slug == catSlugOld);
         Assert.False(oldCatExists);
 
-        // Verify new category is present
         var newCatExists = await verifyDb.SealedProductCategories.AnyAsync(c => c.Slug == catSlugNew);
         Assert.True(newCatExists);
     }
@@ -160,24 +158,29 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
         var subSlugOld = $"st-old-{Guid.NewGuid():N}".Substring(0, 14);
         var subSlugNew = $"st-new-{Guid.NewGuid():N}".Substring(0, 14);
         var setCode = $"s{Guid.NewGuid():N}".Substring(0, 4);
-        var cv1 = $"v-stold-{Guid.NewGuid():N}";
 
-        var categories1 = new[]
-        {
-            new
+        var sets = new List<SetDto> { new() { Code = setCode, Name = "Sub Rm Set", TotalCards = 0 } };
+
+        var (pkg1, manifest1) = PackageBuilder.Build(
+            sets: sets,
+            taxonomy: new TaxonomyDto
             {
-                slug = catSlug,
-                displayName = "Keep Cat",
-                sortOrder = 1,
-                subTypes = new[]
+                Version = "1.0.0",
+                Categories = new List<SealedProductCategoryDto>
                 {
-                    new { slug = subSlugOld, categorySlug = catSlug, displayName = "Old Sub", sortOrder = 1 }
+                    new()
+                    {
+                        Slug = catSlug,
+                        DisplayName = "Keep Cat",
+                        SortOrder = 1,
+                        SubTypes = new List<SealedProductSubTypeDto>
+                        {
+                            new() { Slug = subSlugOld, DisplayName = "Old Sub", SortOrder = 1 }
+                        }
+                    }
                 }
-            }
-        };
-        var sets = new[] { new { code = setCode, name = "Sub Rm Set", totalCards = 0, releaseDate = (string?)null } };
-        using var pkg1 = PackageBuilder.Build(sets: sets, sealedCategories: categories1);
-        await setupApplicator.ApplyContentUpdateAsync(pkg1, cv1, CancellationToken.None);
+            });
+        await setupApplicator.ApplyContentUpdateAsync(pkg1, manifest1, CancellationToken.None);
 
         // Create inventory entry with the old sub-type
         await using var db2 = _fixture.CreateContext();
@@ -215,35 +218,36 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
         // Second apply: category stays, old sub-type replaced with new sub-type
         await using var db3 = _fixture.CreateContext();
         var applicator2 = CreateApplicator(db3);
-        var categories2 = new[]
-        {
-            new
+        var (pkg2, manifest2) = PackageBuilder.Build(
+            sets: sets,
+            taxonomy: new TaxonomyDto
             {
-                slug = catSlug,
-                displayName = "Keep Cat",
-                sortOrder = 1,
-                subTypes = new[]
+                Version = "1.0.1",
+                Categories = new List<SealedProductCategoryDto>
                 {
-                    new { slug = subSlugNew, categorySlug = catSlug, displayName = "New Sub", sortOrder = 1 }
+                    new()
+                    {
+                        Slug = catSlug,
+                        DisplayName = "Keep Cat",
+                        SortOrder = 1,
+                        SubTypes = new List<SealedProductSubTypeDto>
+                        {
+                            new() { Slug = subSlugNew, DisplayName = "New Sub", SortOrder = 1 }
+                        }
+                    }
                 }
-            }
-        };
-        var cv2 = $"v-stnew-{Guid.NewGuid():N}";
-        using var pkg2 = PackageBuilder.Build(sets: sets, sealedCategories: categories2);
-        await applicator2.ApplyContentUpdateAsync(pkg2, cv2, CancellationToken.None);
+            });
+        await applicator2.ApplyContentUpdateAsync(pkg2, manifest2, CancellationToken.None);
 
-        // Verify: category_slug preserved, sub_type_slug nulled
         await using var verifyDb = _fixture.CreateContext();
         var updatedEntry = await verifyDb.SealedInventoryEntries.FindAsync(entryId);
         Assert.NotNull(updatedEntry);
         Assert.Equal(catSlug, updatedEntry.CategorySlug);
         Assert.Null(updatedEntry.SubTypeSlug);
 
-        // Category should still exist
         var catExists = await verifyDb.SealedProductCategories.AnyAsync(c => c.Slug == catSlug);
         Assert.True(catExists);
 
-        // New sub-type should exist, old should not
         var oldSubExists = await verifyDb.SealedProductSubTypes.AnyAsync(s => s.Slug == subSlugOld);
         Assert.False(oldSubExists);
         var newSubExists = await verifyDb.SealedProductSubTypes.AnyAsync(s => s.Slug == subSlugNew);
@@ -253,7 +257,6 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
     [Fact]
     public async Task SealedInventory_CanBeCreated_WithValidCategoryAndSubType()
     {
-        // This test verifies the schema constraint: category_slug FK and sub_type_slug FK
         await using var db = _fixture.CreateContext();
 
         var catSlug = $"cat-inv-{Guid.NewGuid():N}".Substring(0, 15);

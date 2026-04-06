@@ -5,17 +5,15 @@ namespace CountOrSell.Api.Services;
 
 public class PackageVerifier : IPackageVerifier
 {
-    public bool VerifyChecksum(Stream packageStream, string expectedSha256)
+    // expectedChecksum format from per-package manifest: "sha256:<hex_lowercase>"
+    public bool VerifyFileChecksum(byte[] fileBytes, string expectedChecksum)
     {
-        var originalPosition = packageStream.CanSeek ? packageStream.Position : 0;
-        if (packageStream.CanSeek) packageStream.Position = 0;
+        if (!expectedChecksum.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+            return false;
 
-        var hash = SHA256.HashData(packageStream);
+        var expectedHex = expectedChecksum["sha256:".Length..];
+        var hash = SHA256.HashData(fileBytes);
         var actual = Convert.ToHexString(hash);
-
-        // Reset stream so caller can re-read it
-        if (packageStream.CanSeek) packageStream.Position = originalPosition == 0 ? 0 : originalPosition;
-
-        return string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(actual, expectedHex, StringComparison.OrdinalIgnoreCase);
     }
 }

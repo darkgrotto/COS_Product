@@ -671,14 +671,88 @@ Filters that add no value in a given context are hidden
   schema update, with clear recovery instructions
 
 ### Update Check Manifest
-- Polls countorsell.com/updates/manifest.json
+- Polls www.countorsell.com/updates/manifest.json
 - Update source is not configurable - countorsell.com
   only
-- Checksums verified on all received packages before
-  applying
-- Schema version checked before applying any update -
-  if Product is behind minimum required schema version,
-  schema update must be applied first
+- Checksums verified per-file before applying
+- Manifest has two levels: website manifest and
+  per-package manifest
+
+Website manifest format (updates/manifest.json):
+```json
+{
+  "schema_version": "1.0.0",
+  "generated_at": "<ISO 8601>",
+  "minimum_product_version": "1.0.0",
+  "content_versions": {
+    "cards": { "version": "1.2.0" },
+    "sets": { "version": "1.1.0" },
+    "sealed_products": { "version": "1.0.0" },
+    "treatments": { "version": "1.0.0" },
+    "images": { "version": "1.1.0" },
+    "taxonomy": { "version": "1.0.0" }
+  },
+  "packages": [
+    {
+      "package_id": "<id>",
+      "package_type": "full|delta",
+      "download_url": "<url>/package.zip",
+      "manifest_url": "<url>/manifest.json",
+      "base_full_version": "1.0.0 or null for full",
+      "generated_at": "<ISO 8601>"
+    }
+  ]
+}
+```
+
+Per-package manifest format (fetched from manifest_url
+or extracted from ZIP as manifest.json):
+```json
+{
+  "package_type": "full|delta",
+  "generated_at": "<ISO 8601>",
+  "base_full_version": "1.0.0 or null",
+  "schema_version": "1.0.0",
+  "content_versions": { "cards": { "version": "...", "record_count": 123 }, ... },
+  "retained_full_versions": ["1.0.0"],
+  "checksums": {
+    "metadata/treatments.json": "sha256:<hex_lowercase>",
+    "metadata/sets/eoe/set.json": "sha256:<hex_lowercase>",
+    "metadata/sets/eoe/cards.json": "sha256:<hex_lowercase>",
+    "metadata/sealed/<id>.json": "sha256:<hex_lowercase>",
+    "images/sets/eoe/<card_id>.jpg": "sha256:<hex_lowercase>",
+    "images/sealed/<id>.jpg": "sha256:<hex_lowercase>"
+  }
+}
+```
+
+ZIP file structure (package.zip):
+```
+manifest.json
+metadata/
+  treatments.json          - array of {treatment_id, normalized_name, display_name, sort_order}
+  taxonomy.json            - {version, categories:[{slug, display_name, sort_order, sub_types:[...]}]}
+  sets/{set_code}/
+    set.json               - {set_code, name, card_count, released_at, set_type, scryfall_id}
+    cards.json             - array of {card_id, set_code, collector_number, name, oracle_id,
+                             mana_cost, cmc, type_line, oracle_text, colors, color_identity,
+                             keywords, layout, rarity, scryfall_id, oracle_ruling_uri,
+                             is_reserved, treatments}
+  sealed/{product_id}.json - {product_id, set_code, name, product_type,
+                             front_image_blob_name, supplemental_image_blob_name}
+images/
+  sets/{set_code}/{card_id}.jpg
+  sealed/{product_id}.jpg
+  sealed/{product_id}_s.jpg
+```
+
+Package types:
+- "full" - complete snapshot, base_full_version is null
+- "delta" - incremental from base_full_version, contains
+  only changed files
+
+No separate schema packages exist - schema version is
+a metadata field only. Schema migrations run on startup.
 
 ### Application Version Updates
 
@@ -1105,8 +1179,13 @@ docker compose -f docker/test/docker-compose.test.yml \
       ISA (confirm exact patterns at implementation)
 - [ ] OAuth configuration UI design (post-setup
       admin settings)
-- [ ] Application version check source URL (separate
-      from content update manifest)
+- [ ] Application version check source URL - no
+      app-version.json endpoint exists on countorsell.com
+      currently; version check is a no-op pending a
+      defined endpoint
+- [ ] product_type field in sealed product packages -
+      whether it maps to category_slug or sub_type_slug
+      must be confirmed at first real package ingestion
 - [ ] Reverse proxy choice for Docker Compose
       (Nginx or Traefik - implementation detail)
 - [ ] Additional backup destinations beyond initial
@@ -1239,3 +1318,21 @@ to all users. Filter scope indicator appears on all
 pages with universal filter. Seed script at
 docker/scripts/demo-seed.sql populates demo accounts
 and sample data against a freshly migrated database.
+2026-04-05 - Update package format confirmed from
+COS_Backend analysis. Website manifest at
+www.countorsell.com/updates/manifest.json uses a
+packages array with package_id, package_type (full or
+delta), download_url, manifest_url, base_full_version,
+generated_at. No separate schema packages - schema
+migration runs on startup only. Per-package manifest
+has per-file checksums in format sha256:<hex_lowercase>.
+ZIP structure uses metadata/ prefix for all data files
+(metadata/treatments.json, metadata/taxonomy.json,
+metadata/sets/{code}/set.json,
+metadata/sets/{code}/cards.json,
+metadata/sealed/{id}.json). Images are in ZIP at
+images/ paths (NOT fetched separately). No
+app-version.json endpoint exists on countorsell.com
+currently. Card colors published as array of symbols.
+Treatment key is normalized_name field. Set total cards
+is card_count field. Set code is set_code field.

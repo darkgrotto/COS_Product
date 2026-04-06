@@ -1,5 +1,6 @@
 using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain.Dtos.Packages;
 using CountOrSell.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,39 +24,31 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         await using var db = _fixture.CreateContext();
         var imageStore = new NoOpImageStore();
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
+        var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, NullLogger<ContentUpdateApplicator>.Instance);
 
-        var setCode = $"t{Guid.NewGuid():N}".Substring(0, 4); // 4 lowercase chars
+        var setCode = $"t{Guid.NewGuid():N}".Substring(0, 4);
         var cardId = $"{setCode}001";
         var treatmentKey = $"ord-{Guid.NewGuid():N}".Substring(0, 12);
-        var contentVersion = $"v-order-{Guid.NewGuid():N}";
 
-        var treatments = new[]
+        var treatments = new List<TreatmentDto>
         {
-            new { key = treatmentKey, displayName = "Order Test", sortOrder = 5 }
+            new() { Key = treatmentKey, DisplayName = "Order Test", SortOrder = 5 }
         };
-        var sets = new[]
+        var sets = new List<SetDto>
         {
-            new { code = setCode, name = "Order Test Set", totalCards = 1, releaseDate = (string?)null }
+            new() { Code = setCode, Name = "Order Test Set", TotalCards = 1 }
         };
-        var cards = new[]
+        var cards = new List<CardDto>
         {
-            new
-            {
-                identifier = cardId,
-                setCode,
-                name = "Order Test Card",
-                color = "Blue",
-                cardType = "Creature",
-                marketValue = (decimal?)1.50m
-            }
+            new() { Identifier = cardId, SetCode = setCode, Name = "Order Test Card" }
         };
 
-        using var packageStream = PackageBuilder.Build(
+        var (packageStream, packageManifest) = PackageBuilder.Build(
             treatments: treatments, sets: sets, cards: cards);
 
-        await applicator.ApplyContentUpdateAsync(packageStream, contentVersion, CancellationToken.None);
+        await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateContext();
 
@@ -68,10 +61,10 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         var cardSaved = await verifyDb.Cards.AnyAsync(c => c.Identifier == cardId);
         Assert.True(cardSaved, "Card should be saved");
 
+        var contentVersion = packageManifest.ContentVersions["cards"].Version;
         var updateVersion = await verifyDb.UpdateVersions
             .FirstOrDefaultAsync(u => u.ContentVersion == contentVersion);
         Assert.NotNull(updateVersion);
-        Assert.Equal(contentVersion, updateVersion.ContentVersion);
     }
 
     [Fact]
@@ -80,38 +73,40 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         await using var db = _fixture.CreateContext();
         var imageStore = new NoOpImageStore();
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
+        var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, NullLogger<ContentUpdateApplicator>.Instance);
 
         var treatmentKey = $"upsert-{Guid.NewGuid():N}".Substring(0, 14);
         var setCode = $"u{Guid.NewGuid():N}".Substring(0, 4);
-        var contentVersion1 = $"v-upsert1-{Guid.NewGuid():N}";
-        var contentVersion2 = $"v-upsert2-{Guid.NewGuid():N}";
 
-        var sets = new[]
+        var sets = new List<SetDto>
         {
-            new { code = setCode, name = "Upsert Test Set", totalCards = 0, releaseDate = (string?)null }
+            new() { Code = setCode, Name = "Upsert Test Set", TotalCards = 0 }
         };
 
         // First apply - create the treatment
-        var treatments1 = new[]
-        {
-            new { key = treatmentKey, displayName = "Original Name", sortOrder = 1 }
-        };
-        using var package1 = PackageBuilder.Build(treatments: treatments1, sets: sets);
-        await applicator.ApplyContentUpdateAsync(package1, contentVersion1, CancellationToken.None);
+        var (package1, manifest1) = PackageBuilder.Build(
+            treatments: new List<TreatmentDto>
+            {
+                new() { Key = treatmentKey, DisplayName = "Original Name", SortOrder = 1 }
+            },
+            sets: sets);
+        await applicator.ApplyContentUpdateAsync(package1, manifest1, CancellationToken.None);
 
         // Second apply - update the treatment display name
         await using var db2 = _fixture.CreateContext();
         var taxonomy2 = new SealedTaxonomyRepository(db2, NullLogger<SealedTaxonomyRepository>.Instance);
         var applicator2 = new ContentUpdateApplicator(
-            db2, imageStore, taxonomy2, NullLogger<ContentUpdateApplicator>.Instance);
-        var treatments2 = new[]
-        {
-            new { key = treatmentKey, displayName = "Updated Name", sortOrder = 2 }
-        };
-        using var package2 = PackageBuilder.Build(treatments: treatments2, sets: sets);
-        await applicator2.ApplyContentUpdateAsync(package2, contentVersion2, CancellationToken.None);
+            db2, imageStore, taxonomy2, verifier, NullLogger<ContentUpdateApplicator>.Instance);
+
+        var (package2, manifest2) = PackageBuilder.Build(
+            treatments: new List<TreatmentDto>
+            {
+                new() { Key = treatmentKey, DisplayName = "Updated Name", SortOrder = 2 }
+            },
+            sets: sets);
+        await applicator2.ApplyContentUpdateAsync(package2, manifest2, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateContext();
         var treatment = await verifyDb.Treatments.FindAsync(treatmentKey);

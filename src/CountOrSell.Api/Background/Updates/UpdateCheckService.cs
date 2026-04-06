@@ -1,5 +1,4 @@
 using CountOrSell.Data.Repositories;
-using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -64,56 +63,36 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                 return;
             }
 
-            var schemaPackage = manifest.Packages.FirstOrDefault(p => p.Type == "schema");
-            if (schemaPackage != null)
-            {
-                var existing = await updateRepo.GetPendingSchemaUpdateAsync(ct);
-                if (existing == null || existing.SchemaVersion != schemaPackage.Version)
-                {
-                    await updateRepo.AddPendingSchemaUpdateAsync(new PendingSchemaUpdate
-                    {
-                        SchemaVersion = schemaPackage.Version,
-                        Description = schemaPackage.Description ?? string.Empty,
-                        DownloadUrl = schemaPackage.DownloadUrl,
-                        ZipSha256 = schemaPackage.ZipSha256,
-                        DetectedAt = DateTime.UtcNow
-                    }, ct);
-                    await notificationService.NotifyAsync(
-                        $"Schema update {schemaPackage.Version} is available and requires admin approval.",
-                        "schema", ct);
-                }
-            }
+            // Prefer the most recent package - last entry in the list
+            var packageRef = manifest.Packages[^1];
 
-            var contentPackage = manifest.Packages.FirstOrDefault(p => p.Type == "content");
-            if (contentPackage == null)
+            // Fetch per-package manifest to get checksums and content versions
+            var packageManifest = await manifestClient.FetchPackageManifestAsync(packageRef.ManifestUrl, ct);
+            if (packageManifest == null)
             {
-                _logger.LogInformation("No content package in manifest");
+                _logger.LogWarning("Could not fetch per-package manifest from {Url}", packageRef.ManifestUrl);
                 return;
             }
 
-            var currentSchemaVersion = await updateRepo.GetCurrentSchemaVersionAsync(ct);
-            if (currentSchemaVersion < contentPackage.MinimumSchemaVersion)
+            // Check current content version against what the package provides
+            if (!packageManifest.ContentVersions.TryGetValue("cards", out var cardsVersion))
             {
-                await notificationService.NotifyAsync(
-                    "Schema update required before content update can be applied.",
-                    "schema", ct);
+                _logger.LogWarning("Package manifest missing cards content version");
                 return;
             }
 
             var currentContentVersion = await updateRepo.GetCurrentContentVersionAsync(ct);
-            if (currentContentVersion == contentPackage.Version) return;
-
-            var packageStream = await downloader.DownloadPackageAsync(contentPackage.DownloadUrl, ct);
-            if (!verifier.VerifyChecksum(packageStream, contentPackage.ZipSha256))
+            if (currentContentVersion == cardsVersion.Version)
             {
-                _logger.LogError("Checksum mismatch for content update {Version}", contentPackage.Version);
-                await notificationService.NotifyAsync(
-                    $"Content update {contentPackage.Version} checksum verification failed.",
-                    "update", ct);
+                _logger.LogInformation("Content already up to date at version {Version}", currentContentVersion);
                 return;
             }
 
-            await applicator.ApplyContentUpdateAsync(packageStream, contentPackage.Version, ct);
+            // Download the package ZIP
+            var packageStream = await downloader.DownloadPackageAsync(packageRef.DownloadUrl, ct);
+
+            // Apply the content update - the applicator verifies per-file checksums internally
+            await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, ct);
         }
         catch (Exception ex)
         {

@@ -3,6 +3,7 @@ using System.Text.Json;
 using CountOrSell.Data;
 using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain.Dtos;
 using CountOrSell.Domain.Dtos.Packages;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Services;
@@ -10,11 +11,27 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CountOrSell.Api.Services;
 
+// Applies a content update package (ZIP) to the database.
+//
+// ZIP structure (from countorsell.com packages):
+//   manifest.json                               - per-package manifest (already parsed, passed in)
+//   metadata/treatments.json                    - array of TreatmentDto
+//   metadata/taxonomy.json                      - TaxonomyDto (categories + sub_types)
+//   metadata/sets/{set_code}/set.json           - SetDto (one per set)
+//   metadata/sets/{set_code}/cards.json         - array of CardDto (one per set)
+//   metadata/sealed/{product_id}.json           - SealedProductDto (one per product)
+//   images/sets/{set_code}/{card_id}.jpg        - card images
+//   images/sealed/{product_id}.jpg              - sealed product front image
+//   images/sealed/{product_id}_s.jpg            - sealed product supplemental image
+//
+// Checksums in the per-package manifest use format "sha256:<hex_lowercase>" per file path.
+// Image files are saved outside the DB transaction - image failures are non-fatal.
 public class ContentUpdateApplicator : IContentUpdateApplicator
 {
     private readonly AppDbContext _db;
     private readonly IImageStore _imageStore;
     private readonly ISealedTaxonomyRepository _taxonomy;
+    private readonly IPackageVerifier _verifier;
     private readonly ILogger<ContentUpdateApplicator> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -26,36 +43,80 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         AppDbContext db,
         IImageStore imageStore,
         ISealedTaxonomyRepository taxonomy,
+        IPackageVerifier verifier,
         ILogger<ContentUpdateApplicator> logger)
     {
         _db = db;
         _imageStore = imageStore;
         _taxonomy = taxonomy;
+        _verifier = verifier;
         _logger = logger;
     }
 
     public async Task ApplyContentUpdateAsync(
-        Stream packageStream, string contentVersion, CancellationToken ct)
+        Stream packageStream, PackageManifest packageManifest, CancellationToken ct)
     {
         if (packageStream.CanSeek) packageStream.Position = 0;
-
         using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
 
-        var treatments = ReadJsonEntry<List<TreatmentDto>>(archive, "treatments.json");
-        var sets = ReadJsonEntry<List<SetDto>>(archive, "sets.json");
-        var cards = ReadJsonEntry<List<CardDto>>(archive, "cards.json");
-        var sealedCategories = ReadJsonEntry<List<SealedProductCategoryDto>>(archive, "sealed_product_categories.json");
-        var sealedProducts = ReadJsonEntry<List<SealedProductDto>>(archive, "sealed_products.json");
+        // Determine content version from package manifest (cards is the primary version key)
+        var contentVersion = packageManifest.ContentVersions.TryGetValue("cards", out var cv)
+            ? cv.Version
+            : packageManifest.GeneratedAt.ToString("yyyy-MM-dd");
+
+        // Read and verify metadata files
+        var treatments = ReadAndVerifyJson<List<TreatmentDto>>(
+            archive, "metadata/treatments.json", packageManifest.Checksums);
+
+        var taxonomy = ReadAndVerifyJson<TaxonomyDto>(
+            archive, "metadata/taxonomy.json", packageManifest.Checksums);
+
+        // Collect all sets and cards across per-set directories
+        var allSets = new List<SetDto>();
+        var allCards = new List<CardDto>();
+        var allSealedProducts = new List<SealedProductDto>();
+
+        foreach (var entry in archive.Entries)
+        {
+            if (entry.Name.Length == 0) continue; // directory entry
+
+            if (entry.FullName.StartsWith("metadata/sets/", StringComparison.OrdinalIgnoreCase))
+            {
+                if (entry.Name.Equals("set.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var set = ReadAndVerifyJson<SetDto>(
+                        archive, entry.FullName, packageManifest.Checksums);
+                    if (set != null) allSets.Add(set);
+                }
+                else if (entry.Name.Equals("cards.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var cards = ReadAndVerifyJson<List<CardDto>>(
+                        archive, entry.FullName, packageManifest.Checksums);
+                    if (cards != null) allCards.AddRange(cards);
+                }
+            }
+            else if (entry.FullName.StartsWith("metadata/sealed/", StringComparison.OrdinalIgnoreCase)
+                     && entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                var product = ReadAndVerifyJson<SealedProductDto>(
+                    archive, entry.FullName, packageManifest.Checksums);
+                if (product != null) allSealedProducts.Add(product);
+            }
+        }
 
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
         try
         {
             if (treatments != null) await UpsertTreatmentsAsync(treatments, ct);
-            if (sets != null) await UpsertSetsAsync(sets, ct);
-            if (cards != null) await UpsertCardsAsync(cards, ct);
-            // Full taxonomy replace must happen before sealed products (FK dependency)
-            if (sealedCategories != null) await _taxonomy.ReplaceTaxonomyAsync(sealedCategories, ct);
-            if (sealedProducts != null) await UpsertSealedProductsAsync(sealedProducts, ct);
+            if (allSets.Count > 0) await UpsertSetsAsync(allSets, ct);
+            if (allCards.Count > 0) await UpsertCardsAsync(allCards, ct);
+
+            // Taxonomy replace must happen before sealed products (FK dependency)
+            if (taxonomy != null)
+                await _taxonomy.ReplaceTaxonomyAsync(FlattenCategories(taxonomy), ct);
+
+            if (allSealedProducts.Count > 0)
+                await UpsertSealedProductsAsync(allSealedProducts, ct);
 
             _db.UpdateVersions.Add(new UpdateVersion
             {
@@ -63,7 +124,6 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 AppliedAt = DateTime.UtcNow
             });
             await _db.SaveChangesAsync(ct);
-
             await transaction.CommitAsync(ct);
         }
         catch
@@ -72,26 +132,49 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             throw;
         }
 
-        // Save images outside the transaction - best effort
-        await SaveImagesAsync(archive, ct);
+        // Save images outside the transaction - best effort, non-fatal
+        await SaveImagesAsync(archive, packageManifest.Checksums, ct);
     }
 
-    private static T? ReadJsonEntry<T>(ZipArchive archive, string entryName)
+    private T? ReadAndVerifyJson<T>(
+        ZipArchive archive, string entryPath, Dictionary<string, string> checksums)
     {
-        var entry = archive.GetEntry(entryName);
+        var entry = archive.GetEntry(entryPath);
         if (entry == null) return default;
+
         using var stream = entry.Open();
-        using var reader = new StreamReader(stream);
-        var json = reader.ReadToEnd();
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        var bytes = ms.ToArray();
+
+        if (checksums.TryGetValue(entryPath, out var expectedChecksum))
+        {
+            if (!_verifier.VerifyFileChecksum(bytes, expectedChecksum))
+            {
+                _logger.LogError("Checksum mismatch for {Path}", entryPath);
+                throw new InvalidDataException($"Checksum mismatch for {entryPath}");
+            }
+        }
+
+        var json = System.Text.Encoding.UTF8.GetString(bytes);
         return JsonSerializer.Deserialize<T>(json, JsonOptions);
+    }
+
+    private static List<SealedProductCategoryDto> FlattenCategories(TaxonomyDto taxonomy)
+    {
+        foreach (var cat in taxonomy.Categories)
+            foreach (var sub in cat.SubTypes)
+                sub.CategorySlug = cat.Slug;
+        return taxonomy.Categories;
     }
 
     private async Task UpsertTreatmentsAsync(List<TreatmentDto> dtos, CancellationToken ct)
     {
         var existingKeys = await _db.Treatments.Select(t => t.Key).ToListAsync(ct);
-        var toAdd = dtos.Where(d => !existingKeys.Contains(d.Key))
-            .Select(d => new Treatment { Key = d.Key, DisplayName = d.DisplayName, SortOrder = d.SortOrder });
-        _db.Treatments.AddRange(toAdd);
+        _db.Treatments.AddRange(dtos
+            .Where(d => !existingKeys.Contains(d.Key))
+            .Select(d => new Treatment { Key = d.Key, DisplayName = d.DisplayName, SortOrder = d.SortOrder }));
+
         foreach (var dto in dtos.Where(d => existingKeys.Contains(d.Key)))
         {
             var entity = await _db.Treatments.FindAsync(new object[] { dto.Key }, ct);
@@ -107,17 +190,18 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
     private async Task UpsertSetsAsync(List<SetDto> dtos, CancellationToken ct)
     {
         var existingCodes = await _db.Sets.Select(s => s.Code).ToListAsync(ct);
-        var toAdd = dtos.Where(d => !existingCodes.Contains(d.Code))
+        _db.Sets.AddRange(dtos
+            .Where(d => !existingCodes.Contains(d.Code))
             .Select(d => new Set
             {
                 Code = d.Code,
                 Name = d.Name,
                 TotalCards = d.TotalCards,
                 ReleaseDate = d.ReleaseDate,
-                Digital = d.Digital,
+                Digital = false,
                 UpdatedAt = DateTime.UtcNow
-            });
-        _db.Sets.AddRange(toAdd);
+            }));
+
         foreach (var dto in dtos.Where(d => existingCodes.Contains(d.Code)))
         {
             var entity = await _db.Sets.FindAsync(new object[] { dto.Code }, ct);
@@ -126,7 +210,6 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.Name = dto.Name;
                 entity.TotalCards = dto.TotalCards;
                 entity.ReleaseDate = dto.ReleaseDate;
-                entity.Digital = dto.Digital;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }
@@ -136,21 +219,20 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
     private async Task UpsertCardsAsync(List<CardDto> dtos, CancellationToken ct)
     {
         var existingIds = await _db.Cards.Select(c => c.Identifier).ToListAsync(ct);
-        var toAdd = dtos.Where(d => !existingIds.Contains(d.Identifier))
+        _db.Cards.AddRange(dtos
+            .Where(d => !existingIds.Contains(d.Identifier))
             .Select(d => new Card
             {
                 Identifier = d.Identifier,
                 SetCode = d.SetCode,
                 Name = d.Name,
-                Color = d.Color,
-                CardType = d.CardType,
-                CurrentMarketValue = d.MarketValue,
+                Color = d.Colors.Count > 0 ? string.Join(",", d.Colors) : null,
+                CardType = d.TypeLine,
                 IsReserved = d.IsReserved,
-                OracleRulingUrl = d.OracleRulingUrl,
-                FlavorText = d.FlavorText,
+                OracleRulingUrl = d.OracleRulingUri,
                 UpdatedAt = DateTime.UtcNow
-            });
-        _db.Cards.AddRange(toAdd);
+            }));
+
         foreach (var dto in dtos.Where(d => existingIds.Contains(d.Identifier)))
         {
             var entity = await _db.Cards.FindAsync(new object[] { dto.Identifier }, ct);
@@ -158,12 +240,10 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             {
                 entity.SetCode = dto.SetCode;
                 entity.Name = dto.Name;
-                entity.Color = dto.Color;
-                entity.CardType = dto.CardType;
-                entity.CurrentMarketValue = dto.MarketValue;
+                entity.Color = dto.Colors.Count > 0 ? string.Join(",", dto.Colors) : null;
+                entity.CardType = dto.TypeLine;
                 entity.IsReserved = dto.IsReserved;
-                entity.OracleRulingUrl = dto.OracleRulingUrl;
-                entity.FlavorText = dto.FlavorText;
+                entity.OracleRulingUrl = dto.OracleRulingUri;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }
@@ -173,19 +253,18 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
     private async Task UpsertSealedProductsAsync(List<SealedProductDto> dtos, CancellationToken ct)
     {
         var existingIds = await _db.SealedProducts.Select(s => s.Identifier).ToListAsync(ct);
-        var toAdd = dtos.Where(d => !existingIds.Contains(d.Identifier))
+        _db.SealedProducts.AddRange(dtos
+            .Where(d => !existingIds.Contains(d.Identifier))
             .Select(d => new SealedProduct
             {
                 Identifier = d.Identifier,
                 SetCode = d.SetCode,
                 Name = d.Name,
-                CategorySlug = d.CategorySlug,
-                SubTypeSlug = d.SubTypeSlug,
-                Upc = d.Upc,
-                CurrentMarketValue = d.CurrentMarketValue,
+                // product_type maps to sub_type_slug; category_slug is resolved via taxonomy FK
+                SubTypeSlug = d.ProductType,
                 UpdatedAt = DateTime.UtcNow
-            });
-        _db.SealedProducts.AddRange(toAdd);
+            }));
+
         foreach (var dto in dtos.Where(d => existingIds.Contains(d.Identifier)))
         {
             var entity = await _db.SealedProducts.FindAsync(new object[] { dto.Identifier }, ct);
@@ -193,17 +272,15 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             {
                 entity.SetCode = dto.SetCode;
                 entity.Name = dto.Name;
-                entity.CategorySlug = dto.CategorySlug;
-                entity.SubTypeSlug = dto.SubTypeSlug;
-                entity.Upc = dto.Upc;
-                entity.CurrentMarketValue = dto.CurrentMarketValue;
+                entity.SubTypeSlug = dto.ProductType;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }
         await _db.SaveChangesAsync(ct);
     }
 
-    private async Task SaveImagesAsync(ZipArchive archive, CancellationToken ct)
+    private async Task SaveImagesAsync(
+        ZipArchive archive, Dictionary<string, string> checksums, CancellationToken ct)
     {
         foreach (var entry in archive.Entries)
         {
@@ -215,7 +292,16 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 using var stream = entry.Open();
                 using var ms = new MemoryStream();
                 await stream.CopyToAsync(ms, ct);
-                await _imageStore.SaveImageAsync(entry.FullName, ms.ToArray(), ct);
+                var bytes = ms.ToArray();
+
+                if (checksums.TryGetValue(entry.FullName, out var expectedChecksum)
+                    && !_verifier.VerifyFileChecksum(bytes, expectedChecksum))
+                {
+                    _logger.LogWarning("Checksum mismatch for image {Path}, skipping", entry.FullName);
+                    continue;
+                }
+
+                await _imageStore.SaveImageAsync(entry.FullName, bytes, ct);
             }
             catch (Exception ex)
             {

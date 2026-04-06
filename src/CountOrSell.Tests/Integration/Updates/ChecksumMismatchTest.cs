@@ -6,63 +6,56 @@ namespace CountOrSell.Tests.Integration.Updates;
 public class ChecksumMismatchTest
 {
     [Fact]
-    public void VerifyChecksum_ReturnsFalse_WhenHashDoesNotMatch()
+    public void VerifyFileChecksum_ReturnsFalse_WhenHashDoesNotMatch()
     {
         var verifier = new PackageVerifier();
         var data = "test package content"u8.ToArray();
-        using var stream = new MemoryStream(data);
 
-        var result = verifier.VerifyChecksum(stream, "0000000000000000000000000000000000000000000000000000000000000000");
+        var result = verifier.VerifyFileChecksum(data, "sha256:0000000000000000000000000000000000000000000000000000000000000000");
 
         Assert.False(result);
     }
 
     [Fact]
-    public void VerifyChecksum_ReturnsTrue_WhenHashMatches()
+    public void VerifyFileChecksum_ReturnsTrue_WhenHashMatches()
     {
         var verifier = new PackageVerifier();
         var data = "test package content"u8.ToArray();
-        using var stream = new MemoryStream(data);
 
-        // Compute expected hash
         var expectedHash = System.Security.Cryptography.SHA256.HashData(data);
-        var expectedHex = Convert.ToHexString(expectedHash);
+        var expectedHex = Convert.ToHexString(expectedHash).ToLowerInvariant();
 
-        stream.Position = 0;
-        var result = verifier.VerifyChecksum(stream, expectedHex);
+        var result = verifier.VerifyFileChecksum(data, $"sha256:{expectedHex}");
 
         Assert.True(result);
     }
 
     [Fact]
-    public void VerifyChecksum_ResetsStreamPositionToZero_AfterComputing()
+    public void VerifyFileChecksum_IsCaseInsensitive_OnHexPart()
     {
         var verifier = new PackageVerifier();
         var data = "test package content"u8.ToArray();
-        using var stream = new MemoryStream(data);
 
         var expectedHash = System.Security.Cryptography.SHA256.HashData(data);
-        var expectedHex = Convert.ToHexString(expectedHash);
+        var expectedHexUpper = Convert.ToHexString(expectedHash).ToUpperInvariant();
 
-        stream.Position = 0;
-        verifier.VerifyChecksum(stream, expectedHex);
+        var result = verifier.VerifyFileChecksum(data, $"sha256:{expectedHexUpper}");
 
-        Assert.Equal(0, stream.Position);
+        Assert.True(result);
     }
 
     [Fact]
-    public void VerifyChecksum_IsCaseInsensitive()
+    public void VerifyFileChecksum_ReturnsFalse_WhenPrefixMissing()
     {
         var verifier = new PackageVerifier();
         var data = "test package content"u8.ToArray();
-        using var stream = new MemoryStream(data);
 
         var expectedHash = System.Security.Cryptography.SHA256.HashData(data);
-        var expectedHexLower = Convert.ToHexString(expectedHash).ToLowerInvariant();
+        var expectedHex = Convert.ToHexString(expectedHash).ToLowerInvariant();
 
-        stream.Position = 0;
-        var result = verifier.VerifyChecksum(stream, expectedHexLower);
+        // Missing "sha256:" prefix - should not match
+        var result = verifier.VerifyFileChecksum(data, expectedHex);
 
-        Assert.True(result);
+        Assert.False(result);
     }
 }
