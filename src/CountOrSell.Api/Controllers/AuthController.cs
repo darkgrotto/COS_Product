@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CountOrSell.Api.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CountOrSell.Api.Controllers;
@@ -17,6 +18,23 @@ public class AuthController : ControllerBase
     {
         _localAuth = localAuth;
         _oauthConfig = oauthConfig;
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public IActionResult Me()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var username = User.FindFirstValue(ClaimTypes.Name);
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        var isBuiltinAdmin = User.FindFirstValue("is_builtin_admin");
+        return Ok(new
+        {
+            userId,
+            username,
+            role,
+            isBuiltinAdmin = bool.Parse(isBuiltinAdmin ?? "false"),
+        });
     }
 
     [HttpPost("login")]

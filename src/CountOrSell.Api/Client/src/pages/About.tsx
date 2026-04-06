@@ -1,0 +1,110 @@
+import { useEffect, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+
+interface AboutData {
+  currentVersion: string
+  latestReleasedVersion: string
+  updatePending: boolean
+  lastContentUpdate: string | null
+  instanceName: string
+  isDemo: boolean
+  demoSets: string[]
+  license: {
+    name: string
+    fullName: string
+    url: string
+  }
+}
+
+export function AboutPage() {
+  const [data, setData] = useState<AboutData | null>(null)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/about', { credentials: 'include' })
+      .then(res => {
+        if (!res.ok) throw new Error()
+        return res.json()
+      })
+      .then((d: AboutData) => setData(d))
+      .catch(() => setError(true))
+  }, [])
+
+  if (error) return <p className="text-destructive text-sm">Failed to load about information.</p>
+  if (!data) return <p className="text-muted-foreground text-sm">Loading...</p>
+
+  return (
+    <div className="max-w-lg space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">{data.instanceName}</h1>
+        {data.isDemo && (
+          <Badge variant="secondary" className="mt-2">Demo Environment</Badge>
+        )}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Application</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <Row label="Current version" value={data.currentVersion} />
+          <Row
+            label="Latest released version"
+            value={
+              <span className="flex items-center gap-2">
+                {data.latestReleasedVersion}
+                {data.updatePending && <Badge variant="outline">Update available</Badge>}
+              </span>
+            }
+          />
+          <Separator />
+          <Row
+            label="Last content update"
+            value={data.lastContentUpdate ?? 'No updates applied'}
+          />
+        </CardContent>
+      </Card>
+
+      {data.isDemo && data.demoSets.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Demo Sets</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {data.demoSets.map(s => s.toUpperCase()).join(', ')}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">License</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm space-y-1">
+          <p>{data.license.fullName}</p>
+          <a
+            href={data.license.url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:underline text-xs"
+          >
+            {data.license.name}
+          </a>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-right">{value}</span>
+    </div>
+  )
+}
