@@ -26,6 +26,8 @@ services:
       - BACKUP_RETENTION={config.BackupRetention}
       - BLOB_BACKUP_CONNECTION={config.BackupConnectionString}
       - SETUP_TOKEN={config.SetupToken}
+    volumes:
+      - countorsell_app_data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,6 +64,8 @@ services:
 volumes:
   countorsell_postgres_data:
     name: countorsell_postgres_data
+  countorsell_app_data:
+    name: countorsell_app_data
 ";
     }
 }
