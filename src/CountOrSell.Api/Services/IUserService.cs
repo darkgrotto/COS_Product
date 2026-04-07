@@ -6,6 +6,7 @@ namespace CountOrSell.Api.Services;
 public interface IUserService
 {
     Task<UserServiceResult> CreateLocalUserAsync(string username, string displayName, string password, UserRole role, CancellationToken ct = default);
+    Task<UserServiceResult> ResetPasswordAsync(Guid targetUserId, string newPassword, CancellationToken ct = default);
     Task<UserServiceResult> DisableUserAsync(Guid targetUserId, CancellationToken ct = default);
     Task<UserServiceResult> RemoveUserAsync(Guid targetUserId, CancellationToken ct = default);
     Task<UserServiceResult> DemoteUserAsync(Guid targetUserId, CancellationToken ct = default);

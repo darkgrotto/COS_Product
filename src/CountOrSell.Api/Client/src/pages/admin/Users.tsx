@@ -3,7 +3,7 @@ import {
   useReactTable, getCoreRowModel, flexRender,
   type ColumnDef,
 } from '@tanstack/react-table'
-import { UserPlus, MoreHorizontal, Copy, Check, ChevronDown, Mail } from 'lucide-react'
+import { UserPlus, MoreHorizontal, Copy, Check, ChevronDown, Mail, KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -188,6 +188,88 @@ function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDialogPro
   )
 }
 
+// ----- Reset password dialog -----
+
+interface ResetPasswordDialogProps {
+  user: { id: string; username: string; authType: string } | null
+  onClose: () => void
+}
+
+function ResetPasswordDialog({ user, onClose }: ResetPasswordDialogProps) {
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  function handleOpenChange(next: boolean) {
+    if (!next) { setPassword(''); setError(''); onClose() }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (password.length < 15) {
+      setError('Password must be at least 15 characters.')
+      return
+    }
+    setLoading(true); setError('')
+    try {
+      const res = await fetch(`/api/users/${user!.id}/reset-password`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: password }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error ?? 'Reset failed')
+      }
+      handleOpenChange(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reset failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={user !== null} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Reset Password</DialogTitle>
+          <DialogDescription>
+            Set a new password for <strong>{user?.username}</strong>. They will be able to log in with it immediately.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="rp-password">New password</Label>
+            <Input
+              id="rp-password"
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              disabled={loading}
+              placeholder="Minimum 15 characters"
+              autoComplete="new-password"
+              autoFocus
+            />
+            {password.length > 0 && password.length < 15 && (
+              <p className="text-xs text-muted-foreground">{15 - password.length} more characters needed</p>
+            )}
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={loading}>Cancel</Button>
+            <Button type="submit" disabled={loading || password.length < 15}>
+              {loading ? 'Resetting...' : 'Reset Password'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ----- Invite dialog -----
 
 interface InviteDialogProps {
@@ -314,6 +396,7 @@ export function UsersPage() {
   const [invites, setInvites] = useState<PendingInvite[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; username: string; authType: string } | null>(null)
   const [confirm, setConfirm] = useState<{
     title: string; description: string; confirmLabel: string
     destructive: boolean; action: () => Promise<void>
@@ -378,6 +461,7 @@ export function UsersPage() {
         destructive: true,
         action: () => post(`/api/users/${user.id}/remove`),
       }),
+      resetPassword: () => setResetPasswordUser({ id: user.id, username: user.username, authType: user.authType }),
     }
   }
 
@@ -445,6 +529,12 @@ export function UsersPage() {
               )}
               {u.state === 'Disabled' && (
                 <DropdownMenuItem onClick={a.reenable}>Re-enable</DropdownMenuItem>
+              )}
+              {u.authType === 'Local' && (
+                <DropdownMenuItem onClick={a.resetPassword}>
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  Reset password
+                </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={a.remove} className="text-destructive focus:text-destructive">
@@ -558,6 +648,7 @@ export function UsersPage() {
 
       <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={load} />
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} onCreated={load} />
+      <ResetPasswordDialog user={resetPasswordUser} onClose={() => setResetPasswordUser(null)} />
 
       {confirm && (
         <ConfirmDialog

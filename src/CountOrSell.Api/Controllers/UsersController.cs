@@ -78,6 +78,19 @@ public class UsersController : ControllerBase
         return Ok();
     }
 
+    [HttpPost("{id}/reset-password")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetPasswordRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewPassword))
+            return BadRequest(new { error = "Password is required." });
+
+        var result = await _userService.ResetPasswordAsync(id, request.NewPassword, ct);
+        if (!result.Success)
+            return Conflict(new { error = result.Error });
+        return Ok();
+    }
+
     [HttpPost("{id}/disable")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Disable(Guid id, CancellationToken ct)
@@ -192,3 +205,5 @@ public sealed record CreateLocalUserRequest(
     string? DisplayName,
     string Password,
     string Role);
+
+public sealed record ResetPasswordRequest(string NewPassword);

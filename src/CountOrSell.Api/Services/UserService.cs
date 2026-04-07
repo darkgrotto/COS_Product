@@ -71,6 +71,22 @@ public class UserService : IUserService
         return UserServiceResult.Ok();
     }
 
+    public async Task<UserServiceResult> ResetPasswordAsync(Guid targetUserId, string newPassword, CancellationToken ct = default)
+    {
+        if (newPassword.Length < 15)
+            return UserServiceResult.Fail("Password must be at least 15 characters.");
+
+        var user = await _users.GetByIdAsync(targetUserId, ct);
+        if (user is null) return UserServiceResult.Fail("User not found.");
+        if (user.AuthType != AuthType.Local)
+            return UserServiceResult.Fail("Password reset is only available for local accounts.");
+
+        user.PasswordHash = _localAuth.HashPassword(newPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        await _users.UpdateAsync(user, ct);
+        return UserServiceResult.Ok();
+    }
+
     public async Task<UserServiceResult> DisableUserAsync(Guid targetUserId, CancellationToken ct = default)
     {
         var user = await _users.GetByIdAsync(targetUserId, ct);
