@@ -486,7 +486,9 @@ function CardListView({
                         <div className="flex items-center gap-1">
                           <span className="font-medium">{c.name}</span>
                           {c.isReserved && (
-                            <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" title="Reserved List" />
+                            <span title="Reserved List" className="inline-flex">
+                              <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />
+                            </span>
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground">{c.identifier}</div>
