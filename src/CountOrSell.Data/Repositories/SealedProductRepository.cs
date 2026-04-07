@@ -13,4 +13,15 @@ public class SealedProductRepository : ISealedProductRepository
         _db.SealedProducts
             .Where(p => identifiers.Contains(p.Identifier))
             .ToDictionaryAsync(p => p.Identifier, ct);
+
+    public Task<List<SealedProduct>> SearchAsync(string query, CancellationToken ct = default)
+    {
+        var q = query.Trim();
+        return _db.SealedProducts
+            .Where(p => EF.Functions.ILike(p.Name, $"%{q}%") ||
+                        EF.Functions.ILike(p.Identifier, $"%{q}%"))
+            .OrderBy(p => p.Name)
+            .Take(20)
+            .ToListAsync(ct);
+    }
 }

@@ -14,9 +14,14 @@ public class ImagesController : ControllerBase
     private readonly ICardImageFetcher _imageFetcher;
     private readonly ILogger<ImagesController> _logger;
 
-    // Image filename is {identifier}.jpg e.g. "eoe019.jpg"
-    private static readonly System.Text.RegularExpressions.Regex FileNameRegex =
-        new(@"^[a-z0-9]{3,4}\d{3,4}\.(jpg|jpeg|png|webp)$",
+    // Card image filename is {identifier}.jpg e.g. "eoe019.jpg"
+    private static readonly System.Text.RegularExpressions.Regex CardFileNameRegex =
+        new(@"^[a-z0-9]{3,4}\d{3,4}[a-z]?\.(jpg|jpeg|png|webp)$",
+            System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    // Sealed product image filename: alphanumeric, hyphens, underscores + extension
+    private static readonly System.Text.RegularExpressions.Regex SealedFileNameRegex =
+        new(@"^[a-z0-9][a-z0-9\-_]*(_s)?\.(jpg|jpeg|png|webp)$",
             System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     public ImagesController(
@@ -32,7 +37,7 @@ public class ImagesController : ControllerBase
     [HttpGet("cards/{fileName}")]
     public async Task<IActionResult> GetCardImage(string fileName, CancellationToken ct)
     {
-        if (!FileNameRegex.IsMatch(fileName))
+        if (!CardFileNameRegex.IsMatch(fileName))
             return BadRequest();
 
         var relativePath = Path.Combine("cards", fileName);
@@ -57,6 +62,25 @@ public class ImagesController : ControllerBase
                 }
             }
         }
+
+        if (data == null)
+            return NotFound();
+
+        var contentType = fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png"
+            : fileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ? "image/webp"
+            : "image/jpeg";
+
+        return File(data, contentType);
+    }
+
+    [HttpGet("sealed/{fileName}")]
+    public async Task<IActionResult> GetSealedImage(string fileName, CancellationToken ct)
+    {
+        if (!SealedFileNameRegex.IsMatch(fileName))
+            return BadRequest();
+
+        var relativePath = Path.Combine("sealed", fileName);
+        var data = await _imageStore.GetImageAsync(relativePath, ct);
 
         if (data == null)
             return NotFound();
