@@ -40,7 +40,13 @@ USER_CHECK=$(docker exec "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" 
   "SELECT auth_type FROM users WHERE username = '$USERNAME' AND state != 'Removed';")
 
 if [ -z "$USER_CHECK" ]; then
-  echo "Error: user '$USERNAME' not found or has been removed."
+  USER_COUNT=$(docker exec "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tA -c \
+    "SELECT count(*) FROM users;" 2>/dev/null || echo "0")
+  if [ "$USER_COUNT" = "0" ]; then
+    echo "Error: no users exist yet. Complete the first-run wizard to create accounts."
+  else
+    echo "Error: user '$USERNAME' not found or has been removed."
+  fi
   exit 1
 fi
 
