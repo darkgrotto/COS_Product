@@ -216,10 +216,10 @@ public class AppDbContext : DbContext
             e.ToTable("cards", t =>
             {
                 // Card identifier validation:
-                // - Basic format: 3-4 alphanumeric chars (set code) + 3-4 digits (numeric suffix) + optional trailing letter
-                // - Four-digit suffix must be >= 1000 (no zero-padded four-digit suffixes like "0123")
+                // - Format: 3-4 alphanumeric chars (set code) + exactly 3 digits OR exactly 4 digits starting with 1-9 + optional trailing letter
+                // - Single unambiguous alternation avoids false positives on 4-char set codes ending in a digit (e.g. oc20, pm20)
                 t.HasCheckConstraint("CK_cards_identifier",
-                    @"identifier ~ '^[a-z0-9]{3,4}[0-9]{3,4}[a-z]?$' AND identifier !~ '^[a-z0-9]{3,4}0[0-9]{3}[a-z]?$'");
+                    @"identifier ~ '^[a-z0-9]{3,4}([0-9]{3}|[1-9][0-9]{3})[a-z]?$'");
             });
             e.HasKey(c => c.Identifier);
             e.Property(c => c.Identifier).HasColumnName("identifier").HasMaxLength(9);
@@ -239,10 +239,10 @@ public class AppDbContext : DbContext
     }
 
     // Card identifier constraint for foreign-keyed columns:
-    // Basic format: 3-4 alphanumeric (set code) + 3-4 digits (suffix) + optional trailing letter
-    // Four-digit suffix must be >= 1000 (no zero-padded four-digit suffixes like "0123")
+    // Format: 3-4 alphanumeric (set code) + exactly 3 digits OR exactly 4 digits starting with 1-9 + optional trailing letter
+    // Single unambiguous alternation avoids false positives on 4-char set codes ending in a digit (e.g. oc20, pm20)
     private static string CardIdentifierConstraint =>
-        @"card_identifier ~ '^[a-z0-9]{3,4}[0-9]{3,4}[a-z]?$' AND card_identifier !~ '^[a-z0-9]{3,4}0[0-9]{3}[a-z]?$'";
+        @"card_identifier ~ '^[a-z0-9]{3,4}([0-9]{3}|[1-9][0-9]{3})[a-z]?$'";
 
     private static void ConfigureCollectionEntries(ModelBuilder b)
     {
