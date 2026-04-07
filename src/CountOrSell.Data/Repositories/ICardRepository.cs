@@ -11,5 +11,6 @@ public interface ICardRepository
     Task<List<string>> GetReservedIdentifiersAsync(CancellationToken ct = default);
     Task<Dictionary<string, string?>> GetOracleRulingUrlsByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
     Task<Dictionary<string, decimal?>> GetMarketValuesByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
+    Task<Dictionary<string, (string Name, decimal? MarketValue, string SetCode)>> GetSummaryByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
     Task<Card?> GetRandomWithFlavorTextAsync(CancellationToken ct = default);
 }

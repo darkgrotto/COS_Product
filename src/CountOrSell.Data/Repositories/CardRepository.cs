@@ -46,6 +46,18 @@ public class CardRepository : ICardRepository
             .Where(c => identifiers.Contains(c.Identifier))
             .ToDictionaryAsync(c => c.Identifier, c => c.CurrentMarketValue, ct);
 
+    public async Task<Dictionary<string, (string Name, decimal? MarketValue, string SetCode)>> GetSummaryByIdentifiersAsync(
+        IEnumerable<string> identifiers, CancellationToken ct = default)
+    {
+        var list = await _db.Cards
+            .Where(c => identifiers.Contains(c.Identifier))
+            .Select(c => new { c.Identifier, c.Name, c.CurrentMarketValue, c.SetCode })
+            .ToListAsync(ct);
+        return list.ToDictionary(
+            c => c.Identifier,
+            c => (c.Name, c.CurrentMarketValue, c.SetCode));
+    }
+
     public Task<Card?> GetRandomWithFlavorTextAsync(CancellationToken ct = default) =>
         _db.Cards
             .Where(c => c.FlavorText != null)

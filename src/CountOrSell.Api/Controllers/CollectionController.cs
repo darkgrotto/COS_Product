@@ -64,9 +64,14 @@ public class CollectionController : ControllerBase
         else
             entries = await _collection.GetByUserAsync(targetUserId, ct);
 
-        var identifiers = entries.Select(e => e.CardIdentifier).Distinct();
+        var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
+        var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);
         var oracleUrls = await _cards.GetOracleRulingUrlsByIdentifiersAsync(identifiers, ct);
-        return Ok(entries.Select(e => MapEntry(e, oracleUrls.GetValueOrDefault(e.CardIdentifier))));
+        return Ok(entries.Select(e =>
+        {
+            summaries.TryGetValue(e.CardIdentifier, out var summary);
+            return MapEntry(e, summary.Name, summary.MarketValue, summary.SetCode, oracleUrls.GetValueOrDefault(e.CardIdentifier));
+        }));
     }
 
     [HttpPost]
@@ -272,11 +277,19 @@ public class CollectionController : ControllerBase
     private static bool TryParseCondition(string value, out CardCondition result) =>
         Enum.TryParse(value, true, out result);
 
-    private static object MapEntry(CollectionEntry e, string? oracleRulingUrl = null) => new
+    private static object MapEntry(
+        CollectionEntry e,
+        string? cardName = null,
+        decimal? marketValue = null,
+        string? setCode = null,
+        string? oracleRulingUrl = null) => new
     {
         e.Id,
         e.UserId,
         CardIdentifier = e.CardIdentifier.ToUpperInvariant(),
+        CardName = cardName,
+        SetCode = setCode?.ToUpperInvariant(),
+        MarketValue = marketValue,
         e.TreatmentKey,
         e.Quantity,
         Condition = e.Condition.ToString(),
