@@ -5,8 +5,10 @@ export type UserRole = 'Admin' | 'GeneralUser'
 export interface AuthUser {
   userId: string
   username: string
+  displayName: string
   role: UserRole
   isBuiltinAdmin: boolean
+  hasAvatar: boolean
 }
 
 interface AuthContextValue {
@@ -14,6 +16,7 @@ interface AuthContextValue {
   loading: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -22,15 +25,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
 
+  async function fetchMe() {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' })
+      if (res.ok) {
+        const data: AuthUser = await res.json()
+        setUser(data)
+      } else {
+        setUser(null)
+      }
+    } catch {
+      setUser(null)
+    }
+  }
+
   useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(res => {
-        if (res.ok) return res.json()
-        return null
-      })
-      .then((data: AuthUser | null) => setUser(data))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false))
+    fetchMe().finally(() => setLoading(false))
   }, [])
 
   async function login(username: string, password: string) {
@@ -54,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser: fetchMe }}>
       {children}
     </AuthContext.Provider>
   )

@@ -202,6 +202,22 @@ public class UserService : IUserService
     public Task DeleteExportFileAsync(Guid exportFileId, CancellationToken ct = default) =>
         _exportService.DeleteExportFileAsync(exportFileId, ct);
 
+    public async Task<UserServiceResult> UpdateDisplayNameAsync(Guid targetUserId, string displayName, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            return UserServiceResult.Fail("Display name cannot be blank.");
+        if (displayName.Length > 100)
+            return UserServiceResult.Fail("Display name cannot exceed 100 characters.");
+
+        var user = await _users.GetByIdAsync(targetUserId, ct);
+        if (user is null) return UserServiceResult.Fail("User not found.");
+
+        user.DisplayName = displayName.Trim();
+        user.UpdatedAt = DateTime.UtcNow;
+        await _users.UpdateAsync(user, ct);
+        return UserServiceResult.Ok();
+    }
+
     public async Task<UserPreferences?> GetPreferencesAsync(Guid userId, CancellationToken ct = default)
     {
         return await _db.UserPreferences.FirstOrDefaultAsync(p => p.UserId == userId, ct);

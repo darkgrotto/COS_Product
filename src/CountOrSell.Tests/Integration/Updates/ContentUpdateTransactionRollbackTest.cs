@@ -95,4 +95,7 @@ internal sealed class NoOpImageStore : IImageStore
 
     public Task<bool> ExistsAsync(string relativePath, CancellationToken ct)
         => Task.FromResult(false);
+
+    public Task DeleteImageAsync(string relativePath, CancellationToken ct)
+        => Task.CompletedTask;
 }

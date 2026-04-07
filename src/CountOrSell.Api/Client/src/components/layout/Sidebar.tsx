@@ -15,9 +15,10 @@ import {
   Info,
   LogOut,
   KeyRound,
+  UserCircle,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog'
+import { ProfileDialog } from '@/components/ProfileDialog'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
@@ -75,10 +77,12 @@ function NavItem({ item }: { item: NavItem }) {
 export function Sidebar() {
   const { user, logout } = useAuth()
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const isAdmin = user?.role === 'Admin'
   const isLocalAccount = user !== null // OAuth users won't have password change available
   const navItems = isAdmin ? adminNav : generalUserNav
   const initials = user?.username?.slice(0, 2).toUpperCase() ?? '??'
+  const avatarSrc = user?.hasAvatar ? '/api/users/me/avatar' : undefined
 
   return (
     <>
@@ -101,14 +105,19 @@ export function Sidebar() {
           <DropdownMenu>
             <DropdownMenuTrigger className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent transition-colors text-left">
               <Avatar className="h-7 w-7">
+                {avatarSrc && <AvatarImage src={avatarSrc} alt={user?.displayName ?? user?.username} />}
                 <AvatarFallback className="text-xs">{initials}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.username}</p>
+                <p className="text-sm font-medium truncate">{user?.displayName || user?.username}</p>
                 <p className="text-xs text-muted-foreground">{isAdmin ? 'Admin' : 'General User'}</p>
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => setProfileOpen(true)}>
+                <UserCircle className="h-4 w-4 mr-2" />
+                Edit Profile
+              </DropdownMenuItem>
               {isLocalAccount && (
                 <DropdownMenuItem onClick={() => setChangePasswordOpen(true)}>
                   <KeyRound className="h-4 w-4 mr-2" />
@@ -126,6 +135,7 @@ export function Sidebar() {
       </aside>
 
       <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+      <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </>
   )
 }

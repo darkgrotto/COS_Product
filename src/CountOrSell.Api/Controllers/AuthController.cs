@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CountOrSell.Api.Auth;
+using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Models.Enums;
 using Microsoft.AspNetCore.Authentication;
@@ -16,28 +17,42 @@ public class AuthController : ControllerBase
     private readonly ILocalAuthService _localAuth;
     private readonly IOAuthConfigService _oauthConfig;
     private readonly IUserRepository _users;
+    private readonly IAvatarService _avatars;
 
-    public AuthController(ILocalAuthService localAuth, IOAuthConfigService oauthConfig, IUserRepository users)
+    public AuthController(ILocalAuthService localAuth, IOAuthConfigService oauthConfig, IUserRepository users, IAvatarService avatars)
     {
         _localAuth = localAuth;
         _oauthConfig = oauthConfig;
         _users = users;
+        _avatars = avatars;
     }
 
     [HttpGet("me")]
     [Authorize]
-    public IActionResult Me()
+    public async Task<IActionResult> Me(CancellationToken ct)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var username = User.FindFirstValue(ClaimTypes.Name);
         var role = User.FindFirstValue(ClaimTypes.Role);
         var isBuiltinAdmin = User.FindFirstValue("is_builtin_admin");
+
+        string? displayName = null;
+        bool hasAvatar = false;
+        if (Guid.TryParse(userId, out var uid))
+        {
+            var user = await _users.GetByIdAsync(uid, ct);
+            displayName = user?.DisplayName;
+            hasAvatar = await _avatars.HasAvatarAsync(uid, ct);
+        }
+
         return Ok(new
         {
             userId,
             username,
+            displayName,
             role,
             isBuiltinAdmin = bool.Parse(isBuiltinAdmin ?? "false"),
+            hasAvatar,
         });
     }
 
@@ -61,7 +76,16 @@ public class AuthController : ControllerBase
             CookieAuthenticationDefaults.AuthenticationScheme,
             new ClaimsPrincipal(identity));
 
-        return Ok(new { userId = user.Id, username = user.Username, role = user.Role.ToString() });
+        var hasAvatar = await _avatars.HasAvatarAsync(user.Id, ct);
+        return Ok(new
+        {
+            userId = user.Id,
+            username = user.Username,
+            displayName = user.DisplayName,
+            role = user.Role.ToString(),
+            isBuiltinAdmin = user.IsBuiltinAdmin,
+            hasAvatar,
+        });
     }
 
     [HttpPatch("password")]

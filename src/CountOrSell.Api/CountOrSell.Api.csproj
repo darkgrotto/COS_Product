@@ -21,9 +21,14 @@
     <PackageReference Include="Azure.ResourceManager.AppService" Version="1.2.0" />
     <PackageReference Include="AWSSDK.AppRunner" Version="3.7.400.55" />
     <PackageReference Include="Google.Cloud.Run.V2" Version="2.5.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.10" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../CountOrSell.Domain/CountOrSell.Domain.csproj" />
     <ProjectReference Include="../CountOrSell.Data/CountOrSell.Data.csproj" />
+  </ItemGroup>
+  <!-- GHSA-rxmq-m78w-7wmc: ICO DoS in ImageSharp - suppressed; we reject ICO and validate magic bytes before decoding -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-rxmq-m78w-7wmc" />
   </ItemGroup>
 </Project>

@@ -71,6 +71,7 @@ builder.Services.AddHttpClient<ITcgPlayerService, TcgPlayerService>();
 
 // Image store
 builder.Services.AddSingleton<IImageStore, FileSystemImageStore>();
+builder.Services.AddScoped<IAvatarService, AvatarService>();
 builder.Services.AddHttpClient<ICardImageFetcher, ScryfallCardImageFetcher>();
 
 // Update services

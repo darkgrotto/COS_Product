@@ -14,11 +14,13 @@ public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly IUserRepository _users;
+    private readonly IAvatarService _avatars;
 
-    public UsersController(IUserService userService, IUserRepository users)
+    public UsersController(IUserService userService, IUserRepository users, IAvatarService avatars)
     {
         _userService = userService;
         _users = users;
+        _avatars = avatars;
     }
 
     private Guid CurrentUserId =>
@@ -176,6 +178,97 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
+    // ---- Avatar endpoints (current user) ----
+
+    [HttpGet("me/avatar")]
+    [Authorize]
+    public async Task<IActionResult> GetMyAvatar(CancellationToken ct)
+    {
+        var data = await _avatars.GetAvatarAsync(CurrentUserId, ct);
+        if (data == null) return NotFound();
+        return File(data, "image/jpeg");
+    }
+
+    [HttpPost("me/avatar")]
+    [Authorize]
+    public async Task<IActionResult> UploadMyAvatar(IFormFile file, CancellationToken ct)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { error = "No file uploaded." });
+
+        var (jpeg, error) = await _avatars.ProcessAvatarAsync(file.OpenReadStream(), file.ContentType, ct);
+        if (jpeg == null) return BadRequest(new { error });
+
+        await _avatars.SaveAvatarAsync(CurrentUserId, jpeg, ct);
+        return Ok();
+    }
+
+    [HttpDelete("me/avatar")]
+    [Authorize]
+    public async Task<IActionResult> DeleteMyAvatar(CancellationToken ct)
+    {
+        await _avatars.DeleteAvatarAsync(CurrentUserId, ct);
+        return NoContent();
+    }
+
+    // ---- Display name endpoint (current user) ----
+
+    [HttpPatch("me/display-name")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMyDisplayName([FromBody] UpdateDisplayNameRequest request, CancellationToken ct)
+    {
+        var result = await _userService.UpdateDisplayNameAsync(CurrentUserId, request.DisplayName, ct);
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        return Ok();
+    }
+
+    // ---- Avatar endpoints (admin) ----
+
+    [HttpGet("{id}/avatar")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetUserAvatar(Guid id, CancellationToken ct)
+    {
+        if (!await _users.ExistsAsync(id, ct)) return NotFound();
+        var data = await _avatars.GetAvatarAsync(id, ct);
+        if (data == null) return NotFound();
+        return File(data, "image/jpeg");
+    }
+
+    [HttpPost("{id}/avatar")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UploadUserAvatar(Guid id, IFormFile file, CancellationToken ct)
+    {
+        if (!await _users.ExistsAsync(id, ct)) return NotFound();
+        if (file == null || file.Length == 0)
+            return BadRequest(new { error = "No file uploaded." });
+
+        var (jpeg, error) = await _avatars.ProcessAvatarAsync(file.OpenReadStream(), file.ContentType, ct);
+        if (jpeg == null) return BadRequest(new { error });
+
+        await _avatars.SaveAvatarAsync(id, jpeg, ct);
+        return Ok();
+    }
+
+    [HttpDelete("{id}/avatar")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteUserAvatar(Guid id, CancellationToken ct)
+    {
+        if (!await _users.ExistsAsync(id, ct)) return NotFound();
+        await _avatars.DeleteAvatarAsync(id, ct);
+        return NoContent();
+    }
+
+    // ---- Display name endpoint (admin) ----
+
+    [HttpPatch("{id}/display-name")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UpdateUserDisplayName(Guid id, [FromBody] UpdateDisplayNameRequest request, CancellationToken ct)
+    {
+        var result = await _userService.UpdateDisplayNameAsync(id, request.DisplayName, ct);
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        return Ok();
+    }
+
     [HttpGet("me/preferences")]
     [Authorize]
     public async Task<IActionResult> GetMyPreferences(CancellationToken ct)
@@ -207,3 +300,4 @@ public sealed record CreateLocalUserRequest(
     string Role);
 
 public sealed record ResetPasswordRequest(string NewPassword);
+public sealed record UpdateDisplayNameRequest(string DisplayName);

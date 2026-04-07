@@ -31,4 +31,11 @@ public class FileSystemImageStore : IImageStore
         var fullPath = Path.Combine(_basePath, relativePath);
         return Task.FromResult(File.Exists(fullPath));
     }
+
+    public Task DeleteImageAsync(string relativePath, CancellationToken ct)
+    {
+        var fullPath = Path.Combine(_basePath, relativePath);
+        if (File.Exists(fullPath)) File.Delete(fullPath);
+        return Task.CompletedTask;
+    }
 }

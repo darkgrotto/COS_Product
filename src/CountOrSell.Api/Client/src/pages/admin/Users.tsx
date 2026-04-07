@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import {
   useReactTable, getCoreRowModel, flexRender,
   type ColumnDef,
 } from '@tanstack/react-table'
-import { UserPlus, MoreHorizontal, Copy, Check, ChevronDown, Mail, KeyRound } from 'lucide-react'
+import { UserPlus, MoreHorizontal, Copy, Check, ChevronDown, Mail, KeyRound, Pencil, Upload, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Separator } from '@/components/ui/separator'
 import {
   Dialog, DialogContent, DialogDescription,
   DialogFooter, DialogHeader, DialogTitle,
@@ -389,6 +391,249 @@ function InviteDialog({ open, onOpenChange, onCreated }: InviteDialogProps) {
   )
 }
 
+// ----- User detail / edit dialog (admin) -----
+
+interface UserDetailDialogProps {
+  user: UserRow | null
+  onClose: () => void
+  onRefresh: () => Promise<void>
+  onResetPassword: (u: { id: string; username: string; authType: string }) => void
+  onConfirm: (opts: {
+    title: string; description: string; confirmLabel: string
+    destructive: boolean; action: () => Promise<void>
+  }) => void
+}
+
+function UserDetailDialog({ user, onClose, onRefresh, onResetPassword, onConfirm }: UserDetailDialogProps) {
+  const [displayName, setDisplayName] = useState('')
+  const [nameError, setNameError] = useState('')
+  const [nameSaving, setNameSaving] = useState(false)
+  const [nameSaved, setNameSaved] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+  const [avatarWorking, setAvatarWorking] = useState(false)
+  const [avatarBust, setAvatarBust] = useState(Date.now())
+  const [hasAvatar, setHasAvatar] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.displayName)
+      setNameError('')
+      setNameSaved(false)
+      setAvatarError('')
+      setAvatarBust(Date.now())
+      // Check if avatar exists
+      fetch(`/api/users/${user.id}/avatar`, { method: 'HEAD', credentials: 'include' })
+        .then(r => setHasAvatar(r.ok))
+        .catch(() => setHasAvatar(false))
+    }
+  }, [user])
+
+  if (!user) return null
+
+  const initials = user.username.slice(0, 2).toUpperCase()
+  const avatarSrc = hasAvatar ? `/api/users/${user.id}/avatar?t=${avatarBust}` : undefined
+
+  async function saveDisplayName() {
+    if (!displayName.trim()) { setNameError('Display name cannot be blank.'); return }
+    setNameError('')
+    setNameSaving(true)
+    try {
+      const res = await fetch(`/api/users/${user!.id}/display-name`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName: displayName.trim() }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setNameError((data as { error?: string }).error ?? 'Failed to save.')
+      } else {
+        setNameSaved(true)
+        setTimeout(() => setNameSaved(false), 2000)
+        await onRefresh()
+      }
+    } finally {
+      setNameSaving(false)
+    }
+  }
+
+  async function uploadAvatar(file: File) {
+    setAvatarError('')
+    setAvatarWorking(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch(`/api/users/${user!.id}/avatar`, {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setAvatarError((data as { error?: string }).error ?? 'Upload failed.')
+      } else {
+        setHasAvatar(true)
+        setAvatarBust(Date.now())
+      }
+    } finally {
+      setAvatarWorking(false)
+    }
+  }
+
+  async function removeAvatar() {
+    setAvatarError('')
+    setAvatarWorking(true)
+    try {
+      await fetch(`/api/users/${user!.id}/avatar`, { method: 'DELETE', credentials: 'include' })
+      setHasAvatar(false)
+      setAvatarBust(Date.now())
+    } finally {
+      setAvatarWorking(false)
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) uploadAvatar(file)
+    e.target.value = ''
+  }
+
+  async function post(path: string) {
+    const res = await fetch(path, { method: 'POST', credentials: 'include' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error((data as { error?: string }).error ?? 'Action failed')
+    }
+    await onRefresh()
+  }
+
+  return (
+    <Dialog open={user !== null} onOpenChange={open => { if (!open) onClose() }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit User</DialogTitle>
+          <DialogDescription>
+            {user.username} - {user.authType} account
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 pt-1">
+          {/* Avatar + display name */}
+          <div className="flex items-start gap-4">
+            <Avatar className="h-14 w-14 shrink-0">
+              {avatarSrc && <AvatarImage src={avatarSrc} alt={user.displayName} />}
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 space-y-2">
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" disabled={avatarWorking} onClick={() => fileRef.current?.click()}>
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  {hasAvatar ? 'Change' : 'Upload'}
+                </Button>
+                {hasAvatar && (
+                  <Button type="button" variant="outline" size="sm" disabled={avatarWorking} onClick={removeAvatar}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Remove
+                  </Button>
+                )}
+              </div>
+              {avatarError && <p className="text-xs text-destructive">{avatarError}</p>}
+              <p className="text-xs text-muted-foreground">JPEG, PNG, GIF, or WebP. Max 5 MB.</p>
+            </div>
+          </div>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleFileChange} />
+
+          {/* Display name */}
+          <div className="space-y-2">
+            <Label>Display Name</Label>
+            <div className="flex gap-2">
+              <Input
+                value={displayName}
+                onChange={e => { setDisplayName(e.target.value); setNameError('') }}
+                maxLength={100}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                size="sm"
+                disabled={nameSaving || displayName.trim() === user.displayName}
+                onClick={saveDisplayName}
+              >
+                {nameSaved ? 'Saved' : nameSaving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+            {nameError && <p className="text-xs text-destructive">{nameError}</p>}
+          </div>
+
+          <Separator />
+
+          {/* Read-only info */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <div className="text-muted-foreground">Username</div><div className="font-mono">{user.username}</div>
+            <div className="text-muted-foreground">Role</div><div><RoleBadge role={user.role} /></div>
+            <div className="text-muted-foreground">State</div><div><StateBadge state={user.state} /></div>
+            <div className="text-muted-foreground">Auth</div><div>{user.authType}</div>
+            <div className="text-muted-foreground">Created</div><div>{new Date(user.createdAt).toLocaleDateString()}</div>
+            <div className="text-muted-foreground">Last login</div>
+            <div>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : <span className="text-muted-foreground">Never</span>}</div>
+          </div>
+
+          <Separator />
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-2">
+            {user.authType === 'Local' && (
+              <Button type="button" variant="outline" size="sm" onClick={() => { onClose(); onResetPassword({ id: user.id, username: user.username, authType: user.authType }) }}>
+                <KeyRound className="h-3.5 w-3.5 mr-1.5" />
+                Reset Password
+              </Button>
+            )}
+            {user.state === 'Active' && user.role === 'GeneralUser' && (
+              <Button type="button" variant="outline" size="sm" onClick={() => onConfirm({
+                title: 'Promote to Admin',
+                description: `Promote ${user.username} to Admin?`,
+                confirmLabel: 'Promote', destructive: false,
+                action: () => post(`/api/users/${user.id}/promote`),
+              })}>Promote to Admin</Button>
+            )}
+            {user.state === 'Active' && user.role === 'Admin' && (
+              <Button type="button" variant="outline" size="sm" onClick={() => onConfirm({
+                title: 'Demote to General User',
+                description: `Demote ${user.username} to General User?`,
+                confirmLabel: 'Demote', destructive: false,
+                action: () => post(`/api/users/${user.id}/demote`),
+              })}>Demote to General User</Button>
+            )}
+            {user.state === 'Active' && (
+              <Button type="button" variant="outline" size="sm" onClick={() => onConfirm({
+                title: 'Disable Account',
+                description: `Disable ${user.username}? They will not be able to log in.`,
+                confirmLabel: 'Disable', destructive: false,
+                action: () => post(`/api/users/${user.id}/disable`),
+              })}>Disable</Button>
+            )}
+            {user.state === 'Disabled' && (
+              <Button type="button" variant="outline" size="sm" onClick={() => onConfirm({
+                title: 'Re-enable Account',
+                description: `Re-enable ${user.username}?`,
+                confirmLabel: 'Re-enable', destructive: false,
+                action: () => post(`/api/users/${user.id}/reenable`),
+              })}>Re-enable</Button>
+            )}
+            <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => onConfirm({
+              title: 'Remove User',
+              description: `Remove ${user.username}? Their data will be exported before deletion. This is permanent.`,
+              confirmLabel: 'Remove User', destructive: true,
+              action: () => post(`/api/users/${user.id}/remove`),
+            })}>Remove</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ----- Main page -----
 
 export function UsersPage() {
@@ -397,6 +642,7 @@ export function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; username: string; authType: string } | null>(null)
+  const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [confirm, setConfirm] = useState<{
     title: string; description: string; confirmLabel: string
     destructive: boolean; action: () => Promise<void>
@@ -426,6 +672,7 @@ export function UsersPage() {
     }
 
     return {
+      edit: () => setEditUser(user),
       disable: () => confirm_({
         title: 'Disable Account',
         description: `Disable ${user.username}? They will not be able to log in. This can be reversed.`,
@@ -517,6 +764,11 @@ export function UsersPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={a.edit}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {u.state === 'Active' && u.role === 'GeneralUser' && (
                 <DropdownMenuItem onClick={a.promote}>Promote to Admin</DropdownMenuItem>
               )}
@@ -649,6 +901,13 @@ export function UsersPage() {
       <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={load} />
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} onCreated={load} />
       <ResetPasswordDialog user={resetPasswordUser} onClose={() => setResetPasswordUser(null)} />
+      <UserDetailDialog
+        user={editUser}
+        onClose={() => setEditUser(null)}
+        onRefresh={load}
+        onResetPassword={setResetPasswordUser}
+        onConfirm={setConfirm}
+      />
 
       {confirm && (
         <ConfirmDialog
