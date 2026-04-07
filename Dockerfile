@@ -38,11 +38,15 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/* && \
     addgroup --system --gid 1001 appgroup && \
-    adduser --system --uid 1001 --ingroup appgroup --no-create-home appuser
+    adduser --system --uid 1001 --ingroup appgroup --no-create-home appuser && \
+    mkdir -p /app/data && \
+    chown appuser:appgroup /app/data
 
 COPY --from=build /app/publish .
 
 USER appuser
+
+ENV ImageStore__BasePath=/app/data/images
 
 EXPOSE 8080
 
