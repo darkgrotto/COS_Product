@@ -70,6 +70,7 @@ interface Filters {
   autographed: string
   color: string
   cardType: string
+  isReserved: boolean
 }
 
 const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'DMG'] as const
@@ -93,7 +94,7 @@ const CARD_TYPES = [
 ]
 
 const BLANK_FILTERS: Filters = {
-  setCode: '', treatment: '', condition: '', autographed: '', color: '', cardType: '',
+  setCode: '', treatment: '', condition: '', autographed: '', color: '', cardType: '', isReserved: false,
 }
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -630,7 +631,8 @@ function FiltersPanel({
   onChange: (f: Filters) => void
   onClear: () => void
 }) {
-  const active = Object.values(filters).some(Boolean)
+  const active = filters.setCode || filters.treatment || filters.condition ||
+    filters.autographed || filters.color || filters.cardType || filters.isReserved
 
   return (
     <div className="space-y-2">
@@ -724,6 +726,13 @@ function FiltersPanel({
             {t}
           </ToggleChip>
         ))}
+        <span className="text-xs text-muted-foreground ml-3">|</span>
+        <ToggleChip
+          active={filters.isReserved}
+          onClick={() => onChange({ ...filters, isReserved: !filters.isReserved })}
+        >
+          Reserved List
+        </ToggleChip>
       </div>
     </div>
   )
@@ -989,6 +998,7 @@ export function CollectionPage() {
     if (filters.autographed) params.set('filter.autographed', filters.autographed)
     if (filters.color) params.set('filter.color', filters.color)
     if (filters.cardType) params.set('filter.cardType', filters.cardType)
+    if (filters.isReserved) params.set('filter.isReserved', 'true')
     const res = await fetch(`/api/collection?${params}`)
     if (res.ok) setEntries(await res.json())
   }
@@ -1088,7 +1098,8 @@ export function CollectionPage() {
   const totalCost = entries.reduce((sum, e) => sum + e.acquisitionPrice * e.quantity, 0)
   const totalPl = totalValue - totalCost
   const hasValues = entries.some(e => e.marketValue != null)
-  const hasActiveFilters = Object.values(filters).some(Boolean)
+  const hasActiveFilters = !!(filters.setCode || filters.treatment || filters.condition ||
+    filters.autographed || filters.color || filters.cardType || filters.isReserved)
 
   return (
     <div>

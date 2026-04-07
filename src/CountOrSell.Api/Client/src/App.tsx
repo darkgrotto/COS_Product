@@ -13,6 +13,7 @@ import { SerializedPage } from '@/pages/Serialized'
 import { SlabsPage } from '@/pages/Slabs'
 import { SealedProductPage } from '@/pages/SealedProduct'
 import { WishlistPage } from '@/pages/Wishlist'
+import { ReservedListPage } from '@/pages/ReservedList'
 import { MetricsPage } from '@/pages/Metrics'
 import { AboutPage } from '@/pages/About'
 import { UpdatesPage } from '@/pages/admin/Updates'
@@ -41,6 +42,7 @@ function App() {
                 <Route path="/slabs" element={<SlabsPage />} />
                 <Route path="/sealed" element={<SealedProductPage />} />
                 <Route path="/wishlist" element={<WishlistPage />} />
+                <Route path="/reserved" element={<ReservedListPage />} />
                 <Route path="/metrics" element={<MetricsPage />} />
                 <Route path="/about" element={<AboutPage />} />
 

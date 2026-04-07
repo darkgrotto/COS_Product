@@ -40,6 +40,9 @@ public class CollectionRepository : ICollectionRepository
         if (filter.Autographed.HasValue)
             query = query.Where(x => x.ce.Autographed == filter.Autographed.Value);
 
+        if (filter.IsReserved == true)
+            query = query.Where(x => x.c.IsReserved);
+
         return query.Select(x => x.ce).ToListAsync(ct);
     }
 

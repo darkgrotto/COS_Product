@@ -17,6 +17,7 @@ import {
   KeyRound,
   UserCircle,
   BookOpen,
+  Star,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -46,6 +47,7 @@ const generalUserNav: NavItem[] = [
   { to: '/slabs', label: 'Slabs', icon: Award },
   { to: '/sealed', label: 'Sealed Product', icon: Package },
   { to: '/wishlist', label: 'Wishlist', icon: Heart },
+  { to: '/reserved', label: 'Reserved List', icon: Star },
   { to: '/metrics', label: 'Metrics', icon: BarChart2 },
 ]
 
