@@ -1,3 +1,5 @@
+using BCrypt.Net;
+using CountOrSell.Api.Auth;
 using CountOrSell.Data;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Models;
@@ -16,6 +18,7 @@ public class UserService : IUserService
     private readonly ISlabRepository _slabs;
     private readonly ISealedInventoryRepository _sealedInventory;
     private readonly IWishlistRepository _wishlist;
+    private readonly ILocalAuthService _localAuth;
     private readonly AppDbContext _db;
 
     public UserService(
@@ -26,6 +29,7 @@ public class UserService : IUserService
         ISlabRepository slabs,
         ISealedInventoryRepository sealedInventory,
         IWishlistRepository wishlist,
+        ILocalAuthService localAuth,
         AppDbContext db)
     {
         _users = users;
@@ -35,7 +39,36 @@ public class UserService : IUserService
         _slabs = slabs;
         _sealedInventory = sealedInventory;
         _wishlist = wishlist;
+        _localAuth = localAuth;
         _db = db;
+    }
+
+    public async Task<UserServiceResult> CreateLocalUserAsync(
+        string username, string displayName, string password, UserRole role, CancellationToken ct = default)
+    {
+        if (password.Length < 15)
+            return UserServiceResult.Fail("Password must be at least 15 characters.");
+
+        var existing = await _users.GetByUsernameAsync(username, ct);
+        if (existing != null)
+            return UserServiceResult.Fail("Username is already taken.");
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = username,
+            DisplayName = displayName,
+            AuthType = AuthType.Local,
+            Role = role,
+            IsBuiltinAdmin = false,
+            State = AccountState.Active,
+            PasswordHash = _localAuth.HashPassword(password),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await _users.CreateAsync(user, ct);
+        return UserServiceResult.Ok();
     }
 
     public async Task<UserServiceResult> DisableUserAsync(Guid targetUserId, CancellationToken ct = default)

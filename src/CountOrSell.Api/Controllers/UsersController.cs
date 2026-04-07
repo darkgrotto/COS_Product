@@ -52,6 +52,32 @@ public class UsersController : ControllerBase
         return Ok(new { user.Id, user.Username, user.DisplayName });
     }
 
+    [HttpPost]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Create([FromBody] CreateLocalUserRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Username))
+            return BadRequest(new { error = "Username is required." });
+        if (string.IsNullOrWhiteSpace(request.Password))
+            return BadRequest(new { error = "Password is required." });
+
+        var role = request.Role == "Admin"
+            ? CountOrSell.Domain.Models.Enums.UserRole.Admin
+            : CountOrSell.Domain.Models.Enums.UserRole.GeneralUser;
+
+        var result = await _userService.CreateLocalUserAsync(
+            request.Username.Trim(),
+            string.IsNullOrWhiteSpace(request.DisplayName) ? request.Username.Trim() : request.DisplayName.Trim(),
+            request.Password,
+            role,
+            ct);
+
+        if (!result.Success)
+            return Conflict(new { error = result.Error });
+
+        return Ok();
+    }
+
     [HttpPost("{id}/disable")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Disable(Guid id, CancellationToken ct)
@@ -160,3 +186,9 @@ public class UsersController : ControllerBase
         return Ok();
     }
 }
+
+public sealed record CreateLocalUserRequest(
+    string Username,
+    string? DisplayName,
+    string Password,
+    string Role);

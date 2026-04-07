@@ -47,7 +47,7 @@ public class ManualTriggerAuthTest : IClassFixture<WebApplicationFactory<Program
 
                 var mockTrigger = new Mock<IUpdateCheckTrigger>();
                 mockTrigger.Setup(t => t.TriggerAsync(It.IsAny<CancellationToken>()))
-                    .Returns(Task.CompletedTask);
+                    .ReturnsAsync(new UpdateCheckResult(false, "No packages available."));
                 services.AddSingleton(mockTrigger.Object);
 
                 // Add test authentication scheme

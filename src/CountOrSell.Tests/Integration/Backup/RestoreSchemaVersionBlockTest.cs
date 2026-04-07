@@ -49,7 +49,7 @@ public class RestoreSchemaVersionBlockTest : IClassFixture<WebApplicationFactory
                 if (triggerDescriptor != null) services.Remove(triggerDescriptor);
                 var mockTrigger = new Mock<IUpdateCheckTrigger>();
                 mockTrigger.Setup(t => t.TriggerAsync(It.IsAny<CancellationToken>()))
-                    .Returns(Task.CompletedTask);
+                    .ReturnsAsync(new UpdateCheckResult(false, "No packages available."));
                 services.AddSingleton(mockTrigger.Object);
 
                 // Replace IProcessRunner with a no-op for tests

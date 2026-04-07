@@ -1,3 +1,4 @@
+using CountOrSell.Api.Auth;
 using CountOrSell.Api.Services;
 using CountOrSell.Data;
 using CountOrSell.Data.Repositories;
@@ -66,6 +67,7 @@ public class ExportFailureBlocksRemovalTests : IClassFixture<PostgreSqlFixture>
             new SlabRepository(db),
             new SealedInventoryRepository(db),
             new WishlistRepository(db),
+            new Mock<ILocalAuthService>().Object,
             db);
 
         var result = await userService.RemoveUserAsync(userId);

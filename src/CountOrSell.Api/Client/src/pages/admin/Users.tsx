@@ -3,7 +3,7 @@ import {
   useReactTable, getCoreRowModel, flexRender,
   type ColumnDef,
 } from '@tanstack/react-table'
-import { UserPlus, MoreHorizontal, Copy, Check } from 'lucide-react'
+import { UserPlus, MoreHorizontal, Copy, Check, ChevronDown, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -61,6 +61,131 @@ function StateBadge({ state }: { state: string }) {
 function formatDate(iso: string | null) {
   if (!iso) return <span className="text-muted-foreground text-xs">Never</span>
   return <span className="text-xs">{new Date(iso).toLocaleDateString()}</span>
+}
+
+// ----- Create local user dialog -----
+
+interface CreateUserDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreated: () => void
+}
+
+function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDialogProps) {
+  const [username, setUsername] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState('GeneralUser')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  function reset() {
+    setUsername(''); setDisplayName(''); setPassword(''); setRole('GeneralUser'); setError('')
+  }
+
+  function handleOpenChange(next: boolean) {
+    if (!next) reset()
+    onOpenChange(next)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (password.length < 15) {
+      setError('Password must be at least 15 characters.')
+      return
+    }
+    setLoading(true); setError('')
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, displayName, password, role }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error ?? 'Failed to create user')
+      }
+      onCreated()
+      handleOpenChange(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create user')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create Local User</DialogTitle>
+          <DialogDescription>
+            Create a local account. The user can log in immediately with the credentials you set.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="cu-username">Username</Label>
+            <Input
+              id="cu-username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              required
+              disabled={loading}
+              placeholder="jsmith"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="cu-display">Display name <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input
+              id="cu-display"
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              disabled={loading}
+              placeholder="Jane Smith"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="cu-password">Password</Label>
+            <Input
+              id="cu-password"
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              disabled={loading}
+              placeholder="Minimum 15 characters"
+              autoComplete="new-password"
+            />
+            {password.length > 0 && password.length < 15 && (
+              <p className="text-xs text-muted-foreground">{15 - password.length} more characters needed</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="cu-role">Role</Label>
+            <Select value={role} onValueChange={setRole} disabled={loading}>
+              <SelectTrigger id="cu-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="GeneralUser">General User</SelectItem>
+                <SelectItem value="Admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={loading}>Cancel</Button>
+            <Button type="submit" disabled={loading || password.length < 15}>
+              {loading ? 'Creating...' : 'Create User'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 // ----- Invite dialog -----
@@ -187,6 +312,7 @@ function InviteDialog({ open, onOpenChange, onCreated }: InviteDialogProps) {
 export function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([])
   const [invites, setInvites] = useState<PendingInvite[]>([])
+  const [createOpen, setCreateOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [confirm, setConfirm] = useState<{
     title: string; description: string; confirmLabel: string
@@ -346,10 +472,25 @@ export function UsersPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Users</h1>
-        <Button onClick={() => setInviteOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Invite User
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add User
+              <ChevronDown className="h-4 w-4 ml-2" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setCreateOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Create local user
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setInviteOpen(true)}>
+              <Mail className="h-4 w-4 mr-2" />
+              Send invitation link
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="rounded-md border">
@@ -415,6 +556,7 @@ export function UsersPage() {
         </div>
       )}
 
+      <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={load} />
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} onCreated={load} />
 
       {confirm && (
