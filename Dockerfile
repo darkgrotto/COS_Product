@@ -35,7 +35,7 @@ WORKDIR /app
 # Install curl for health checks, then create non-root user.
 # All root operations complete before USER is set.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
+    apt-get install -y --no-install-recommends curl postgresql-client && \
     rm -rf /var/lib/apt/lists/* && \
     addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 --ingroup appgroup --no-create-home appuser && \
