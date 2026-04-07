@@ -59,12 +59,12 @@ public class CardsController : ControllerBase
     }
 
     [HttpGet("search")]
-    public async Task<IActionResult> Search([FromQuery] string q, CancellationToken ct)
+    public async Task<IActionResult> Search([FromQuery] string q, [FromQuery] string? setCode, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
             return BadRequest(new { error = "Search query must be at least 2 characters." });
 
-        var cards = await _cards.SearchByNameAsync(q, ct);
+        var cards = await _cards.SearchAsync(q, setCode, ct);
         return Ok(cards.Select(c => new
         {
             Identifier = c.Identifier.ToUpperInvariant(),

@@ -134,8 +134,8 @@ function ToggleChip({
 // ---- Card search combobox ---------------------------------------------------
 
 function CardSearch({
-  value, onSelect,
-}: { value: string; onSelect: (card: CardSearchResult) => void }) {
+  value, onSelect, setCode,
+}: { value: string; onSelect: (card: CardSearchResult) => void; setCode?: string }) {
   const [query, setQuery] = useState(value)
   const [results, setResults] = useState<CardSearchResult[]>([])
   const [open, setOpen] = useState(false)
@@ -151,7 +151,9 @@ function CardSearch({
     timer.current = setTimeout(async () => {
       setLoading(true)
       try {
-        const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}`)
+        const params = new URLSearchParams({ q })
+        if (setCode) params.set('setCode', setCode)
+        const res = await fetch(`/api/cards/search?${params}`)
         if (res.ok) {
           const data: CardSearchResult[] = await res.json()
           setResults(data)
@@ -170,7 +172,7 @@ function CardSearch({
   return (
     <div className="relative">
       <Input
-        placeholder="Search by card name..."
+        placeholder={setCode ? 'Search by name or identifier...' : 'Search by card name...'}
         value={query}
         onChange={e => handleChange(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
@@ -202,11 +204,12 @@ function CardSearch({
 // ---- Add/Edit dialog --------------------------------------------------------
 
 function EntryDialog({
-  open, onOpenChange, treatments, initial, onSave,
+  open, onOpenChange, treatments, sets, initial, onSave,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   treatments: Treatment[]
+  sets: CardSet[]
   initial?: CollectionEntry | null
   onSave: () => void
 }) {
@@ -224,6 +227,13 @@ function EntryDialog({
   const [form, setForm] = useState<EntryForm>(blankForm())
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [selectedSet, setSelectedSet] = useState<string>('')
+  const [setSearch, setSetSearch] = useState('')
+
+  const filteredSets = sets.filter(s =>
+    s.code.includes(setSearch.toLowerCase()) ||
+    s.name.toLowerCase().includes(setSearch.toLowerCase())
+  )
 
   useEffect(() => {
     if (!open) return
@@ -241,6 +251,8 @@ function EntryDialog({
       })
     } else {
       setForm(blankForm())
+      setSelectedSet('')
+      setSetSearch('')
     }
     setError('')
   }, [open, initial])
@@ -297,12 +309,50 @@ function EntryDialog({
         </DialogHeader>
         <div className="grid gap-4 py-2">
           {!isEdit ? (
-            <div className="grid gap-1.5">
-              <Label>Card</Label>
-              <CardSearch value={form.cardName} onSelect={handleCardSelect} />
-              {form.cardIdentifier && (
-                <p className="text-xs text-muted-foreground">{form.cardIdentifier}</p>
-              )}
+            <div className="grid gap-3">
+              <div className="grid gap-1.5">
+                <Label>Set <span className="text-muted-foreground font-normal">(optional - narrows search)</span></Label>
+                <Select
+                  value={selectedSet}
+                  onValueChange={v => {
+                    setSelectedSet(v)
+                    setForm(f => ({ ...f, cardIdentifier: '', cardName: '' }))
+                    setSetSearch('')
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All sets" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div className="px-2 py-1.5">
+                      <Input
+                        placeholder="Filter sets..."
+                        value={setSearch}
+                        onChange={e => setSetSearch(e.target.value)}
+                        className="h-7 text-sm"
+                        onKeyDown={e => e.stopPropagation()}
+                      />
+                    </div>
+                    <SelectItem value="">All sets</SelectItem>
+                    {filteredSets.map(s => (
+                      <SelectItem key={s.code} value={s.code}>
+                        {s.name} <span className="text-muted-foreground">({s.code.toUpperCase()})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Card</Label>
+                <CardSearch
+                  value={form.cardName}
+                  onSelect={handleCardSelect}
+                  setCode={selectedSet || undefined}
+                />
+                {form.cardIdentifier && (
+                  <p className="text-xs text-muted-foreground">{form.cardIdentifier}</p>
+                )}
+              </div>
             </div>
           ) : (
             <div className="grid gap-1.5">
@@ -1224,12 +1274,14 @@ export function CollectionPage() {
         open={addOpen}
         onOpenChange={setAddOpen}
         treatments={treatments}
+        sets={sets}
         onSave={handleSave}
       />
       <EntryDialog
         open={!!editEntry}
         onOpenChange={v => { if (!v) setEditEntry(null) }}
         treatments={treatments}
+        sets={sets}
         initial={editEntry}
         onSave={handleSave}
       />
