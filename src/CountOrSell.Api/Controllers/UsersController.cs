@@ -275,12 +275,13 @@ public class UsersController : ControllerBase
     {
         var prefs = await _userService.GetPreferencesAsync(CurrentUserId, ct);
         if (prefs == null)
-            return Ok(new { setCompletionRegularOnly = false, defaultPage = (string?)null });
+            return Ok(new { setCompletionRegularOnly = false, defaultPage = (string?)null, defaultAcquisitionPriceToMarket = true });
 
         return Ok(new
         {
             prefs.SetCompletionRegularOnly,
-            prefs.DefaultPage
+            prefs.DefaultPage,
+            prefs.DefaultAcquisitionPriceToMarket,
         });
     }
 
@@ -288,7 +289,7 @@ public class UsersController : ControllerBase
     [Authorize]
     public async Task<IActionResult> PatchMyPreferences([FromBody] UserPreferencesRequest request, CancellationToken ct)
     {
-        await _userService.UpdatePreferencesAsync(CurrentUserId, request.SetCompletionRegularOnly, request.DefaultPage, ct);
+        await _userService.UpdatePreferencesAsync(CurrentUserId, request.SetCompletionRegularOnly, request.DefaultPage, request.DefaultAcquisitionPriceToMarket, ct);
         return Ok();
     }
 }

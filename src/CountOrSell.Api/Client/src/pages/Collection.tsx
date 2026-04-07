@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { usePreferences } from '@/contexts/PreferencesContext'
 import {
   Plus, Pencil, Trash2, ChevronUp, ChevronDown, X, ExternalLink,
   ChevronLeft, LayoutList, LayoutGrid, Search,
@@ -215,6 +216,7 @@ function EntryDialog({
 }) {
   const isEdit = !!initial
   const regularKey = treatments.find(t => t.key === 'regular')?.key ?? treatments[0]?.key ?? 'regular'
+  const { prefs } = usePreferences()
 
   function blankForm(): EntryForm {
     return {
@@ -262,7 +264,7 @@ function EntryDialog({
       ...f,
       cardIdentifier: card.identifier,
       cardName: card.name,
-      acquisitionPrice: f.acquisitionPrice === '' && card.currentMarketValue != null
+      acquisitionPrice: prefs.defaultAcquisitionPriceToMarket && f.acquisitionPrice === '' && card.currentMarketValue != null
         ? card.currentMarketValue.toFixed(2)
         : f.acquisitionPrice,
     }))

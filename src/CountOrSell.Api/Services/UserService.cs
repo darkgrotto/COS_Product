@@ -223,7 +223,7 @@ public class UserService : IUserService
         return await _db.UserPreferences.FirstOrDefaultAsync(p => p.UserId == userId, ct);
     }
 
-    public async Task UpdatePreferencesAsync(Guid userId, bool? setCompletionRegularOnly, string? defaultPage, CancellationToken ct = default)
+    public async Task UpdatePreferencesAsync(Guid userId, bool? setCompletionRegularOnly, string? defaultPage, bool? defaultAcquisitionPriceToMarket, CancellationToken ct = default)
     {
         var prefs = await _db.UserPreferences.FirstOrDefaultAsync(p => p.UserId == userId, ct);
         if (prefs == null)
@@ -236,6 +236,8 @@ public class UserService : IUserService
             prefs.SetCompletionRegularOnly = setCompletionRegularOnly.Value;
         if (defaultPage != null)
             prefs.DefaultPage = defaultPage;
+        if (defaultAcquisitionPriceToMarket.HasValue)
+            prefs.DefaultAcquisitionPriceToMarket = defaultAcquisitionPriceToMarket.Value;
 
         await _db.SaveChangesAsync(ct);
     }

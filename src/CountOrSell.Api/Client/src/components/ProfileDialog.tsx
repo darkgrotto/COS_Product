@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePreferences } from '@/contexts/PreferencesContext'
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Separator } from '@/components/ui/separator'
 import { Trash2, Upload } from 'lucide-react'
 
 interface Props {
@@ -19,7 +21,9 @@ interface Props {
 
 export function ProfileDialog({ open, onOpenChange }: Props) {
   const { user, refreshUser } = useAuth()
+  const { prefs, patchPrefs } = usePreferences()
   const [displayName, setDisplayName] = useState(user?.displayName ?? '')
+  const [prefsSaving, setPrefsSaving] = useState(false)
   const [nameError, setNameError] = useState('')
   const [nameSaving, setNameSaving] = useState(false)
   const [nameSaved, setNameSaved] = useState(false)
@@ -173,6 +177,38 @@ export function ProfileDialog({ open, onOpenChange }: Props) {
             </div>
             {nameError && <p className="text-xs text-destructive">{nameError}</p>}
             <p className="text-xs text-muted-foreground">Username cannot be changed.</p>
+          </div>
+
+          <Separator />
+
+          {/* Preferences section */}
+          <div className="space-y-3">
+            <p className="text-sm font-medium">Preferences</p>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label className="text-sm">Default acquisition price to market value</Label>
+                <p className="text-xs text-muted-foreground">
+                  When adding a card, pre-fill the price with the current market value.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={prefs.defaultAcquisitionPriceToMarket}
+                disabled={prefsSaving}
+                onClick={async () => {
+                  setPrefsSaving(true)
+                  try {
+                    await patchPrefs({ defaultAcquisitionPriceToMarket: !prefs.defaultAcquisitionPriceToMarket })
+                  } finally { setPrefsSaving(false) }
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${prefs.defaultAcquisitionPriceToMarket ? 'bg-primary' : 'bg-input'}`}
+              >
+                <span
+                  className={`pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform ${prefs.defaultAcquisitionPriceToMarket ? 'translate-x-4' : 'translate-x-0'}`}
+                />
+              </button>
+            </div>
           </div>
         </div>
       </DialogContent>

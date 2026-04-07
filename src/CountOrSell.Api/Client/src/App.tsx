@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { DemoProvider } from '@/contexts/DemoContext'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { PreferencesProvider } from '@/contexts/PreferencesContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AdminRoute } from '@/components/AdminRoute'
 import { AppShell } from '@/components/layout/AppShell'
@@ -25,6 +26,7 @@ function App() {
   return (
     <DemoProvider>
       <AuthProvider>
+        <PreferencesProvider>
         <BrowserRouter>
           <Routes>
             {/* Public routes */}
@@ -57,6 +59,7 @@ function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+        </PreferencesProvider>
       </AuthProvider>
     </DemoProvider>
   )
