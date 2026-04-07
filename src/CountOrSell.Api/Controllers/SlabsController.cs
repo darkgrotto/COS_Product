@@ -43,9 +43,13 @@ public class SlabsController : ControllerBase
         else
             entries = await _slabs.GetByUserAsync(targetUserId, ct);
 
-        var identifiers = entries.Select(e => e.CardIdentifier).Distinct();
-        var marketValues = await _cards.GetMarketValuesByIdentifiersAsync(identifiers, ct);
-        return Ok(entries.Select(e => MapEntry(e, marketValues.GetValueOrDefault(e.CardIdentifier))));
+        var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
+        var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);
+        return Ok(entries.Select(e =>
+        {
+            summaries.TryGetValue(e.CardIdentifier, out var s);
+            return MapEntry(e, s.Name, s.MarketValue, s.SetCode);
+        }));
     }
 
     [HttpPost]
@@ -142,11 +146,18 @@ public class SlabsController : ControllerBase
     private static bool TryParseCondition(string value, out CardCondition result) =>
         Enum.TryParse(value, true, out result);
 
-    private static object MapEntry(SlabEntry e, decimal? currentMarketValue = null) => new
+    private static object MapEntry(
+        SlabEntry e,
+        string? cardName = null,
+        decimal? marketValue = null,
+        string? setCode = null) => new
     {
         e.Id,
         e.UserId,
         CardIdentifier = e.CardIdentifier.ToUpperInvariant(),
+        CardName = cardName,
+        SetCode = setCode?.ToUpperInvariant(),
+        MarketValue = marketValue,
         e.TreatmentKey,
         GradingAgencyCode = e.GradingAgencyCode.ToUpperInvariant(),
         e.Grade,
@@ -160,6 +171,5 @@ public class SlabsController : ControllerBase
         e.Notes,
         e.CreatedAt,
         e.UpdatedAt,
-        CurrentMarketValue = currentMarketValue
     };
 }
