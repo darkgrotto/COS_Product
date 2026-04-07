@@ -52,4 +52,7 @@ public class UserRepository : IUserRepository
 
     public Task<bool> ExistsAsync(Guid id, CancellationToken ct = default) =>
         _db.Users.AnyAsync(u => u.Id == id, ct);
+
+    public Task<bool> AnyAsync(CancellationToken ct = default) =>
+        _db.Users.AnyAsync(ct);
 }

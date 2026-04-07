@@ -13,4 +13,5 @@ public interface IUserRepository
     Task<int> CountLocalAdminsAsync(CancellationToken ct = default);
     Task<int> CountLocalAdminsExcludingAsync(Guid excludeUserId, CancellationToken ct = default);
     Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);
+    Task<bool> AnyAsync(CancellationToken ct = default);
 }

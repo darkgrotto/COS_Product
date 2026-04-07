@@ -22,6 +22,9 @@ public static class Step16_Deploy
             _                     => false
         };
 
+        if (success)
+            success = await InitializeAccountsAsync(config);
+
         Console.WriteLine();
         return success;
     }
@@ -852,6 +855,98 @@ public static class Step16_Deploy
         var output = await proc.StandardOutput.ReadToEndAsync();
         await proc.WaitForExitAsync();
         return (proc.ExitCode, output.Trim());
+    }
+
+    private static async Task<bool> InitializeAccountsAsync(WizardConfig config)
+    {
+        bool skipSsl = config.DeploymentType == DeploymentType.Docker;
+        string baseUrl = config.DeploymentType == DeploymentType.Docker
+            ? $"https://{config.Hostname}:{config.Port}"
+            : $"https://{config.Hostname}";
+
+        Console.WriteLine();
+        Console.WriteLine("Creating initial user accounts...");
+        Console.WriteLine($"Waiting for application to be ready at {baseUrl}/health ...");
+
+        using var handler = new System.Net.Http.HttpClientHandler();
+        if (skipSsl)
+            handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
+
+        using var http = new System.Net.Http.HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(10),
+        };
+
+        // Wait up to 5 minutes for the app to respond to /health
+        var deadline = DateTime.UtcNow.AddMinutes(5);
+        bool healthy = false;
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                var resp = await http.GetAsync($"{baseUrl}/health");
+                if (resp.IsSuccessStatusCode)
+                {
+                    healthy = true;
+                    break;
+                }
+            }
+            catch
+            {
+                // Not ready yet - keep waiting
+            }
+            Console.Write(".");
+            await Task.Delay(5000);
+        }
+
+        if (!healthy)
+        {
+            Console.WriteLine();
+            Console.WriteLine("ERROR: Application did not become healthy within 5 minutes.");
+            Console.WriteLine("Check container logs for startup errors, then re-run the wizard.");
+            return false;
+        }
+
+        Console.WriteLine(" ready.");
+
+        var payload = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            adminUsername = config.ProductAdminUsername,
+            adminPassword = config.ProductAdminPassword,
+            generalUserUsername = config.GeneralUserUsername,
+            generalUserPassword = config.GeneralUserPassword,
+        });
+        var body = new System.Net.Http.StringContent(
+            payload,
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        try
+        {
+            var initResp = await http.PostAsync($"{baseUrl}/api/setup/initialize", body);
+            if (initResp.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Admin account '{config.ProductAdminUsername}' created.");
+                Console.WriteLine($"General user '{config.GeneralUserUsername}' created.");
+                return true;
+            }
+
+            var errorBody = await initResp.Content.ReadAsStringAsync();
+            if (initResp.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                Console.WriteLine("Note: accounts already exist - skipping account creation.");
+                return true;
+            }
+
+            Console.WriteLine($"ERROR: Account initialization failed ({(int)initResp.StatusCode}).");
+            Console.WriteLine(errorBody);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ERROR: Could not reach the setup endpoint: {ex.Message}");
+            return false;
+        }
     }
 
     private static string FindRepoRoot()
