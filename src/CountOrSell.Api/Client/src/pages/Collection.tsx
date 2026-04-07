@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
-  Plus, Pencil, Trash2, ChevronUp, ChevronDown, Filter, X, ExternalLink,
+  Plus, Pencil, Trash2, ChevronUp, ChevronDown, X, ExternalLink,
+  ChevronLeft, LayoutList, LayoutGrid, Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,7 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 
-// ---- Types ----------------------------------------------------------------
+// ---- Types ------------------------------------------------------------------
 
 interface CollectionEntry {
   id: string
@@ -30,6 +31,15 @@ interface CollectionEntry {
   acquisitionPrice: number
   notes: string | null
   oracleRulingUrl: string | null
+}
+
+interface SetCompletion {
+  setCode: string
+  setName: string
+  ownedCount: number
+  totalCards: number
+  percentage: number
+  totalValue: number | null
 }
 
 interface Treatment { key: string; displayName: string; sortOrder: number }
@@ -53,36 +63,78 @@ interface EntryForm {
   notes: string
 }
 
+interface Filters {
+  setCode: string
+  treatment: string
+  condition: string
+  autographed: string
+  color: string
+  cardType: string
+}
+
 const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'DMG'] as const
 const CONDITION_LABELS: Record<string, string> = {
   NM: 'Near Mint', LP: 'Lightly Played', MP: 'Moderately Played',
   HP: 'Heavily Played', DMG: 'Damaged',
 }
 
-function today() {
-  return new Date().toISOString().slice(0, 10)
+const COLORS = [
+  { key: 'W', title: 'White' },
+  { key: 'U', title: 'Blue' },
+  { key: 'B', title: 'Black' },
+  { key: 'R', title: 'Red' },
+  { key: 'G', title: 'Green' },
+  { key: 'C', title: 'Colorless' },
+]
+
+const CARD_TYPES = [
+  'Creature', 'Instant', 'Sorcery', 'Enchantment',
+  'Artifact', 'Land', 'Planeswalker', 'Battle',
+]
+
+const BLANK_FILTERS: Filters = {
+  setCode: '', treatment: '', condition: '', autographed: '', color: '', cardType: '',
 }
+
+function today() { return new Date().toISOString().slice(0, 10) }
 
 function fmt(v: number | null | undefined) {
   if (v == null) return '-'
   return `$${v.toFixed(2)}`
 }
 
-function plColor(pl: number | null) {
+function plColor(pl: number | null | undefined) {
   if (pl == null) return 'text-muted-foreground'
   if (pl > 0) return 'text-green-600'
   if (pl < 0) return 'text-red-600'
   return 'text-muted-foreground'
 }
 
-// ---- Card search combobox -------------------------------------------------
+// ---- Toggle chip (for color/type filters) -----------------------------------
+
+function ToggleChip({
+  active, onClick, children,
+}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+        active
+          ? 'bg-primary text-primary-foreground border-primary'
+          : 'bg-background text-muted-foreground border-border hover:bg-accent'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ---- Card search combobox ---------------------------------------------------
 
 function CardSearch({
   value, onSelect,
-}: {
-  value: string
-  onSelect: (card: CardSearchResult) => void
-}) {
+}: { value: string; onSelect: (card: CardSearchResult) => void }) {
   const [query, setQuery] = useState(value)
   const [results, setResults] = useState<CardSearchResult[]>([])
   const [open, setOpen] = useState(false)
@@ -98,15 +150,13 @@ function CardSearch({
     timer.current = setTimeout(async () => {
       setLoading(true)
       try {
-        const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}`)
         if (res.ok) {
           const data: CardSearchResult[] = await res.json()
           setResults(data)
           setOpen(data.length > 0)
         }
-      } finally {
-        setLoading(false)
-      }
+      } finally { setLoading(false) }
     }, 300)
   }
 
@@ -123,11 +173,10 @@ function CardSearch({
         value={query}
         onChange={e => handleChange(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
         autoComplete="off"
       />
-      {loading && (
-        <span className="absolute right-2 top-2 text-xs text-muted-foreground">...</span>
-      )}
+      {loading && <span className="absolute right-2 top-2 text-xs text-muted-foreground">...</span>}
       {open && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-64 overflow-y-auto">
           {results.map(c => (
@@ -149,7 +198,7 @@ function CardSearch({
   )
 }
 
-// ---- Add / Edit dialog ----------------------------------------------------
+// ---- Add/Edit dialog --------------------------------------------------------
 
 function EntryDialog({
   open, onOpenChange, treatments, initial, onSave,
@@ -161,23 +210,19 @@ function EntryDialog({
   onSave: () => void
 }) {
   const isEdit = !!initial
-  const [form, setForm] = useState<EntryForm>(blankForm(treatments))
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
+  const regularKey = treatments.find(t => t.key === 'regular')?.key ?? treatments[0]?.key ?? 'regular'
 
-  function blankForm(ts: Treatment[]): EntryForm {
+  function blankForm(): EntryForm {
     return {
-      cardIdentifier: '',
-      cardName: '',
-      treatment: ts[0]?.key ?? 'regular',
-      quantity: 1,
-      condition: 'NM',
-      autographed: false,
-      acquisitionDate: today(),
-      acquisitionPrice: '',
-      notes: '',
+      cardIdentifier: '', cardName: '', treatment: regularKey,
+      quantity: 1, condition: 'NM', autographed: false,
+      acquisitionDate: today(), acquisitionPrice: '', notes: '',
     }
   }
+
+  const [form, setForm] = useState<EntryForm>(blankForm())
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -194,10 +239,10 @@ function EntryDialog({
         notes: initial.notes ?? '',
       })
     } else {
-      setForm(blankForm(treatments))
+      setForm(blankForm())
     }
     setError('')
-  }, [open, initial, treatments])
+  }, [open, initial])
 
   function handleCardSelect(card: CardSearchResult) {
     setForm(f => ({
@@ -212,31 +257,25 @@ function EntryDialog({
 
   async function handleSave() {
     if (!form.cardIdentifier) { setError('Select a card.'); return }
-    if (!form.treatment) { setError('Select a treatment.'); return }
-    if (form.quantity < 1) { setError('Quantity must be at least 1.'); return }
     const price = parseFloat(form.acquisitionPrice)
     if (isNaN(price) || price < 0) { setError('Enter a valid acquisition price.'); return }
-
     setSaving(true)
     setError('')
     try {
-      const body = {
-        cardIdentifier: form.cardIdentifier,
-        treatment: form.treatment,
-        quantity: form.quantity,
-        condition: form.condition,
-        autographed: form.autographed,
-        acquisitionDate: form.acquisitionDate,
-        acquisitionPrice: price,
-        notes: form.notes || null,
-      }
       const url = isEdit ? `/api/collection/${initial!.id}` : '/api/collection'
-      const method = isEdit ? 'PUT' : 'POST'
       const res = await fetch(url, {
-        method,
-        credentials: 'include',
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          cardIdentifier: form.cardIdentifier,
+          treatment: form.treatment,
+          quantity: form.quantity,
+          condition: form.condition,
+          autographed: form.autographed,
+          acquisitionDate: form.acquisitionDate,
+          acquisitionPrice: price,
+          notes: form.notes || null,
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -246,9 +285,7 @@ function EntryDialog({
       onOpenChange(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   return (
@@ -273,7 +310,6 @@ function EntryDialog({
               <p className="text-xs text-muted-foreground">{form.cardIdentifier}</p>
             </div>
           )}
-
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Treatment</Label>
@@ -298,63 +334,40 @@ function EntryDialog({
               </Select>
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Quantity</Label>
-              <Input
-                type="number"
-                min={1}
-                value={form.quantity}
-                onChange={e => setForm(f => ({ ...f, quantity: parseInt(e.target.value) || 1 }))}
-              />
+              <Input type="number" min={1} value={form.quantity}
+                onChange={e => setForm(f => ({ ...f, quantity: parseInt(e.target.value) || 1 }))} />
             </div>
             <div className="grid gap-1.5">
               <Label>Autographed</Label>
               <div className="flex items-center h-10">
-                <input
-                  type="checkbox"
-                  id="aut-chk"
-                  checked={form.autographed}
+                <input type="checkbox" id="aut-chk" checked={form.autographed}
                   onChange={e => setForm(f => ({ ...f, autographed: e.target.checked }))}
-                  className="h-4 w-4 rounded border-input"
-                />
+                  className="h-4 w-4 rounded border-input" />
                 <label htmlFor="aut-chk" className="ml-2 text-sm">Yes</label>
               </div>
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Acquisition Date</Label>
-              <Input
-                type="date"
-                value={form.acquisitionDate}
-                onChange={e => setForm(f => ({ ...f, acquisitionDate: e.target.value }))}
-              />
+              <Input type="date" value={form.acquisitionDate}
+                onChange={e => setForm(f => ({ ...f, acquisitionDate: e.target.value }))} />
             </div>
             <div className="grid gap-1.5">
               <Label>Acquisition Price</Label>
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                placeholder="0.00"
+              <Input type="number" min={0} step="0.01" placeholder="0.00"
                 value={form.acquisitionPrice}
-                onChange={e => setForm(f => ({ ...f, acquisitionPrice: e.target.value }))}
-              />
+                onChange={e => setForm(f => ({ ...f, acquisitionPrice: e.target.value }))} />
             </div>
           </div>
-
           <div className="grid gap-1.5">
             <Label>Notes <span className="text-muted-foreground text-xs">(optional)</span></Label>
-            <Input
-              value={form.notes}
-              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Any notes..."
-            />
+            <Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Any notes..." />
           </div>
-
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
@@ -366,7 +379,7 @@ function EntryDialog({
   )
 }
 
-// ---- Bulk add set dialog --------------------------------------------------
+// ---- Bulk add set dialog ----------------------------------------------------
 
 function BulkAddDialog({
   open, onOpenChange, sets, treatments, onSave,
@@ -377,8 +390,10 @@ function BulkAddDialog({
   treatments: Treatment[]
   onSave: () => void
 }) {
+  const regularKey = treatments.find(t => t.key === 'regular')?.key ?? treatments[0]?.key ?? 'regular'
+  const [setSearch, setSetSearch] = useState('')
   const [setCode, setSetCode] = useState('')
-  const [treatment, setTreatment] = useState('')
+  const [treatment, setTreatment] = useState(regularKey)
   const [condition, setCondition] = useState('NM')
   const [acquisitionDate, setAcquisitionDate] = useState(today())
   const [acquisitionPrice, setAcquisitionPrice] = useState('')
@@ -388,14 +403,22 @@ function BulkAddDialog({
 
   useEffect(() => {
     if (!open) return
+    setSetSearch('')
     setSetCode('')
-    setTreatment(treatments[0]?.key ?? 'regular')
+    setTreatment(regularKey)
     setCondition('NM')
     setAcquisitionDate(today())
     setAcquisitionPrice('')
     setError('')
     setResult(null)
-  }, [open, treatments])
+  }, [open, regularKey])
+
+  const filteredSets = setSearch.trim()
+    ? sets.filter(s =>
+        s.code.toLowerCase().includes(setSearch.toLowerCase()) ||
+        s.name.toLowerCase().includes(setSearch.toLowerCase())
+      )
+    : sets
 
   async function handleAdd() {
     if (!setCode) { setError('Select a set.'); return }
@@ -409,7 +432,6 @@ function BulkAddDialog({
     try {
       const res = await fetch('/api/collection/bulk-add-set', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           setCode: setCode.toLowerCase(),
@@ -428,9 +450,7 @@ function BulkAddDialog({
       onSave()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed.')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const selectedSet = sets.find(s => s.code.toLowerCase() === setCode.toLowerCase())
@@ -438,9 +458,7 @@ function BulkAddDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Bulk Add Set</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>Bulk Add Set</DialogTitle></DialogHeader>
         {result ? (
           <div className="py-4 text-sm space-y-1">
             <p className="text-green-600 font-medium">
@@ -456,16 +474,40 @@ function BulkAddDialog({
           <div className="grid gap-4 py-2">
             <div className="grid gap-1.5">
               <Label>Set</Label>
-              <Select value={setCode} onValueChange={setSetCode}>
-                <SelectTrigger><SelectValue placeholder="Select a set..." /></SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {sets.map(s => (
-                    <SelectItem key={s.code} value={s.code.toLowerCase()}>
-                      {s.code} - {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Searchable set picker */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Search sets..."
+                  value={setSearch}
+                  onChange={e => setSetSearch(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+              <div className="rounded-md border max-h-44 overflow-y-auto">
+                {filteredSets.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">No sets match.</p>
+                ) : (
+                  filteredSets.map(s => (
+                    <button
+                      key={s.code}
+                      type="button"
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-accent flex justify-between items-center ${
+                        setCode === s.code.toLowerCase() ? 'bg-accent' : ''
+                      }`}
+                      onClick={() => setSetCode(s.code.toLowerCase())}
+                    >
+                      <span>
+                        <span className="font-mono text-xs mr-2">{s.code}</span>
+                        {s.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                        {s.totalCards}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
               {selectedSet && (
                 <p className="text-xs text-muted-foreground">{selectedSet.totalCards} cards in set</p>
               )}
@@ -497,22 +539,13 @@ function BulkAddDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label>Acquisition Date</Label>
-                <Input
-                  type="date"
-                  value={acquisitionDate}
-                  onChange={e => setAcquisitionDate(e.target.value)}
-                />
+                <Input type="date" value={acquisitionDate}
+                  onChange={e => setAcquisitionDate(e.target.value)} />
               </div>
               <div className="grid gap-1.5">
                 <Label>Price <span className="text-muted-foreground text-xs">(blank = market)</span></Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  placeholder="Market value"
-                  value={acquisitionPrice}
-                  onChange={e => setAcquisitionPrice(e.target.value)}
-                />
+                <Input type="number" min={0} step="0.01" placeholder="Market value"
+                  value={acquisitionPrice} onChange={e => setAcquisitionPrice(e.target.value)} />
               </div>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -535,14 +568,58 @@ function BulkAddDialog({
   )
 }
 
-// ---- Filters panel --------------------------------------------------------
+// ---- Bulk action bar --------------------------------------------------------
 
-interface Filters {
-  setCode: string
-  treatment: string
-  condition: string
-  autographed: string
+function BulkActionBar({
+  count,
+  treatments,
+  onDelete,
+  onSetTreatment,
+  onSetDate,
+  onClear,
+}: {
+  count: number
+  treatments: Treatment[]
+  onDelete: () => void
+  onSetTreatment: (t: string) => void
+  onSetDate: (d: string) => void
+  onClear: () => void
+}) {
+  const [treatmentPick, setTreatmentPick] = useState('')
+  const [datePick, setDatePick] = useState('')
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm">
+      <span className="font-medium">{count} selected</span>
+      <div className="flex items-center gap-1.5">
+        <Select value={treatmentPick} onValueChange={v => { setTreatmentPick(v); onSetTreatment(v) }}>
+          <SelectTrigger className="h-7 w-36 text-xs"><SelectValue placeholder="Set treatment" /></SelectTrigger>
+          <SelectContent>
+            {treatments.map(t => (
+              <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="date"
+          className="h-7 w-36 text-xs"
+          value={datePick}
+          onChange={e => { setDatePick(e.target.value); if (e.target.value) onSetDate(e.target.value) }}
+        />
+      </div>
+      <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={onDelete}>
+        <Trash2 className="h-3 w-3 mr-1" /> Remove all
+      </Button>
+      <Button variant="ghost" size="sm" className="h-7 text-xs ml-auto" onClick={onClear}>
+        <X className="h-3 w-3 mr-1" /> Clear
+      </Button>
+    </div>
+  )
 }
+
+// ---- Filters panel ----------------------------------------------------------
 
 function FiltersPanel({
   filters, sets, treatments, onChange, onClear,
@@ -553,116 +630,373 @@ function FiltersPanel({
   onChange: (f: Filters) => void
   onClear: () => void
 }) {
-  const active = filters.setCode || filters.treatment || filters.condition || filters.autographed
+  const active = Object.values(filters).some(Boolean)
 
   return (
-    <div className="flex flex-wrap items-end gap-3 mb-4">
-      <div className="grid gap-1">
-        <Label className="text-xs text-muted-foreground">Set</Label>
-        <Select
-          value={filters.setCode || '__all__'}
-          onValueChange={v => onChange({ ...filters, setCode: v === '__all__' ? '' : v })}
-        >
-          <SelectTrigger className="h-8 w-44 text-xs">
-            <SelectValue placeholder="All sets" />
-          </SelectTrigger>
-          <SelectContent className="max-h-64">
-            <SelectItem value="__all__">All sets</SelectItem>
-            {sets.map(s => (
-              <SelectItem key={s.code} value={s.code.toLowerCase()}>
-                {s.code} - {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="grid gap-1">
+          <Label className="text-xs text-muted-foreground">Set</Label>
+          <Select
+            value={filters.setCode || '__all__'}
+            onValueChange={v => onChange({ ...filters, setCode: v === '__all__' ? '' : v })}
+          >
+            <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="All sets" /></SelectTrigger>
+            <SelectContent className="max-h-64">
+              <SelectItem value="__all__">All sets</SelectItem>
+              {sets.map(s => (
+                <SelectItem key={s.code} value={s.code.toLowerCase()}>
+                  {s.code} - {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1">
+          <Label className="text-xs text-muted-foreground">Treatment</Label>
+          <Select
+            value={filters.treatment || '__all__'}
+            onValueChange={v => onChange({ ...filters, treatment: v === '__all__' ? '' : v })}
+          >
+            <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All</SelectItem>
+              {treatments.map(t => (
+                <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1">
+          <Label className="text-xs text-muted-foreground">Condition</Label>
+          <Select
+            value={filters.condition || '__all__'}
+            onValueChange={v => onChange({ ...filters, condition: v === '__all__' ? '' : v })}
+          >
+            <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All</SelectItem>
+              {CONDITIONS.map(c => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1">
+          <Label className="text-xs text-muted-foreground">Autographed</Label>
+          <Select
+            value={filters.autographed || '__all__'}
+            onValueChange={v => onChange({ ...filters, autographed: v === '__all__' ? '' : v })}
+          >
+            <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All</SelectItem>
+              <SelectItem value="true">Yes</SelectItem>
+              <SelectItem value="false">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {active && (
+          <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onClear}>
+            <X className="h-3 w-3" /> Clear
+          </Button>
+        )}
       </div>
-
-      <div className="grid gap-1">
-        <Label className="text-xs text-muted-foreground">Treatment</Label>
-        <Select
-          value={filters.treatment || '__all__'}
-          onValueChange={v => onChange({ ...filters, treatment: v === '__all__' ? '' : v })}
-        >
-          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All</SelectItem>
-            {treatments.map(t => (
-              <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Color + type chips */}
+      <div className="flex flex-wrap gap-1.5 items-center">
+        <span className="text-xs text-muted-foreground">Color:</span>
+        {COLORS.map(col => (
+          <ToggleChip
+            key={col.key}
+            active={filters.color === col.key}
+            onClick={() => onChange({ ...filters, color: filters.color === col.key ? '' : col.key })}
+          >
+            {col.key}
+          </ToggleChip>
+        ))}
+        <span className="text-xs text-muted-foreground ml-3">Type:</span>
+        {CARD_TYPES.map(t => (
+          <ToggleChip
+            key={t}
+            active={filters.cardType === t}
+            onClick={() => onChange({ ...filters, cardType: filters.cardType === t ? '' : t })}
+          >
+            {t}
+          </ToggleChip>
+        ))}
       </div>
-
-      <div className="grid gap-1">
-        <Label className="text-xs text-muted-foreground">Condition</Label>
-        <Select
-          value={filters.condition || '__all__'}
-          onValueChange={v => onChange({ ...filters, condition: v === '__all__' ? '' : v })}
-        >
-          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All</SelectItem>
-            {CONDITIONS.map(c => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid gap-1">
-        <Label className="text-xs text-muted-foreground">Autographed</Label>
-        <Select
-          value={filters.autographed || '__all__'}
-          onValueChange={v => onChange({ ...filters, autographed: v === '__all__' ? '' : v })}
-        >
-          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All</SelectItem>
-            <SelectItem value="true">Yes</SelectItem>
-            <SelectItem value="false">No</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {active && (
-        <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onClear}>
-          <X className="h-3 w-3" /> Clear
-        </Button>
-      )}
     </div>
   )
 }
 
-// ---- Main page ------------------------------------------------------------
+// ---- By-set grouped view ----------------------------------------------------
+
+function SetGroupedView({
+  completion,
+  onDrillIn,
+}: {
+  completion: SetCompletion[]
+  onDrillIn: (setCode: string) => void
+}) {
+  const totalValue = completion.reduce((s, c) => s + (c.totalValue ?? 0), 0)
+
+  return (
+    <div className="space-y-2">
+      <div className="rounded-md border overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50 text-muted-foreground">
+              <th className="px-4 py-2 text-left">Set</th>
+              <th className="px-4 py-2 text-right">Owned</th>
+              <th className="px-4 py-2 text-right">Total</th>
+              <th className="px-4 py-2 text-right">Complete</th>
+              <th className="px-4 py-2 text-right">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {completion.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                  No cards in your collection yet.
+                </td>
+              </tr>
+            ) : (
+              <>
+                {completion.map(s => (
+                  <tr
+                    key={s.setCode}
+                    className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
+                    onClick={() => onDrillIn(s.setCode.toLowerCase())}
+                  >
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium">{s.setName}</div>
+                      <div className="text-xs text-muted-foreground font-mono">{s.setCode}</div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{s.ownedCount}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
+                      {s.totalCards}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-16 bg-muted rounded-full h-1.5 hidden sm:block">
+                          <div
+                            className="bg-primary h-1.5 rounded-full"
+                            style={{ width: `${Math.min(100, s.percentage)}%` }}
+                          />
+                        </div>
+                        <span>{s.percentage}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{fmt(s.totalValue)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t bg-muted/20 font-semibold">
+                  <td className="px-4 py-2.5">Total</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {completion.reduce((s, c) => s + c.ownedCount, 0)}
+                  </td>
+                  <td colSpan={2} />
+                  <td className="px-4 py-2.5 text-right tabular-nums">{fmt(totalValue)}</td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ---- Cards flat table -------------------------------------------------------
+
+function CardsTable({
+  entries,
+  treatments,
+  selected,
+  onToggleSelect,
+  onToggleSelectAll,
+  onEdit,
+  onDelete,
+  onAdjustQty,
+}: {
+  entries: CollectionEntry[]
+  treatments: Treatment[]
+  selected: Set<string>
+  onToggleSelect: (id: string) => void
+  onToggleSelectAll: (all: boolean) => void
+  onEdit: (e: CollectionEntry) => void
+  onDelete: (e: CollectionEntry) => void
+  onAdjustQty: (e: CollectionEntry, delta: number) => void
+}) {
+  const treatmentMap = Object.fromEntries(treatments.map(t => [t.key, t.displayName]))
+  const allSelected = entries.length > 0 && entries.every(e => selected.has(e.id))
+
+  if (entries.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground py-8 text-center">
+        No cards match the current filters.
+      </p>
+    )
+  }
+
+  return (
+    <div className="rounded-md border overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="border-b bg-muted/40">
+          <tr>
+            <th className="px-3 py-2 w-8">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={e => onToggleSelectAll(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+                aria-label="Select all"
+              />
+            </th>
+            <th className="px-3 py-2 text-left font-medium">Card</th>
+            <th className="px-3 py-2 text-left font-medium">Set</th>
+            <th className="px-3 py-2 text-left font-medium">Treatment</th>
+            <th className="px-3 py-2 text-center font-medium">Qty</th>
+            <th className="px-3 py-2 text-left font-medium">Cond.</th>
+            <th className="px-3 py-2 text-right font-medium">Market</th>
+            <th className="px-3 py-2 text-right font-medium">Acq.</th>
+            <th className="px-3 py-2 text-right font-medium">P/L</th>
+            <th className="px-3 py-2 text-right font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {entries.map(entry => {
+            const pl = entry.marketValue != null
+              ? (entry.marketValue - entry.acquisitionPrice) * entry.quantity
+              : null
+            const isSelected = selected.has(entry.id)
+            return (
+              <tr key={entry.id} className={`hover:bg-muted/30 ${isSelected ? 'bg-accent/30' : ''}`}>
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => onToggleSelect(entry.id)}
+                    className="h-4 w-4 rounded border-input"
+                    aria-label="Select row"
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={`/api/images/cards/${entry.cardIdentifier.toLowerCase()}.jpg`}
+                      alt=""
+                      className="h-8 w-6 rounded object-cover shrink-0 bg-muted"
+                      loading="lazy"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
+                    <div>
+                      <div className="font-medium leading-tight">
+                        {entry.cardName ?? entry.cardIdentifier}
+                        {entry.autographed && (
+                          <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        {entry.cardIdentifier}
+                        {entry.oracleRulingUrl && (
+                          <a href={entry.oracleRulingUrl} target="_blank" rel="noopener noreferrer"
+                            className="hover:text-foreground">
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">{entry.setCode ?? '-'}</td>
+                <td className="px-3 py-2">{treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}</td>
+                <td className="px-3 py-2">
+                  <div className="flex items-center justify-center gap-1">
+                    <button className="rounded p-0.5 hover:bg-accent disabled:opacity-30"
+                      onClick={() => onAdjustQty(entry, -1)} disabled={entry.quantity <= 1}
+                      aria-label="Decrease quantity">
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="w-6 text-center tabular-nums">{entry.quantity}</span>
+                    <button className="rounded p-0.5 hover:bg-accent"
+                      onClick={() => onAdjustQty(entry, 1)} aria-label="Increase quantity">
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </td>
+                <td className="px-3 py-2">{entry.condition}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.marketValue)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.acquisitionPrice)}</td>
+                <td className={`px-3 py-2 text-right tabular-nums ${plColor(pl)}`}>
+                  {pl != null ? `${pl >= 0 ? '+' : ''}${fmt(pl)}` : '-'}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7"
+                      onClick={() => onEdit(entry)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      onClick={() => onDelete(entry)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ---- Main page --------------------------------------------------------------
+
+type ViewMode = 'by-set' | 'cards'
 
 export function CollectionPage() {
   const [entries, setEntries] = useState<CollectionEntry[]>([])
+  const [completion, setCompletion] = useState<SetCompletion[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [sets, setSets] = useState<CardSet[]>([])
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState<Filters>({ setCode: '', treatment: '', condition: '', autographed: '' })
+  const [viewMode, setViewMode] = useState<ViewMode>('by-set')
+  const [filters, setFilters] = useState<Filters>(BLANK_FILTERS)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<CollectionEntry | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [deleteEntry, setDeleteEntry] = useState<CollectionEntry | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
 
-  const treatmentMap = Object.fromEntries(treatments.map(t => [t.key, t.displayName]))
+  async function loadCompletion() {
+    const res = await fetch('/api/collection/completion')
+    if (res.ok) {
+      const all: SetCompletion[] = await res.json()
+      setCompletion(all.filter(s => s.ownedCount > 0))
+    }
+  }
 
-  async function load() {
+  async function loadEntries() {
     const params = new URLSearchParams()
     if (filters.setCode) params.set('filter.setCode', filters.setCode)
     if (filters.treatment) params.set('filter.treatment', filters.treatment)
     if (filters.condition) params.set('filter.condition', filters.condition)
     if (filters.autographed) params.set('filter.autographed', filters.autographed)
-    const res = await fetch(`/api/collection?${params}`, { credentials: 'include' })
+    if (filters.color) params.set('filter.color', filters.color)
+    if (filters.cardType) params.set('filter.cardType', filters.cardType)
+    const res = await fetch(`/api/collection?${params}`)
     if (res.ok) setEntries(await res.json())
   }
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/treatments', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
-      fetch('/api/sets', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
+      fetch('/api/treatments').then(r => r.ok ? r.json() : []),
+      fetch('/api/sets').then(r => r.ok ? r.json() : []),
     ]).then(([t, s]) => {
       setTreatments(t)
       setSets(s)
@@ -671,24 +1005,29 @@ export function CollectionPage() {
 
   useEffect(() => {
     setLoading(true)
-    load().finally(() => setLoading(false))
+    Promise.all([loadCompletion(), loadEntries()])
+      .finally(() => setLoading(false))
   }, [filters])
 
-  const handleSave = useCallback(() => { load() }, [filters])
+  const handleSave = useCallback(() => {
+    loadCompletion()
+    loadEntries()
+  }, [filters])
+
+  function handleDrillIn(setCode: string) {
+    setFilters(f => ({ ...f, setCode }))
+    setViewMode('cards')
+  }
 
   async function handleDelete() {
     if (!deleteEntry) return
-    const res = await fetch(`/api/collection/${deleteEntry.id}`, {
-      method: 'DELETE', credentials: 'include',
-    })
-    if (!res.ok) throw new Error('Failed to delete.')
-    await load()
+    await fetch(`/api/collection/${deleteEntry.id}`, { method: 'DELETE' })
+    await Promise.all([loadCompletion(), loadEntries()])
   }
 
   async function adjustQuantity(entry: CollectionEntry, delta: number) {
     const res = await fetch(`/api/collection/${entry.id}/quantity`, {
       method: 'PATCH',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(delta),
     })
@@ -698,18 +1037,65 @@ export function CollectionPage() {
     }
   }
 
+  // Multi-select handlers
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll(all: boolean) {
+    setSelected(all ? new Set(entries.map(e => e.id)) : new Set())
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selected)
+    await fetch('/api/collection/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    setSelected(new Set())
+    await Promise.all([loadCompletion(), loadEntries()])
+  }
+
+  async function handleBulkSetTreatment(treatment: string) {
+    const ids = Array.from(selected)
+    await fetch('/api/collection/bulk-set-treatment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, treatment }),
+    })
+    setSelected(new Set())
+    await loadEntries()
+  }
+
+  async function handleBulkSetDate(date: string) {
+    const ids = Array.from(selected)
+    await fetch('/api/collection/bulk-set-acquisition-date', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, acquisitionDate: date }),
+    })
+    setSelected(new Set())
+    await loadEntries()
+  }
+
   const totalCards = entries.reduce((n, e) => n + e.quantity, 0)
   const totalValue = entries.reduce((sum, e) => sum + (e.marketValue ?? 0) * e.quantity, 0)
   const totalCost = entries.reduce((sum, e) => sum + e.acquisitionPrice * e.quantity, 0)
   const totalPl = totalValue - totalCost
   const hasValues = entries.some(e => e.marketValue != null)
+  const hasActiveFilters = Object.values(filters).some(Boolean)
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-semibold">Collection</h1>
-          {!loading && (
+          {!loading && viewMode === 'cards' && (
             <p className="text-sm text-muted-foreground mt-0.5">
               {totalCards} card{totalCards !== 1 ? 's' : ''}
               {hasValues && ` \u00b7 ${fmt(totalValue)} value`}
@@ -721,9 +1107,32 @@ export function CollectionPage() {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* View toggle */}
+          <div className="flex rounded-md border overflow-hidden">
+            <button
+              type="button"
+              className={`px-3 py-1.5 text-xs flex items-center gap-1 ${
+                viewMode === 'by-set' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
+              }`}
+              onClick={() => setViewMode('by-set')}
+              title="By Set"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" /> By Set
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1.5 text-xs flex items-center gap-1 border-l ${
+                viewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
+              }`}
+              onClick={() => setViewMode('cards')}
+              title="Cards"
+            >
+              <LayoutList className="h-3.5 w-3.5" /> Cards
+            </button>
+          </div>
           <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)}>
-            <Filter className="h-4 w-4 mr-1" /> Bulk Add Set
+            Bulk Add Set
           </Button>
           <Button size="sm" onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> Add Card
@@ -731,128 +1140,73 @@ export function CollectionPage() {
         </div>
       </div>
 
-      <FiltersPanel
-        filters={filters}
-        sets={sets}
-        treatments={treatments}
-        onChange={f => setFilters(f)}
-        onClear={() => setFilters({ setCode: '', treatment: '', condition: '', autographed: '' })}
-      />
+      {/* Drill-in back button when in cards view with set filter */}
+      {viewMode === 'cards' && filters.setCode && (
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            type="button"
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setFilters(f => ({ ...f, setCode: '' }))
+              setViewMode('by-set')
+            }}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            All Sets
+          </button>
+          <span className="text-muted-foreground">/</span>
+          <span className="text-sm font-medium">
+            {sets.find(s => s.code.toLowerCase() === filters.setCode)?.name ?? filters.setCode.toUpperCase()}
+          </span>
+        </div>
+      )}
+
+      {viewMode === 'cards' && (
+        <div className="mb-4">
+          <FiltersPanel
+            filters={filters}
+            sets={sets}
+            treatments={treatments}
+            onChange={f => { setFilters(f); setSelected(new Set()) }}
+            onClear={() => { setFilters(BLANK_FILTERS); setSelected(new Set()) }}
+          />
+        </div>
+      )}
+
+      {selected.size > 0 && viewMode === 'cards' && (
+        <div className="mb-3">
+          <BulkActionBar
+            count={selected.size}
+            treatments={treatments}
+            onDelete={() => setBulkDeleteConfirm(true)}
+            onSetTreatment={handleBulkSetTreatment}
+            onSetDate={handleBulkSetDate}
+            onClear={() => setSelected(new Set())}
+          />
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
-      ) : entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          {Object.values(filters).some(Boolean)
-            ? 'No cards match the current filters.'
-            : 'No cards in your collection yet.'}
-        </p>
+      ) : viewMode === 'by-set' ? (
+        <SetGroupedView completion={completion} onDrillIn={handleDrillIn} />
       ) : (
-        <div className="rounded-md border overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">Card</th>
-                <th className="px-3 py-2 text-left font-medium">Set</th>
-                <th className="px-3 py-2 text-left font-medium">Treatment</th>
-                <th className="px-3 py-2 text-center font-medium">Qty</th>
-                <th className="px-3 py-2 text-left font-medium">Cond.</th>
-                <th className="px-3 py-2 text-right font-medium">Market</th>
-                <th className="px-3 py-2 text-right font-medium">Acq.</th>
-                <th className="px-3 py-2 text-right font-medium">P/L</th>
-                <th className="px-3 py-2 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {entries.map(entry => {
-                const pl = entry.marketValue != null
-                  ? (entry.marketValue - entry.acquisitionPrice) * entry.quantity
-                  : null
-                return (
-                  <tr key={entry.id} className="hover:bg-muted/30">
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={`/api/images/cards/${entry.cardIdentifier.toLowerCase()}.jpg`}
-                          alt=""
-                          className="h-8 w-6 rounded object-cover shrink-0 bg-muted"
-                          loading="lazy"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                        />
-                        <div>
-                          <div className="font-medium leading-tight">
-                            {entry.cardName ?? entry.cardIdentifier}
-                            {entry.autographed && (
-                              <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            {entry.cardIdentifier}
-                            {entry.oracleRulingUrl && (
-                              <a
-                                href={entry.oracleRulingUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:text-foreground"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{entry.setCode ?? '-'}</td>
-                    <td className="px-3 py-2">{treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          className="rounded p-0.5 hover:bg-accent disabled:opacity-30"
-                          onClick={() => adjustQuantity(entry, -1)}
-                          disabled={entry.quantity <= 1}
-                          aria-label="Decrease quantity"
-                        >
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        </button>
-                        <span className="w-6 text-center tabular-nums">{entry.quantity}</span>
-                        <button
-                          className="rounded p-0.5 hover:bg-accent"
-                          onClick={() => adjustQuantity(entry, 1)}
-                          aria-label="Increase quantity"
-                        >
-                          <ChevronUp className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">{entry.condition}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.marketValue)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.acquisitionPrice)}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${plColor(pl)}`}>
-                      {pl != null ? `${pl >= 0 ? '+' : ''}${fmt(pl)}` : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost" size="icon" className="h-7 w-7"
-                          onClick={() => setEditEntry(entry)}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => setDeleteEntry(entry)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        entries.length === 0 && !hasActiveFilters ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">
+            No cards in your collection yet.
+          </p>
+        ) : (
+          <CardsTable
+            entries={entries}
+            treatments={treatments}
+            selected={selected}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAll}
+            onEdit={setEditEntry}
+            onDelete={setDeleteEntry}
+            onAdjustQty={adjustQuantity}
+          />
+        )
       )}
 
       <EntryDialog
@@ -883,6 +1237,15 @@ export function CollectionPage() {
         confirmLabel="Remove"
         destructive
         onConfirm={handleDelete}
+      />
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={v => { if (!v) setBulkDeleteConfirm(false) }}
+        title={`Remove ${selected.size} entries?`}
+        description="This will permanently remove the selected entries from your collection."
+        confirmLabel="Remove All"
+        destructive
+        onConfirm={handleBulkDelete}
       />
     </div>
   )

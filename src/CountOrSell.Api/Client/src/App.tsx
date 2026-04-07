@@ -7,6 +7,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { LoginPage } from '@/pages/Login'
 import { InviteAcceptPage } from '@/pages/InviteAccept'
 import { DashboardPage } from '@/pages/Dashboard'
+import { BrowsePage } from '@/pages/Browse'
 import { CollectionPage } from '@/pages/Collection'
 import { SerializedPage } from '@/pages/Serialized'
 import { SlabsPage } from '@/pages/Slabs'
@@ -34,6 +35,7 @@ function App() {
               <Route element={<AppShell />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/browse" element={<BrowsePage />} />
                 <Route path="/collection" element={<CollectionPage />} />
                 <Route path="/serialized" element={<SerializedPage />} />
                 <Route path="/slabs" element={<SlabsPage />} />

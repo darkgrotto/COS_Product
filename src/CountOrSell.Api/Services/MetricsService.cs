@@ -27,7 +27,7 @@ public class MetricsService : IMetricsService
         if (!string.IsNullOrEmpty(filter.SetCode))
             collectionQuery = collectionQuery.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
         if (!string.IsNullOrEmpty(filter.Color))
-            collectionQuery = collectionQuery.Where(x => x.c.Color == filter.Color);
+            collectionQuery = collectionQuery.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
         if (!string.IsNullOrEmpty(filter.CardType))
             collectionQuery = collectionQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
         if (!string.IsNullOrEmpty(filter.Treatment))
@@ -147,7 +147,7 @@ public class MetricsService : IMetricsService
         if (!string.IsNullOrEmpty(filter.SetCode))
             collectionQuery = collectionQuery.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
         if (!string.IsNullOrEmpty(filter.Color))
-            collectionQuery = collectionQuery.Where(x => x.c.Color == filter.Color);
+            collectionQuery = collectionQuery.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
         if (!string.IsNullOrEmpty(filter.CardType))
             collectionQuery = collectionQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
         if (!string.IsNullOrEmpty(filter.Treatment))

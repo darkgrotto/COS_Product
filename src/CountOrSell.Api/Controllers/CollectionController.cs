@@ -217,6 +217,35 @@ public class CollectionController : ControllerBase
         return Ok(entries);
     }
 
+    [HttpPost("bulk-delete")]
+    public async Task<IActionResult> BulkDelete([FromBody] BulkIdsRequest request, CancellationToken ct)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "At least one id is required." });
+        var deleted = await _collection.BulkDeleteAsync(request.Ids, CurrentUserId, ct);
+        return Ok(new { deleted });
+    }
+
+    [HttpPost("bulk-set-treatment")]
+    public async Task<IActionResult> BulkSetTreatment([FromBody] BulkSetTreatmentRequest request, CancellationToken ct)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "At least one id is required." });
+        if (string.IsNullOrEmpty(request.Treatment))
+            return BadRequest(new { error = "Treatment is required." });
+        var updated = await _collection.BulkSetTreatmentAsync(request.Ids, CurrentUserId, request.Treatment, ct);
+        return Ok(new { updated });
+    }
+
+    [HttpPost("bulk-set-acquisition-date")]
+    public async Task<IActionResult> BulkSetAcquisitionDate([FromBody] BulkSetAcquisitionDateRequest request, CancellationToken ct)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "At least one id is required." });
+        var updated = await _collection.BulkSetAcquisitionDateAsync(request.Ids, CurrentUserId, request.AcquisitionDate, ct);
+        return Ok(new { updated });
+    }
+
     [HttpPost("bulk-add-set")]
     public async Task<IActionResult> BulkAddSet([FromBody] BulkAddSetRequest request, CancellationToken ct)
     {

@@ -33,4 +33,28 @@ public class SetsController : ControllerBase
 
         return Ok(sets);
     }
+
+    [HttpGet("{setCode}/cards")]
+    public async Task<IActionResult> GetCardsBySet(string setCode, CancellationToken ct)
+    {
+        var code = setCode.ToLowerInvariant();
+        var exists = await _db.Sets.AnyAsync(s => s.Code == code, ct);
+        if (!exists) return NotFound();
+
+        var cards = await _db.Cards
+            .Where(c => c.SetCode == code)
+            .OrderBy(c => c.Identifier)
+            .Select(c => new
+            {
+                Identifier = c.Identifier.ToUpperInvariant(),
+                c.Name,
+                c.Color,
+                c.CardType,
+                c.CurrentMarketValue,
+                c.IsReserved,
+            })
+            .ToListAsync(ct);
+
+        return Ok(cards);
+    }
 }

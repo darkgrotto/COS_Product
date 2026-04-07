@@ -25,7 +25,7 @@ public class CollectionRepository : ICollectionRepository
             query = query.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
 
         if (!string.IsNullOrEmpty(filter.Color))
-            query = query.Where(x => x.c.Color == filter.Color);
+            query = query.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
 
         if (!string.IsNullOrEmpty(filter.CardType))
             query = query.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
@@ -113,5 +113,48 @@ public class CollectionRepository : ICollectionRepository
         var entries = await _db.CollectionEntries.Where(e => e.UserId == userId).ToListAsync(ct);
         _db.CollectionEntries.RemoveRange(entries);
         await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<int> BulkDeleteAsync(IEnumerable<Guid> ids, Guid userId, CancellationToken ct = default)
+    {
+        var idList = ids.ToList();
+        var entries = await _db.CollectionEntries
+            .Where(e => idList.Contains(e.Id) && e.UserId == userId)
+            .ToListAsync(ct);
+        _db.CollectionEntries.RemoveRange(entries);
+        await _db.SaveChangesAsync(ct);
+        return entries.Count;
+    }
+
+    public async Task<int> BulkSetTreatmentAsync(IEnumerable<Guid> ids, Guid userId, string treatment, CancellationToken ct = default)
+    {
+        var idList = ids.ToList();
+        var entries = await _db.CollectionEntries
+            .Where(e => idList.Contains(e.Id) && e.UserId == userId)
+            .ToListAsync(ct);
+        var now = DateTime.UtcNow;
+        foreach (var e in entries)
+        {
+            e.TreatmentKey = treatment;
+            e.UpdatedAt = now;
+        }
+        await _db.SaveChangesAsync(ct);
+        return entries.Count;
+    }
+
+    public async Task<int> BulkSetAcquisitionDateAsync(IEnumerable<Guid> ids, Guid userId, DateOnly date, CancellationToken ct = default)
+    {
+        var idList = ids.ToList();
+        var entries = await _db.CollectionEntries
+            .Where(e => idList.Contains(e.Id) && e.UserId == userId)
+            .ToListAsync(ct);
+        var now = DateTime.UtcNow;
+        foreach (var e in entries)
+        {
+            e.AcquisitionDate = date;
+            e.UpdatedAt = now;
+        }
+        await _db.SaveChangesAsync(ct);
+        return entries.Count;
     }
 }

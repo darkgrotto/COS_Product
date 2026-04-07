@@ -16,6 +16,7 @@ import {
   LogOut,
   KeyRound,
   UserCircle,
+  BookOpen,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -39,6 +40,7 @@ interface NavItem {
 
 const generalUserNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/browse', label: 'Browse', icon: BookOpen },
   { to: '/collection', label: 'Collection', icon: Library },
   { to: '/serialized', label: 'Serialized', icon: Hash },
   { to: '/slabs', label: 'Slabs', icon: Award },
@@ -48,6 +50,7 @@ const generalUserNav: NavItem[] = [
 ]
 
 const adminNav: NavItem[] = [
+  { to: '/browse', label: 'Browse', icon: BookOpen },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/updates', label: 'Updates', icon: RefreshCw },
   { to: '/admin/backups', label: 'Backups', icon: HardDrive },
