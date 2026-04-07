@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Star, ExternalLink } from 'lucide-react'
+import { Star } from 'lucide-react'
 
 // ---- Types ------------------------------------------------------------------
 
