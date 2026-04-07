@@ -12,22 +12,33 @@ public class SetupController : ControllerBase
 {
     private readonly IUserRepository _users;
     private readonly ILocalAuthService _localAuth;
+    private readonly IConfiguration _config;
 
-    public SetupController(IUserRepository users, ILocalAuthService localAuth)
+    public SetupController(IUserRepository users, ILocalAuthService localAuth, IConfiguration config)
     {
         _users = users;
         _localAuth = localAuth;
+        _config = config;
     }
 
     /// <summary>
     /// Called once by the first-run wizard after deployment to create the initial accounts.
-    /// Returns 409 if any users already exist.
+    /// Requires a SETUP_TOKEN environment variable to be set; the wizard sends the matching
+    /// value in the request body. Returns 404 when no token is configured, 401 on mismatch,
+    /// and 409 if any users already exist.
     /// </summary>
     [HttpPost("initialize")]
     public async Task<IActionResult> Initialize(
         [FromBody] SetupInitializeRequest request,
         CancellationToken ct)
     {
+        var configuredToken = _config["SETUP_TOKEN"];
+        if (string.IsNullOrEmpty(configuredToken))
+            return NotFound();
+
+        if (!CryptographicEquals(request.SetupToken, configuredToken))
+            return Unauthorized(new { error = "Invalid setup token." });
+
         if (await _users.AnyAsync(ct))
             return Conflict(new { error = "Already initialized." });
 
@@ -77,9 +88,19 @@ public class SetupController : ControllerBase
 
         return Ok(new { message = "Initialized." });
     }
+
+    // Constant-time string comparison to prevent timing attacks on the token.
+    private static bool CryptographicEquals(string? a, string b)
+    {
+        if (a is null) return false;
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(a),
+            System.Text.Encoding.UTF8.GetBytes(b));
+    }
 }
 
 public sealed record SetupInitializeRequest(
+    string SetupToken,
     string AdminUsername,
     string AdminPassword,
     string GeneralUserUsername,

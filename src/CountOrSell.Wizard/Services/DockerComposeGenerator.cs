@@ -25,6 +25,7 @@ services:
       - BACKUP_SCHEDULE={config.BackupSchedule}
       - BACKUP_RETENTION={config.BackupRetention}
       - BLOB_BACKUP_CONNECTION={config.BackupConnectionString}
+      - SETUP_TOKEN={config.SetupToken}
     depends_on:
       postgres:
         condition: service_healthy

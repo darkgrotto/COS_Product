@@ -10,6 +10,12 @@ public static class Step15_GenerateFiles
         Console.WriteLine("Step 15 of 17: Generate Configuration Files");
         Console.WriteLine("--------------------------------------------");
 
+        // Generate a one-time setup token before any files are written.
+        // It is embedded in the deployment environment and sent by the wizard during
+        // Step 16 to authenticate the account-creation call.
+        config.SetupToken = Convert.ToHexString(
+            System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
         if (config.DeploymentType == DeploymentType.Docker)
         {
             GenerateDockerFiles(config);
@@ -87,7 +93,8 @@ public static class Step15_GenerateFiles
             $"DB_PASSWORD={config.DbAdminPassword}",
             $"REGISTRY={config.DockerRegistry ?? string.Empty}",
             $"PORT={config.Port}",
-            $"BLOB_BACKUP_CONNECTION={config.BackupConnectionString}"
+            $"BLOB_BACKUP_CONNECTION={config.BackupConnectionString}",
+            $"SETUP_TOKEN={config.SetupToken}"
         };
 
         File.WriteAllLines(envPath, lines);

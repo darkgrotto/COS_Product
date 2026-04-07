@@ -33,4 +33,7 @@ public class WizardConfig
     public string? CloudStateBucket { get; set; }
     // AWS-specific: set during deployment after mirroring image to ECR
     public string? CloudEcrImageUri { get; set; }
+    // Generated in Step 15, sent to the app via environment and used to authenticate the
+    // setup/initialize call in Step 16. Single-use: the endpoint returns 409 after first use.
+    public string SetupToken { get; set; } = string.Empty;
 }

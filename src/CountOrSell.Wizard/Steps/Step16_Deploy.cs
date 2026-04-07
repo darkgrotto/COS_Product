@@ -611,6 +611,7 @@ public static class Step16_Deploy
             $"docker_image       = \"{dockerImage}\"",
             $"db_admin_username  = \"{config.DbAdminUsername}\"",
             $"db_admin_password  = \"{EscapeTfString(config.DbAdminPassword)}\"",
+            $"setup_token        = \"{config.SetupToken}\"",
         };
 
         switch (provider)
@@ -911,6 +912,7 @@ public static class Step16_Deploy
 
         var payload = System.Text.Json.JsonSerializer.Serialize(new
         {
+            setupToken = config.SetupToken,
             adminUsername = config.ProductAdminUsername,
             adminPassword = config.ProductAdminPassword,
             generalUserUsername = config.GeneralUserUsername,
