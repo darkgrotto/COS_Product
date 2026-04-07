@@ -72,10 +72,13 @@ if [ "${#NEW_PASSWORD}" -lt 15 ]; then
   exit 1
 fi
 
-# Enable pgcrypto and update the password hash using BCrypt (bf = Blowfish)
+# Ensure pgcrypto is available (NOTICE output discarded)
+docker exec "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -q -c \
+  "CREATE EXTENSION IF NOT EXISTS pgcrypto;" > /dev/null
+
+# Update the password hash using BCrypt (bf = Blowfish)
 RESULT=$(docker exec "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tA -c \
-  "CREATE EXTENSION IF NOT EXISTS pgcrypto;
-   UPDATE users
+  "UPDATE users
    SET password_hash = crypt('$NEW_PASSWORD', gen_salt('bf', 12)),
        updated_at    = now()
    WHERE username = '$USERNAME'
