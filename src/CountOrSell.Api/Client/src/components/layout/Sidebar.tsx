@@ -20,6 +20,7 @@ import {
   Star,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranding } from '@/contexts/BrandingContext'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -81,6 +82,7 @@ function NavItem({ item }: { item: NavItem }) {
 
 export function Sidebar() {
   const { user, logout } = useAuth()
+  const { instanceName } = useBranding()
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const isAdmin = user?.role === 'Admin'
@@ -93,7 +95,7 @@ export function Sidebar() {
     <>
       <aside className="w-56 shrink-0 border-r bg-background flex flex-col">
         <div className="p-4 border-b">
-          <span className="font-semibold text-sm tracking-tight">CountOrSell</span>
+          <span className="font-semibold text-sm tracking-tight">{instanceName}</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranding } from '@/contexts/BrandingContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 export function LoginPage() {
   const { login } = useAuth()
+  const { instanceName } = useBranding()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string })?.from ?? '/dashboard'
@@ -35,7 +37,7 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">CountOrSell</CardTitle>
+          <CardTitle className="text-2xl">{instanceName}</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>

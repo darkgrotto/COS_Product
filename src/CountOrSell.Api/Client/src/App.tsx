@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrandingProvider } from '@/contexts/BrandingContext'
 import { DemoProvider } from '@/contexts/DemoContext'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { PreferencesProvider } from '@/contexts/PreferencesContext'
@@ -24,6 +25,7 @@ import { SettingsPage } from '@/pages/admin/Settings'
 
 function App() {
   return (
+    <BrandingProvider>
     <DemoProvider>
       <AuthProvider>
         <PreferencesProvider>
@@ -62,6 +64,7 @@ function App() {
         </PreferencesProvider>
       </AuthProvider>
     </DemoProvider>
+    </BrandingProvider>
   )
 }
 
