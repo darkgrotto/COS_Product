@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { SetSymbol } from '@/components/ui/SetSymbol'
 import { usePreferences } from '@/contexts/PreferencesContext'
 import {
   Plus, Pencil, Trash2, ChevronUp, ChevronDown, X, ExternalLink,
@@ -841,7 +842,10 @@ function SetGroupedView({
                     onClick={() => onDrillIn(s.setCode.toLowerCase())}
                   >
                     <td className="px-4 py-2.5">
-                      <div className="font-medium">{s.setName}</div>
+                      <div className="flex items-center gap-2 font-medium">
+                        <SetSymbol setCode={s.setCode} className="text-base shrink-0" />
+                        {s.setName}
+                      </div>
                       <div className="text-xs text-muted-foreground font-mono">{s.setCode}</div>
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{s.ownedCount}</td>

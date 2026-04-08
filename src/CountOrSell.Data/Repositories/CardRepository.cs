@@ -98,4 +98,18 @@ public class CardRepository : ICardRepository
             .Where(c => c.FlavorText != null)
             .OrderBy(_ => EF.Functions.Random())
             .FirstOrDefaultAsync(ct);
+
+    public async Task<Dictionary<string, Dictionary<string, decimal?>>> GetPricesByIdentifiersAsync(
+        IEnumerable<string> identifiers, CancellationToken ct = default)
+    {
+        var ids = identifiers.ToList();
+        var prices = await _db.CardPrices
+            .Where(p => ids.Contains(p.CardIdentifier))
+            .ToListAsync(ct);
+        return prices
+            .GroupBy(p => p.CardIdentifier)
+            .ToDictionary(
+                g => g.Key,
+                g => g.ToDictionary(p => p.TreatmentKey, p => p.PriceUsd));
+    }
 }

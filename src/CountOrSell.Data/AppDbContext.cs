@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<Treatment> Treatments => Set<Treatment>();
     public DbSet<GradingAgency> GradingAgencies => Set<GradingAgency>();
     public DbSet<Card> Cards => Set<Card>();
+    public DbSet<CardPrice> CardPrices => Set<CardPrice>();
     public DbSet<Set> Sets => Set<Set>();
     public DbSet<SealedProduct> SealedProducts => Set<SealedProduct>();
     public DbSet<SealedProductCategory> SealedProductCategories => Set<SealedProductCategory>();
@@ -45,6 +46,7 @@ public class AppDbContext : DbContext
         ConfigureGradingAgencies(modelBuilder);
         ConfigureSets(modelBuilder);
         ConfigureCards(modelBuilder);
+        ConfigureCardPrices(modelBuilder);
         ConfigureSealedProductTaxonomy(modelBuilder);
         ConfigureSealedProducts(modelBuilder);
         ConfigureCollectionEntries(modelBuilder);
@@ -237,6 +239,22 @@ public class AppDbContext : DbContext
             e.Property(c => c.FlavorText).HasColumnName("flavor_text").HasMaxLength(1000);
             e.HasOne<Set>().WithMany().HasForeignKey(c => c.SetCode);
             e.HasIndex(c => c.SetCode);
+        });
+    }
+
+    private static void ConfigureCardPrices(ModelBuilder b)
+    {
+        b.Entity<CardPrice>(e =>
+        {
+            e.ToTable("card_prices");
+            e.HasKey(p => new { p.CardIdentifier, p.TreatmentKey });
+            e.Property(p => p.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(9);
+            e.Property(p => p.TreatmentKey).HasColumnName("treatment_key").HasMaxLength(50);
+            e.Property(p => p.PriceUsd).HasColumnName("price_usd").HasPrecision(10, 2);
+            e.Property(p => p.CapturedAt).HasColumnName("captured_at").IsRequired();
+            e.HasOne<Card>().WithMany().HasForeignKey(p => p.CardIdentifier);
+            e.HasOne<Treatment>().WithMany().HasForeignKey(p => p.TreatmentKey);
+            e.HasIndex(p => p.CardIdentifier);
         });
     }
 

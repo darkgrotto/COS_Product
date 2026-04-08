@@ -25,6 +25,8 @@ export interface AddableCard {
   identifier: string
   name: string
   currentMarketValue: number | null
+  // Per-treatment prices from pricing.json; optional - falls back to currentMarketValue.
+  prices?: Record<string, number | null>
 }
 
 // ---- Shared constants -------------------------------------------------------
@@ -272,19 +274,20 @@ export function QuickAddDialog({
 }) {
   const sorted = sortTreatments(treatments)
   const defaultTreatment = sorted[0]?.key ?? 'regular'
+  const defaultPrice = (card.prices?.[defaultTreatment] ?? card.currentMarketValue)
   const [form, setForm] = useState<AddForm>({
     treatment: defaultTreatment,
     quantity: 1,
     condition: 'NM',
     autographed: false,
     acquisitionDate: today(),
-    acquisitionPrice: card.currentMarketValue != null
-      ? card.currentMarketValue.toFixed(2)
-      : '',
+    acquisitionPrice: defaultPrice != null ? defaultPrice.toFixed(2) : '',
     notes: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Track whether the user has manually edited the price so we don't overwrite it on treatment change.
+  const [priceManuallyEdited, setPriceManuallyEdited] = useState(false)
 
   async function handleSave() {
     const price = parseFloat(form.acquisitionPrice)
@@ -334,7 +337,16 @@ export function QuickAddDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Treatment</Label>
-              <Select value={form.treatment} onValueChange={v => setForm(f => ({ ...f, treatment: v }))}>
+              <Select
+                value={form.treatment}
+                onValueChange={v => {
+                  setForm(f => {
+                    if (priceManuallyEdited) return { ...f, treatment: v }
+                    const p = card.prices?.[v] ?? card.currentMarketValue
+                    return { ...f, treatment: v, acquisitionPrice: p != null ? p.toFixed(2) : '' }
+                  })
+                }}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {sorted.map(t => (
@@ -392,7 +404,10 @@ export function QuickAddDialog({
               <Input
                 type="number" min={0} step="0.01" placeholder="0.00"
                 value={form.acquisitionPrice}
-                onChange={e => setForm(f => ({ ...f, acquisitionPrice: e.target.value }))}
+                onChange={e => {
+                  setPriceManuallyEdited(true)
+                  setForm(f => ({ ...f, acquisitionPrice: e.target.value }))
+                }}
               />
             </div>
           </div>

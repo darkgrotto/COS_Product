@@ -44,6 +44,8 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
     public async Task<UpdateCheckResult> RunUpdateCheckAsync(CancellationToken ct)
     {
+        UpdateCheckResult? result = null;
+        IUpdateRepository? updateRepo = null;
         try
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
@@ -52,19 +54,20 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             var verifier = scope.ServiceProvider.GetRequiredService<IPackageVerifier>();
             var applicator = scope.ServiceProvider.GetRequiredService<IContentUpdateApplicator>();
             var notificationService = scope.ServiceProvider.GetRequiredService<IAdminNotificationService>();
-            var updateRepo = scope.ServiceProvider.GetRequiredService<IUpdateRepository>();
-
-            // Record that a check ran, regardless of outcome.
-            await updateRepo.SetLastUpdateCheckedAtAsync(DateTime.UtcNow, ct);
+            updateRepo = scope.ServiceProvider.GetRequiredService<IUpdateRepository>();
 
             var manifest = await manifestClient.FetchManifestAsync(ct);
             if (manifest == null)
-                return new UpdateCheckResult(false, "Could not reach update server. Check network connectivity.");
+            {
+                result = new UpdateCheckResult(false, "Could not reach update server. Check network connectivity.");
+                return result;
+            }
 
             if (manifest.Packages.Count == 0)
             {
                 _logger.LogInformation("No update packages available in manifest");
-                return new UpdateCheckResult(false, "No update packages are available at this time.");
+                result = new UpdateCheckResult(false, "No update packages are available at this time.");
+                return result;
             }
 
             // Prefer the most recent package - last entry in the list
@@ -75,21 +78,24 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             if (packageManifest == null)
             {
                 _logger.LogWarning("Could not fetch per-package manifest from {Url}", packageRef.ManifestUrl);
-                return new UpdateCheckResult(false, "Found a package but could not fetch its manifest.");
+                result = new UpdateCheckResult(false, "Found a package but could not fetch its manifest.");
+                return result;
             }
 
             // Check current content version against what the package provides
             if (!packageManifest.ContentVersions.TryGetValue("cards", out var cardsVersion))
             {
                 _logger.LogWarning("Package manifest missing cards content version");
-                return new UpdateCheckResult(false, "Package manifest is missing content version information.");
+                result = new UpdateCheckResult(false, "Package manifest is missing content version information.");
+                return result;
             }
 
             var currentContentVersion = await updateRepo.GetCurrentContentVersionAsync(ct);
             if (currentContentVersion == cardsVersion.Version)
             {
                 _logger.LogInformation("Content already up to date at version {Version}", currentContentVersion);
-                return new UpdateCheckResult(false, $"Content is already up to date (version {currentContentVersion}).");
+                result = new UpdateCheckResult(false, $"Content is already up to date (version {currentContentVersion}).");
+                return result;
             }
 
             // Download the package ZIP
@@ -98,13 +104,23 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             // Apply the content update - the applicator verifies per-file checksums internally
             await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, ct);
 
-            return new UpdateCheckResult(true,
-                $"Content updated to version {cardsVersion.Version}.");
+            result = new UpdateCheckResult(true, $"Content updated to version {cardsVersion.Version}.");
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Update check failed");
-            return new UpdateCheckResult(false, "Update check encountered an error. Check the application logs.");
+            result = new UpdateCheckResult(false, "Update check encountered an error. Check the application logs.");
+            return result;
+        }
+        finally
+        {
+            // Record the check time after the check completes, regardless of outcome.
+            if (updateRepo != null)
+            {
+                try { await updateRepo.SetLastUpdateCheckedAtAsync(DateTime.UtcNow, ct); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to record last update check time"); }
+            }
         }
     }
 

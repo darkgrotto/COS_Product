@@ -35,6 +35,9 @@ public class WishlistController : ControllerBase
             r.Entry.Id,
             CardIdentifier = r.Entry.CardIdentifier.ToUpperInvariant(),
             CardName = r.Card?.Name,
+            SetCode = r.Card?.SetCode?.ToUpperInvariant(),
+            Color = r.Card?.Color,
+            CardType = r.Card?.CardType,
             MarketValue = r.Card?.CurrentMarketValue ?? 0,
             r.Entry.CreatedAt
         }).ToList();

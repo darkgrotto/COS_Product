@@ -71,9 +71,10 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         var taxonomy = ReadAndVerifyJson<TaxonomyDto>(
             archive, "metadata/taxonomy.json", packageManifest.Checksums);
 
-        // Collect all sets and cards across per-set directories
+        // Collect all sets, cards, pricing, and sealed products across per-set directories
         var allSets = new List<SetDto>();
         var allCards = new List<CardDto>();
+        var allPricing = new List<PricingEntryDto>();
         var allSealedProducts = new List<SealedProductDto>();
 
         foreach (var entry in archive.Entries)
@@ -94,6 +95,12 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                         archive, entry.FullName, packageManifest.Checksums);
                     if (cards != null) allCards.AddRange(cards);
                 }
+                else if (entry.Name.Equals("pricing.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var pricing = ReadAndVerifyJson<List<PricingEntryDto>>(
+                        archive, entry.FullName, packageManifest.Checksums);
+                    if (pricing != null) allPricing.AddRange(pricing);
+                }
             }
             else if (entry.FullName.StartsWith("metadata/sealed/", StringComparison.OrdinalIgnoreCase)
                      && entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
@@ -110,6 +117,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             if (treatments != null) await UpsertTreatmentsAsync(treatments, ct);
             if (allSets.Count > 0) await UpsertSetsAsync(allSets, ct);
             if (allCards.Count > 0) await UpsertCardsAsync(allCards, ct);
+            if (allPricing.Count > 0) await UpsertCardPricesAsync(allPricing, ct);
 
             // Taxonomy replace must happen before sealed products (FK dependency)
             if (taxonomy != null)
@@ -249,6 +257,36 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.IsReserved = dto.IsReserved;
                 entity.OracleRulingUrl = dto.OracleRulingUri;
                 entity.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task UpsertCardPricesAsync(List<PricingEntryDto> dtos, CancellationToken ct)
+    {
+        var identifiers = dtos.Select(d => d.CardIdentifier).Distinct().ToList();
+        var existing = await _db.CardPrices
+            .Where(p => identifiers.Contains(p.CardIdentifier))
+            .ToListAsync(ct);
+        var existingMap = existing.ToDictionary(p => (p.CardIdentifier, p.TreatmentKey));
+
+        foreach (var dto in dtos)
+        {
+            var key = (dto.CardIdentifier, dto.TreatmentKey);
+            if (existingMap.TryGetValue(key, out var entity))
+            {
+                entity.PriceUsd = dto.PriceUsd;
+                entity.CapturedAt = dto.CapturedAt;
+            }
+            else
+            {
+                _db.CardPrices.Add(new CardPrice
+                {
+                    CardIdentifier = dto.CardIdentifier,
+                    TreatmentKey = dto.TreatmentKey,
+                    PriceUsd = dto.PriceUsd,
+                    CapturedAt = dto.CapturedAt
+                });
             }
         }
         await _db.SaveChangesAsync(ct);

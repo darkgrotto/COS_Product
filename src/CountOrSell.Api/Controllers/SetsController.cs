@@ -45,18 +45,28 @@ public class SetsController : ControllerBase
         var cards = await _db.Cards
             .Where(c => c.SetCode == code)
             .OrderBy(c => c.Identifier)
-            .Select(c => new
-            {
-                Identifier = c.Identifier.ToUpperInvariant(),
-                c.Name,
-                c.Color,
-                c.CardType,
-                c.Rarity,
-                c.CurrentMarketValue,
-                c.IsReserved,
-            })
             .ToListAsync(ct);
 
-        return Ok(cards);
+        var cardIds = cards.Select(c => c.Identifier).ToList();
+        var rawPrices = await _db.CardPrices
+            .Where(p => cardIds.Contains(p.CardIdentifier))
+            .ToListAsync(ct);
+        var pricesByCard = rawPrices
+            .GroupBy(p => p.CardIdentifier)
+            .ToDictionary(g => g.Key, g => g.ToDictionary(p => p.TreatmentKey, p => p.PriceUsd));
+
+        return Ok(cards.Select(c => new
+        {
+            Identifier = c.Identifier.ToUpperInvariant(),
+            c.Name,
+            c.Color,
+            c.CardType,
+            c.Rarity,
+            c.CurrentMarketValue,
+            c.IsReserved,
+            Prices = pricesByCard.TryGetValue(c.Identifier, out var p)
+                ? p
+                : new Dictionary<string, decimal?>(),
+        }));
     }
 }

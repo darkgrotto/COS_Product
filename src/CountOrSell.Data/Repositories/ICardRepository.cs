@@ -14,4 +14,5 @@ public interface ICardRepository
     Task<Dictionary<string, decimal?>> GetMarketValuesByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
     Task<Dictionary<string, (string Name, decimal? MarketValue, string SetCode)>> GetSummaryByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
     Task<Card?> GetRandomWithFlavorTextAsync(CancellationToken ct = default);
+    Task<Dictionary<string, Dictionary<string, decimal?>>> GetPricesByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
 }
