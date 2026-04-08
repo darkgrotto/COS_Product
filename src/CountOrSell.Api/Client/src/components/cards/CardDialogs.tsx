@@ -133,6 +133,7 @@ interface CardDetail {
   name: string
   color: string | null
   cardType: string | null
+  rarity: string | null
   oracleRulingUrl: string | null
   flavorText: string | null
   currentMarketValue: number | null
@@ -207,6 +208,12 @@ export function CardDetailDialog({
                   <div>
                     <p className="text-xs text-muted-foreground">Type</p>
                     <p className="text-xs leading-snug">{card.cardType}</p>
+                  </div>
+                )}
+                {card.rarity && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Rarity</p>
+                    <p className="text-xs capitalize">{card.rarity}</p>
                   </div>
                 )}
                 <div>

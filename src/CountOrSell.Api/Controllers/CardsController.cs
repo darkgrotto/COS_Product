@@ -58,6 +58,7 @@ public class CardsController : ControllerBase
             card.Name,
             card.Color,
             card.CardType,
+            card.Rarity,
             card.OracleRulingUrl,
             card.FlavorText,
             card.CurrentMarketValue,
