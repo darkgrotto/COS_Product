@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, Plus, Search, Star } from 'lucide-react'
+import { ChevronLeft, ChevronUp, ChevronDown, ChevronsUpDown, Plus, Search, Star, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,6 +26,19 @@ interface BrowseCard {
   color: string | null
   cardType: string | null
   currentMarketValue: number | null
+  isReserved: boolean
+}
+
+interface CardDetail {
+  identifier: string
+  setCode: string
+  name: string
+  color: string | null
+  cardType: string | null
+  oracleRulingUrl: string | null
+  flavorText: string | null
+  currentMarketValue: number | null
+  updatedAt: string
   isReserved: boolean
 }
 
@@ -62,6 +75,182 @@ function fmt(v: number | null | undefined) {
   return `$${v.toFixed(2)}`
 }
 
+// Regular first, Foil second, then alphabetical.
+function sortTreatments(ts: Treatment[]): Treatment[] {
+  return [...ts].sort((a, b) => {
+    if (a.key === 'regular') return -1
+    if (b.key === 'regular') return 1
+    if (a.key === 'foil') return -1
+    if (b.key === 'foil') return 1
+    return a.displayName.localeCompare(b.displayName)
+  })
+}
+
+// ---- Filter chip ------------------------------------------------------------
+
+function ToggleChip({
+  active, onClick, children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+        active
+          ? 'bg-primary text-primary-foreground border-primary'
+          : 'bg-background text-muted-foreground border-border hover:bg-accent'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ---- Sort header ------------------------------------------------------------
+
+type SortDir = 'asc' | 'desc'
+
+function SortTh({
+  label, sortKey, current, dir, onSort, className,
+}: {
+  label: string
+  sortKey: string
+  current: string
+  dir: SortDir
+  onSort: (key: string) => void
+  className?: string
+}) {
+  const active = current === sortKey
+  return (
+    <th
+      className={`px-3 py-2 cursor-pointer select-none hover:bg-muted/70 transition-colors ${className ?? ''}`}
+      onClick={() => onSort(sortKey)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {active
+          ? dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+          : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
+      </span>
+    </th>
+  )
+}
+
+// ---- Card detail dialog -----------------------------------------------------
+
+function CardDetailDialog({
+  identifier,
+  onClose,
+  onAdd,
+}: {
+  identifier: string
+  onClose: () => void
+  onAdd: () => void
+}) {
+  const [card, setCard] = useState<CardDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/cards/${identifier.toLowerCase()}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setCard(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [identifier])
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {loading ? 'Loading...' : card?.name ?? identifier}
+            {card?.isReserved && (
+              <span title="Reserved List" className="inline-flex">
+                <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground py-4">Loading card details...</p>
+        ) : !card ? (
+          <p className="text-sm text-muted-foreground py-4">Card details not available.</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex gap-4">
+              <img
+                src={`/api/images/cards/${card.identifier.toLowerCase()}.jpg`}
+                alt={card.name}
+                className="h-32 w-24 rounded object-cover bg-muted shrink-0"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+              <div className="space-y-1.5 text-sm min-w-0">
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Identifier</p>
+                    <p className="font-mono font-medium">{card.identifier}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Set</p>
+                    <p className="font-mono font-medium">{card.setCode.toUpperCase()}</p>
+                  </div>
+                </div>
+                {card.color && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Color</p>
+                    <p className="font-mono">{card.color}</p>
+                  </div>
+                )}
+                {card.cardType && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Type</p>
+                    <p className="text-xs leading-snug">{card.cardType}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-muted-foreground">Market Value</p>
+                  <p className="font-medium">{fmt(card.currentMarketValue)}</p>
+                </div>
+              </div>
+            </div>
+
+            {card.flavorText && (
+              <div className="border-t pt-3">
+                <p className="text-xs text-muted-foreground mb-1">Flavor Text</p>
+                <p className="text-sm italic text-muted-foreground leading-relaxed">{card.flavorText}</p>
+              </div>
+            )}
+
+            {card.oracleRulingUrl && (
+              <div className={card.flavorText ? '' : 'border-t pt-3'}>
+                <a
+                  href={card.oracleRulingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  Oracle Rulings <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={() => { onClose(); onAdd() }}>
+            <Plus className="h-4 w-4 mr-1" /> Add to Collection
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ---- Quick-add dialog -------------------------------------------------------
 
 interface AddForm {
@@ -85,9 +274,10 @@ function QuickAddDialog({
   onClose: () => void
   onAdded: () => void
 }) {
-  const regularTreatment = treatments.find(t => t.key === 'regular') ?? treatments[0]
+  const sorted = sortTreatments(treatments)
+  const defaultTreatment = sorted[0]?.key ?? 'regular'
   const [form, setForm] = useState<AddForm>({
-    treatment: regularTreatment?.key ?? 'regular',
+    treatment: defaultTreatment,
     quantity: 1,
     condition: 'NM',
     autographed: false,
@@ -151,7 +341,7 @@ function QuickAddDialog({
               <Select value={form.treatment} onValueChange={v => setForm(f => ({ ...f, treatment: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {treatments.map(t => (
+                  {sorted.map(t => (
                     <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
                   ))}
                 </SelectContent>
@@ -179,8 +369,8 @@ function QuickAddDialog({
                 onChange={e => setForm(f => ({ ...f, quantity: parseInt(e.target.value) || 1 }))}
               />
             </div>
-            <div className="flex items-end gap-2">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-end pb-1">
+              <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   id="browse-aut"
@@ -233,30 +423,6 @@ function QuickAddDialog({
   )
 }
 
-// ---- Filter bar helpers -----------------------------------------------------
-
-function ToggleChip({
-  active, onClick, children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
-        active
-          ? 'bg-primary text-primary-foreground border-primary'
-          : 'bg-background text-muted-foreground border-border hover:bg-accent'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
 // ---- Set list view ----------------------------------------------------------
 
 function SetListView({
@@ -267,13 +433,28 @@ function SetListView({
   onSelectSet: (s: BrowseSet) => void
 }) {
   const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
-  const filtered = search.trim()
+  function handleSort(key: string) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const filtered = (search.trim()
     ? sets.filter(s =>
         s.code.toLowerCase().includes(search.toLowerCase()) ||
         s.name.toLowerCase().includes(search.toLowerCase())
       )
     : sets
+  ).slice().sort((a, b) => {
+    let cmp = 0
+    if (sortKey === 'code') cmp = a.code.localeCompare(b.code)
+    else if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
+    else if (sortKey === 'totalCards') cmp = (a.totalCards ?? 0) - (b.totalCards ?? 0)
+    else if (sortKey === 'releaseDate') cmp = (a.releaseDate ?? '').localeCompare(b.releaseDate ?? '')
+    return sortDir === 'asc' ? cmp : -cmp
+  })
 
   return (
     <div className="space-y-3">
@@ -291,10 +472,10 @@ function SetListView({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground">
-              <th className="px-4 py-2 text-left">Code</th>
-              <th className="px-4 py-2 text-left">Name</th>
-              <th className="px-4 py-2 text-right">Cards</th>
-              <th className="px-4 py-2 text-right">Released</th>
+              <SortTh label="Code" sortKey="code" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+              <SortTh label="Name" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+              <SortTh label="Cards" sortKey="totalCards" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+              <SortTh label="Released" sortKey="releaseDate" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
             </tr>
           </thead>
           <tbody>
@@ -343,8 +524,12 @@ function CardListView({
   const [search, setSearch] = useState('')
   const [colorFilter, setColorFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [rlFilter, setRlFilter] = useState(false)
   const [addCard, setAddCard] = useState<BrowseCard | null>(null)
+  const [detailCard, setDetailCard] = useState<BrowseCard | null>(null)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
+  const [sortKey, setSortKey] = useState('card')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const loadCards = useCallback(async () => {
     setLoading(true)
@@ -358,22 +543,36 @@ function CardListView({
 
   useEffect(() => { loadCards() }, [loadCards])
 
-  const filtered = cards.filter(c => {
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      if (!c.identifier.toLowerCase().includes(q) && !c.name.toLowerCase().includes(q))
-        return false
-    }
-    if (colorFilter && !(c.color ?? '').includes(colorFilter)) return false
-    if (typeFilter && !(c.cardType ?? '').includes(typeFilter)) return false
-    return true
-  })
+  function handleSort(key: string) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
 
-  // Available colors in this set
+  const filtered = cards
+    .filter(c => {
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        if (!c.identifier.toLowerCase().includes(q) && !c.name.toLowerCase().includes(q))
+          return false
+      }
+      if (colorFilter && !(c.color ?? '').includes(colorFilter)) return false
+      if (typeFilter && !(c.cardType ?? '').includes(typeFilter)) return false
+      if (rlFilter && !c.isReserved) return false
+      return true
+    })
+    .slice()
+    .sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'card') cmp = a.name.localeCompare(b.name) || a.identifier.localeCompare(b.identifier)
+      else if (sortKey === 'color') cmp = (a.color ?? '').localeCompare(b.color ?? '')
+      else if (sortKey === 'type') cmp = (a.cardType ?? '').localeCompare(b.cardType ?? '')
+      else if (sortKey === 'market') cmp = (a.currentMarketValue ?? -1) - (b.currentMarketValue ?? -1)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
   const setColors = new Set(cards.flatMap(c => c.color ? c.color.split('') : []))
   const visibleColors = COLORS.filter(col => setColors.has(col.key))
 
-  // Available types in this set
   const setTypes = new Set(
     cards.flatMap(c => {
       if (!c.cardType) return []
@@ -381,6 +580,7 @@ function CardListView({
     })
   )
   const visibleTypes = CARD_TYPES.filter(t => setTypes.has(t))
+  const hasReserved = cards.some(c => c.isReserved)
 
   function handleAdded() {
     if (addCard) setAddedIds(prev => new Set(prev).add(addCard.identifier))
@@ -388,7 +588,6 @@ function CardListView({
 
   return (
     <div className="space-y-3">
-      {/* Breadcrumb + back */}
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -403,7 +602,6 @@ function CardListView({
         <span className="text-xs text-muted-foreground ml-1">({set.code})</span>
       </div>
 
-      {/* Filters */}
       <div className="space-y-2">
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -444,6 +642,17 @@ function CardListView({
             ))}
           </div>
         )}
+
+        {hasReserved && (
+          <div className="flex gap-1.5 items-center">
+            <span className="text-xs text-muted-foreground">Show:</span>
+            <ToggleChip active={rlFilter} onClick={() => setRlFilter(v => !v)}>
+              <span className="inline-flex items-center gap-1">
+                <Star className="h-3 w-3" /> Reserved List
+              </span>
+            </ToggleChip>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -453,11 +662,11 @@ function CardListView({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground">
-                <th className="px-3 py-2 text-left w-10"></th>
-                <th className="px-3 py-2 text-left">Card</th>
-                <th className="px-3 py-2 text-left">Color</th>
-                <th className="px-3 py-2 text-left">Type</th>
-                <th className="px-3 py-2 text-right">Market</th>
+                <th className="px-3 py-2 w-10"></th>
+                <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="Color" sortKey="color" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="Type" sortKey="type" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="Market" sortKey="market" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
                 <th className="px-3 py-2 text-right"></th>
               </tr>
             </thead>
@@ -472,7 +681,14 @@ function CardListView({
                 filtered.map(c => {
                   const owned = addedIds.has(c.identifier)
                   return (
-                    <tr key={c.identifier} className="border-b last:border-0 hover:bg-muted/20">
+                    <tr
+                      key={c.identifier}
+                      className="border-b last:border-0 hover:bg-muted/20 cursor-pointer"
+                      onClick={e => {
+                        if ((e.target as HTMLElement).closest('button')) return
+                        setDetailCard(c)
+                      }}
+                    >
                       <td className="px-3 py-2">
                         <img
                           src={`/api/images/cards/${c.identifier.toLowerCase()}.jpg`}
@@ -523,6 +739,14 @@ function CardListView({
         </div>
       )}
 
+      {detailCard && (
+        <CardDetailDialog
+          identifier={detailCard.identifier}
+          onClose={() => setDetailCard(null)}
+          onAdd={() => setAddCard(detailCard)}
+        />
+      )}
+
       {addCard && (
         <QuickAddDialog
           card={addCard}
@@ -549,7 +773,7 @@ export function BrowsePage() {
       fetch('/api/treatments').then(r => r.ok ? r.json() : []),
     ]).then(([s, t]) => {
       setSets(s)
-      setTreatments(t)
+      setTreatments(sortTreatments(t))
       setLoading(false)
     })
   }, [])

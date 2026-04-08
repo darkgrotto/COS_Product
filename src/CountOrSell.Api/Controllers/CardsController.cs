@@ -1,7 +1,10 @@
+using System.Security.Claims;
+using CountOrSell.Data;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CountOrSell.Api.Controllers;
 
@@ -12,11 +15,16 @@ public class CardsController : ControllerBase
 {
     private readonly ICardRepository _cards;
     private readonly ITcgPlayerService _tcgPlayer;
+    private readonly AppDbContext _db;
 
-    public CardsController(ICardRepository cards, ITcgPlayerService tcgPlayer)
+    private Guid CurrentUserId =>
+        Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    public CardsController(ICardRepository cards, ITcgPlayerService tcgPlayer, AppDbContext db)
     {
         _cards = cards;
         _tcgPlayer = tcgPlayer;
+        _db = db;
     }
 
     // GET /api/cards/random-flavor
@@ -89,6 +97,48 @@ public class CardsController : ControllerBase
             card.CurrentMarketValue,
             card.UpdatedAt
         });
+    }
+
+    // GET /api/cards/reserved-list
+    // Returns all Reserved List cards with the current user's owned quantity (0 if not owned).
+    [HttpGet("reserved-list")]
+    public async Task<IActionResult> GetReservedList(CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+
+        var reservedCards = await _db.Cards
+            .Where(c => c.IsReserved)
+            .OrderBy(c => c.Name)
+            .ThenBy(c => c.SetCode)
+            .Select(c => new
+            {
+                Identifier = c.Identifier.ToUpperInvariant(),
+                c.SetCode,
+                c.Name,
+                c.CardType,
+                c.Color,
+                c.CurrentMarketValue,
+            })
+            .ToListAsync(ct);
+
+        var identifiers = reservedCards.Select(c => c.Identifier.ToLowerInvariant()).ToList();
+
+        var owned = await _db.CollectionEntries
+            .Where(e => e.UserId == userId && identifiers.Contains(e.CardIdentifier))
+            .GroupBy(e => e.CardIdentifier)
+            .Select(g => new { Identifier = g.Key, Total = g.Sum(e => e.Quantity) })
+            .ToDictionaryAsync(x => x.Identifier, x => x.Total, ct);
+
+        return Ok(reservedCards.Select(c => new
+        {
+            c.Identifier,
+            c.SetCode,
+            c.Name,
+            c.CardType,
+            c.Color,
+            c.CurrentMarketValue,
+            OwnedQuantity = owned.TryGetValue(c.Identifier.ToLowerInvariant(), out var qty) ? qty : 0,
+        }));
     }
 
     // GET /api/cards/reserved-identifiers

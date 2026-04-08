@@ -43,11 +43,11 @@ const generalUserNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/browse', label: 'Browse', icon: BookOpen },
   { to: '/collection', label: 'Collection', icon: Library },
-  { to: '/serialized', label: 'Serialized', icon: Hash },
-  { to: '/slabs', label: 'Slabs', icon: Award },
-  { to: '/sealed', label: 'Sealed Product', icon: Package },
-  { to: '/wishlist', label: 'Wishlist', icon: Heart },
   { to: '/reserved', label: 'Reserved List', icon: Star },
+  { to: '/wishlist', label: 'Wishlist', icon: Heart },
+  { to: '/sealed', label: 'Sealed Product', icon: Package },
+  { to: '/slabs', label: 'Slabs', icon: Award },
+  { to: '/serialized', label: 'Serialized', icon: Hash },
   { to: '/metrics', label: 'Metrics', icon: BarChart2 },
 ]
 

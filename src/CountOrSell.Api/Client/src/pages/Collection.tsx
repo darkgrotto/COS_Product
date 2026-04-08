@@ -74,6 +74,17 @@ interface Filters {
   isReserved: boolean
 }
 
+// Regular first, Foil second, then alphabetical by display name.
+function sortTreatments<T extends { key: string; displayName: string }>(ts: T[]): T[] {
+  return [...ts].sort((a, b) => {
+    if (a.key === 'regular') return -1
+    if (b.key === 'regular') return 1
+    if (a.key === 'foil') return -1
+    if (b.key === 'foil') return 1
+    return a.displayName.localeCompare(b.displayName)
+  })
+}
+
 const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'DMG'] as const
 const CONDITION_LABELS: Record<string, string> = {
   NM: 'Near Mint', LP: 'Lightly Played', MP: 'Moderately Played',
@@ -315,9 +326,9 @@ function EntryDialog({
               <div className="grid gap-1.5">
                 <Label>Set <span className="text-muted-foreground font-normal">(optional - narrows search)</span></Label>
                 <Select
-                  value={selectedSet}
+                  value={selectedSet || '__all__'}
                   onValueChange={v => {
-                    setSelectedSet(v)
+                    setSelectedSet(v === '__all__' ? '' : v)
                     setForm(f => ({ ...f, cardIdentifier: '', cardName: '' }))
                     setSetSearch('')
                   }}
@@ -335,10 +346,10 @@ function EntryDialog({
                         onKeyDown={e => e.stopPropagation()}
                       />
                     </div>
-                    <SelectItem value="">All sets</SelectItem>
+                    <SelectItem value="__all__">All sets</SelectItem>
                     {filteredSets.map(s => (
                       <SelectItem key={s.code} value={s.code}>
-                        {s.name} <span className="text-muted-foreground">({s.code.toUpperCase()})</span>
+                        {s.name} ({s.code.toUpperCase()})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1060,7 +1071,7 @@ export function CollectionPage() {
       fetch('/api/treatments').then(r => r.ok ? r.json() : []),
       fetch('/api/sets').then(r => r.ok ? r.json() : []),
     ]).then(([t, s]) => {
-      setTreatments(t)
+      setTreatments(sortTreatments(t))
       setSets(s)
     })
   }, [])
