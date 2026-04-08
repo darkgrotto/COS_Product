@@ -13,12 +13,31 @@ public class CardDto
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
+    [JsonPropertyName("mana_cost")]
+    public string? ManaCost { get; set; }
+
+    [JsonPropertyName("cmc")]
+    public decimal? Cmc { get; set; }
+
     // Array of color symbols e.g. ["W", "U"]. Stored as comma-joined string.
     [JsonPropertyName("colors")]
     public List<string> Colors { get; set; } = new();
 
+    // Array of color identity symbols. Stored as comma-joined string.
+    [JsonPropertyName("color_identity")]
+    public List<string> ColorIdentity { get; set; } = new();
+
+    [JsonPropertyName("keywords")]
+    public List<string> Keywords { get; set; } = new();
+
     [JsonPropertyName("type_line")]
     public string? TypeLine { get; set; }
+
+    [JsonPropertyName("oracle_text")]
+    public string? OracleText { get; set; }
+
+    [JsonPropertyName("layout")]
+    public string? Layout { get; set; }
 
     [JsonPropertyName("rarity")]
     public string? Rarity { get; set; }

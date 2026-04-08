@@ -236,8 +236,14 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 Identifier = d.Identifier,
                 SetCode = d.SetCode,
                 Name = d.Name,
+                ManaCost = d.ManaCost,
+                Cmc = d.Cmc,
                 Color = d.Colors.Count > 0 ? string.Join(",", d.Colors) : null,
+                ColorIdentity = d.ColorIdentity.Count > 0 ? string.Join(",", d.ColorIdentity) : null,
+                Keywords = d.Keywords.Count > 0 ? string.Join(",", d.Keywords) : null,
                 CardType = d.TypeLine,
+                OracleText = d.OracleText,
+                Layout = d.Layout,
                 Rarity = d.Rarity,
                 IsReserved = d.IsReserved,
                 OracleRulingUrl = d.OracleRulingUri,
@@ -251,8 +257,14 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             {
                 entity.SetCode = dto.SetCode;
                 entity.Name = dto.Name;
+                entity.ManaCost = dto.ManaCost;
+                entity.Cmc = dto.Cmc;
                 entity.Color = dto.Colors.Count > 0 ? string.Join(",", dto.Colors) : null;
+                entity.ColorIdentity = dto.ColorIdentity.Count > 0 ? string.Join(",", dto.ColorIdentity) : null;
+                entity.Keywords = dto.Keywords.Count > 0 ? string.Join(",", dto.Keywords) : null;
                 entity.CardType = dto.TypeLine;
+                entity.OracleText = dto.OracleText;
+                entity.Layout = dto.Layout;
                 entity.Rarity = dto.Rarity;
                 entity.IsReserved = dto.IsReserved;
                 entity.OracleRulingUrl = dto.OracleRulingUri;

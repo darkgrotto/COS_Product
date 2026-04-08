@@ -131,8 +131,14 @@ interface CardDetail {
   identifier: string
   setCode: string
   name: string
+  manaCost: string | null
+  cmc: number | null
   color: string | null
+  colorIdentity: string | null
+  keywords: string | null
   cardType: string | null
+  oracleText: string | null
+  layout: string | null
   rarity: string | null
   oracleRulingUrl: string | null
   flavorText: string | null
@@ -198,10 +204,10 @@ export function CardDetailDialog({
                     <p className="font-mono font-medium">{card.setCode.toUpperCase()}</p>
                   </div>
                 </div>
-                {card.color && (
+                {card.manaCost && (
                   <div>
-                    <p className="text-xs text-muted-foreground">Color</p>
-                    <p className="font-mono">{card.color}</p>
+                    <p className="text-xs text-muted-foreground">Mana Cost</p>
+                    <p className="font-mono text-xs">{card.manaCost}</p>
                   </div>
                 )}
                 {card.cardType && (
@@ -216,6 +222,24 @@ export function CardDetailDialog({
                     <p className="text-xs capitalize">{card.rarity}</p>
                   </div>
                 )}
+                {card.color && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Color</p>
+                    <p className="font-mono text-xs">{card.color}</p>
+                  </div>
+                )}
+                {card.colorIdentity && card.colorIdentity !== card.color && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Color Identity</p>
+                    <p className="font-mono text-xs">{card.colorIdentity}</p>
+                  </div>
+                )}
+                {card.keywords && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Keywords</p>
+                    <p className="text-xs">{card.keywords.split(',').join(', ')}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-muted-foreground">Market Value</p>
                   <p className="font-medium">{fmt(card.currentMarketValue)}</p>
@@ -223,15 +247,22 @@ export function CardDetailDialog({
               </div>
             </div>
 
-            {card.flavorText && (
+            {card.oracleText && (
               <div className="border-t pt-3">
+                <p className="text-xs text-muted-foreground mb-1">Rules Text</p>
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{card.oracleText}</p>
+              </div>
+            )}
+
+            {card.flavorText && (
+              <div className={card.oracleText ? 'pt-2' : 'border-t pt-3'}>
                 <p className="text-xs text-muted-foreground mb-1">Flavor Text</p>
                 <p className="text-sm italic text-muted-foreground leading-relaxed">{card.flavorText}</p>
               </div>
             )}
 
             {card.oracleRulingUrl && (
-              <div className={card.flavorText ? '' : 'border-t pt-3'}>
+              <div className={card.oracleText || card.flavorText ? '' : 'border-t pt-3'}>
                 <a
                   href={card.oracleRulingUrl}
                   target="_blank"
