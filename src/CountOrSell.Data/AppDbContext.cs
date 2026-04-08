@@ -149,6 +149,7 @@ public class AppDbContext : DbContext
             e.Property(s => s.Code).HasColumnName("code").HasMaxLength(4);
             e.Property(s => s.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
             e.Property(s => s.TotalCards).HasColumnName("total_cards").IsRequired();
+            e.Property(s => s.SetType).HasColumnName("set_type").HasMaxLength(50);
             e.Property(s => s.ReleaseDate).HasColumnName("release_date");
             e.Property(s => s.Digital).HasColumnName("digital").HasDefaultValue(false).IsRequired();
             e.Property(s => s.UpdatedAt).HasColumnName("updated_at").IsRequired();
@@ -232,6 +233,7 @@ public class AppDbContext : DbContext
                 .HasPrecision(10, 2);
             e.Property(c => c.UpdatedAt).HasColumnName("updated_at").IsRequired();
             e.Property(c => c.IsReserved).HasColumnName("is_reserved").HasDefaultValue(false);
+            e.Property(c => c.Rarity).HasColumnName("rarity").HasMaxLength(20);
             e.Property(c => c.FlavorText).HasColumnName("flavor_text").HasMaxLength(1000);
             e.HasOne<Set>().WithMany().HasForeignKey(c => c.SetCode);
             e.HasIndex(c => c.SetCode);

@@ -27,6 +27,7 @@ public class SetsController : ControllerBase
                 Code = s.Code.ToUpper(),
                 s.Name,
                 s.TotalCards,
+                s.SetType,
                 s.ReleaseDate,
             })
             .ToListAsync(ct);
@@ -50,6 +51,7 @@ public class SetsController : ControllerBase
                 c.Name,
                 c.Color,
                 c.CardType,
+                c.Rarity,
                 c.CurrentMarketValue,
                 c.IsReserved,
             })

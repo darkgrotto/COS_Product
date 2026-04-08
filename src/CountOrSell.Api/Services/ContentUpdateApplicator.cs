@@ -197,6 +197,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 Code = d.Code,
                 Name = d.Name,
                 TotalCards = d.TotalCards,
+                SetType = d.SetType,
                 ReleaseDate = d.ReleaseDate,
                 Digital = false,
                 UpdatedAt = DateTime.UtcNow
@@ -209,6 +210,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             {
                 entity.Name = dto.Name;
                 entity.TotalCards = dto.TotalCards;
+                entity.SetType = dto.SetType;
                 entity.ReleaseDate = dto.ReleaseDate;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
@@ -228,6 +230,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 Name = d.Name,
                 Color = d.Colors.Count > 0 ? string.Join(",", d.Colors) : null,
                 CardType = d.TypeLine,
+                Rarity = d.Rarity,
                 IsReserved = d.IsReserved,
                 OracleRulingUrl = d.OracleRulingUri,
                 UpdatedAt = DateTime.UtcNow
@@ -242,6 +245,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.Name = dto.Name;
                 entity.Color = dto.Colors.Count > 0 ? string.Join(",", dto.Colors) : null;
                 entity.CardType = dto.TypeLine;
+                entity.Rarity = dto.Rarity;
                 entity.IsReserved = dto.IsReserved;
                 entity.OracleRulingUrl = dto.OracleRulingUri;
                 entity.UpdatedAt = DateTime.UtcNow;

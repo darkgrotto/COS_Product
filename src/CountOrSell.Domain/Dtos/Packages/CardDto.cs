@@ -20,6 +20,9 @@ public class CardDto
     [JsonPropertyName("type_line")]
     public string? TypeLine { get; set; }
 
+    [JsonPropertyName("rarity")]
+    public string? Rarity { get; set; }
+
     [JsonPropertyName("is_reserved")]
     public bool IsReserved { get; set; }
 

@@ -16,13 +16,29 @@ interface BrowseSet {
   code: string
   name: string
   totalCards: number
+  setType: string | null
   releaseDate: string | null
 }
 
 interface BrowseCard extends AddableCard {
   color: string | null
   cardType: string | null
+  rarity: string | null
   isReserved: boolean
+}
+
+// ---- Constants --------------------------------------------------------------
+
+// Set types considered "standard" (equivalent to COS_Backend STANDARD_SET_TYPES).
+const STANDARD_SET_TYPES = new Set([
+  'core', 'expansion', 'masters', 'funny', 'planechase', 'draft_innovation',
+])
+
+const RARITIES = ['common', 'uncommon', 'rare', 'mythic'] as const
+
+// Human-readable label for a set_type slug.
+function setTypeLabel(t: string): string {
+  return t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 // ---- Set list view ----------------------------------------------------------
@@ -37,37 +53,88 @@ function SetListView({
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [standardOnly, setStandardOnly] = useState(false)
 
   function handleSort(key: string) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
   }
 
-  const filtered = (search.trim()
-    ? sets.filter(s =>
-        s.code.toLowerCase().includes(search.toLowerCase()) ||
-        s.name.toLowerCase().includes(search.toLowerCase())
-      )
-    : sets
-  ).slice().sort((a, b) => {
-    let cmp = 0
-    if (sortKey === 'code') cmp = a.code.localeCompare(b.code)
-    else if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
-    else if (sortKey === 'totalCards') cmp = (a.totalCards ?? 0) - (b.totalCards ?? 0)
-    else if (sortKey === 'releaseDate') cmp = (a.releaseDate ?? '').localeCompare(b.releaseDate ?? '')
-    return sortDir === 'asc' ? cmp : -cmp
+  // Available set types derived from loaded data, standard types first.
+  const availableTypes = [...new Set(
+    sets.map(s => s.setType).filter(Boolean) as string[]
+  )].sort((a, b) => {
+    const aStd = STANDARD_SET_TYPES.has(a) ? 0 : 1
+    const bStd = STANDARD_SET_TYPES.has(b) ? 0 : 1
+    if (aStd !== bStd) return aStd - bStd
+    return a.localeCompare(b)
   })
+
+  function handleStandardToggle() {
+    setStandardOnly(v => !v)
+    setTypeFilter('') // standard-only overrides specific type selection
+  }
+
+  function handleTypeChip(t: string) {
+    setStandardOnly(false)
+    setTypeFilter(prev => prev === t ? '' : t)
+  }
+
+  const filtered = sets
+    .filter(s => {
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        if (!s.code.toLowerCase().includes(q) && !s.name.toLowerCase().includes(q))
+          return false
+      }
+      if (standardOnly) {
+        if (!s.setType || !STANDARD_SET_TYPES.has(s.setType)) return false
+      } else if (typeFilter) {
+        if (s.setType !== typeFilter) return false
+      }
+      return true
+    })
+    .slice()
+    .sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'code') cmp = a.code.localeCompare(b.code)
+      else if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
+      else if (sortKey === 'totalCards') cmp = (a.totalCards ?? 0) - (b.totalCards ?? 0)
+      else if (sortKey === 'releaseDate') cmp = (a.releaseDate ?? '').localeCompare(b.releaseDate ?? '')
+      return sortDir === 'asc' ? cmp : -cmp
+    })
 
   return (
     <div className="space-y-3">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-        <Input
-          placeholder="Search sets..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="pl-8"
-        />
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search sets..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+
+        {availableTypes.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-muted-foreground">Type:</span>
+            <ToggleChip active={standardOnly} onClick={handleStandardToggle}>
+              Standard
+            </ToggleChip>
+            {availableTypes.map(t => (
+              <ToggleChip
+                key={t}
+                active={!standardOnly && typeFilter === t}
+                onClick={() => handleTypeChip(t)}
+              >
+                {setTypeLabel(t)}
+              </ToggleChip>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="rounded-md border overflow-x-auto">
@@ -84,7 +151,9 @@ function SetListView({
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
-                  {search ? 'No sets match your search.' : 'No sets available.'}
+                  {search || typeFilter || standardOnly
+                    ? 'No sets match the current filters.'
+                    : 'No sets available.'}
                 </td>
               </tr>
             ) : (
@@ -99,6 +168,11 @@ function SetListView({
                     <span className="flex items-center gap-2">
                       <SetSymbol setCode={s.code} className="text-base" />
                       <span className="font-medium">{s.name}</span>
+                      {s.setType && (
+                        <span className="text-xs text-muted-foreground">
+                          {setTypeLabel(s.setType)}
+                        </span>
+                      )}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right text-muted-foreground">{s.totalCards}</td>
@@ -131,6 +205,7 @@ function CardListView({
   const [search, setSearch] = useState('')
   const [colorFilter, setColorFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [rarityFilter, setRarityFilter] = useState('')
   const [rlFilter, setRlFilter] = useState(false)
   const [addCard, setAddCard] = useState<BrowseCard | null>(null)
   const [detailCard, setDetailCard] = useState<BrowseCard | null>(null)
@@ -164,6 +239,7 @@ function CardListView({
       }
       if (colorFilter && !(c.color ?? '').includes(colorFilter)) return false
       if (typeFilter && !(c.cardType ?? '').includes(typeFilter)) return false
+      if (rarityFilter && c.rarity !== rarityFilter) return false
       if (rlFilter && !c.isReserved) return false
       return true
     })
@@ -173,11 +249,15 @@ function CardListView({
       if (sortKey === 'card') cmp = a.name.localeCompare(b.name) || a.identifier.localeCompare(b.identifier)
       else if (sortKey === 'color') cmp = (a.color ?? '').localeCompare(b.color ?? '')
       else if (sortKey === 'type') cmp = (a.cardType ?? '').localeCompare(b.cardType ?? '')
+      else if (sortKey === 'rarity') {
+        const ri = (r: string | null) => RARITIES.indexOf((r ?? '') as typeof RARITIES[number])
+        cmp = ri(a.rarity) - ri(b.rarity)
+      }
       else if (sortKey === 'market') cmp = (a.currentMarketValue ?? -1) - (b.currentMarketValue ?? -1)
       return sortDir === 'asc' ? cmp : -cmp
     })
 
-  const setColors = new Set(cards.flatMap(c => c.color ? c.color.split('') : []))
+  const setColors = new Set(cards.flatMap(c => c.color ? c.color.split(',') : []))
   const visibleColors = COLORS.filter(col => setColors.has(col.key))
 
   const setTypes = new Set(
@@ -187,6 +267,10 @@ function CardListView({
     })
   )
   const visibleTypes = CARD_TYPES.filter(t => setTypes.has(t))
+
+  const setRarities = new Set(cards.map(c => c.rarity).filter(Boolean) as string[])
+  const visibleRarities = RARITIES.filter(r => setRarities.has(r))
+
   const hasReserved = cards.some(c => c.isReserved)
 
   function handleAdded() {
@@ -253,6 +337,21 @@ function CardListView({
           </div>
         )}
 
+        {visibleRarities.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-muted-foreground">Rarity:</span>
+            {visibleRarities.map(r => (
+              <ToggleChip
+                key={r}
+                active={rarityFilter === r}
+                onClick={() => setRarityFilter(rarityFilter === r ? '' : r)}
+              >
+                {r.charAt(0).toUpperCase() + r.slice(1)}
+              </ToggleChip>
+            ))}
+          </div>
+        )}
+
         {hasReserved && (
           <div className="flex gap-1.5 items-center">
             <span className="text-xs text-muted-foreground">Show:</span>
@@ -276,6 +375,7 @@ function CardListView({
                 <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Color" sortKey="color" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Type" sortKey="type" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="Rarity" sortKey="rarity" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Market" sortKey="market" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
                 <th className="px-3 py-2 text-right"></th>
               </tr>
@@ -283,7 +383,7 @@ function CardListView({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     No cards match the current filters.
                   </td>
                 </tr>
@@ -322,8 +422,11 @@ function CardListView({
                       <td className="px-3 py-2 text-muted-foreground font-mono text-xs">
                         {c.color || '-'}
                       </td>
-                      <td className="px-3 py-2 text-muted-foreground text-xs max-w-40 truncate">
+                      <td className="px-3 py-2 text-muted-foreground text-xs max-w-36 truncate">
                         {c.cardType || '-'}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground text-xs capitalize">
+                        {c.rarity || '-'}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmt(c.currentMarketValue)}</td>
                       <td className="px-3 py-2 text-right">

@@ -13,6 +13,9 @@ public class SetDto
     [JsonPropertyName("card_count")]
     public int TotalCards { get; set; }
 
+    [JsonPropertyName("set_type")]
+    public string? SetType { get; set; }
+
     // "yyyy-MM-dd" format or null
     [JsonPropertyName("released_at")]
     public string? ReleasedAt { get; set; }
