@@ -273,8 +273,9 @@ function CardListView({
 
   const hasReserved = cards.some(c => c.isReserved)
 
-  function handleAdded() {
-    if (addCard) setAddedIds(prev => new Set(prev).add(addCard.identifier))
+  function handleAdded(mode: 'collection' | 'wishlist') {
+    if (mode === 'collection' && addCard)
+      setAddedIds(prev => new Set(prev).add(addCard.identifier))
   }
 
   return (

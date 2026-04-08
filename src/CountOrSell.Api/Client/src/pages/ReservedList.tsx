@@ -106,8 +106,8 @@ export function ReservedListPage() {
     0
   )
 
-  function handleAdded() {
-    if (addCard) {
+  function handleAdded(mode: 'collection' | 'wishlist') {
+    if (mode === 'collection' && addCard) {
       setAddedIds(prev => new Set(prev).add(addCard.identifier))
       setCards(prev => prev.map(c =>
         c.identifier === addCard.identifier

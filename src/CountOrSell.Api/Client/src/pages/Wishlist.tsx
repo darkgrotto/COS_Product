@@ -465,7 +465,7 @@ export function WishlistPage() {
           card={addToCollection}
           treatments={treatments}
           onClose={() => setAddToCollection(null)}
-          onAdded={() => setAddToCollection(null)}
+          onAdded={_mode => setAddToCollection(null)}
         />
       )}
     </div>

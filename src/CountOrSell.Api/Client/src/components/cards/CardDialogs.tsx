@@ -241,7 +241,7 @@ export function CardDetailDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
           <Button onClick={() => { onClose(); onAdd() }}>
-            <Plus className="h-4 w-4 mr-1" /> Add to Collection
+            <Plus className="h-4 w-4 mr-1" /> Add
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -270,11 +270,12 @@ export function QuickAddDialog({
   card: AddableCard
   treatments: Treatment[]
   onClose: () => void
-  onAdded: () => void
+  onAdded: (mode: 'collection' | 'wishlist') => void
 }) {
   const sorted = sortTreatments(treatments)
   const defaultTreatment = sorted[0]?.key ?? 'regular'
   const defaultPrice = (card.prices?.[defaultTreatment] ?? card.currentMarketValue)
+  const [mode, setMode] = useState<'collection' | 'wishlist'>('collection')
   const [form, setForm] = useState<AddForm>({
     treatment: defaultTreatment,
     quantity: 1,
@@ -290,11 +291,32 @@ export function QuickAddDialog({
   const [priceManuallyEdited, setPriceManuallyEdited] = useState(false)
 
   async function handleSave() {
-    const price = parseFloat(form.acquisitionPrice)
-    if (isNaN(price) || price < 0) { setError('Enter a valid acquisition price.'); return }
-    setSaving(true)
     setError('')
+    setSaving(true)
     try {
+      if (mode === 'wishlist') {
+        const res = await fetch('/api/wishlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cardIdentifier: card.identifier.toLowerCase() }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error((data as { error?: string }).error ?? 'Failed to add to wishlist.')
+        }
+        onAdded('wishlist')
+        onClose()
+        return
+      }
+
+      // Collection mode
+      const rawPrice = form.acquisitionPrice.trim()
+      const price = rawPrice === '' ? 0 : parseFloat(rawPrice)
+      if (isNaN(price) || price < 0) {
+        setError('Enter a valid acquisition price.')
+        setSaving(false)
+        return
+      }
       const res = await fetch('/api/collection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -313,7 +335,7 @@ export function QuickAddDialog({
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error ?? 'Failed to add.')
       }
-      onAdded()
+      onAdded('collection')
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add.')
@@ -326,107 +348,129 @@ export function QuickAddDialog({
     <Dialog open onOpenChange={v => !v && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add to Collection</DialogTitle>
+          <DialogTitle>Add Card</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div>
-            <p className="font-medium">{card.name}</p>
-            <p className="text-xs text-muted-foreground">{card.identifier}</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <Label>Treatment</Label>
-              <Select
-                value={form.treatment}
-                onValueChange={v => {
-                  setForm(f => {
-                    if (priceManuallyEdited) return { ...f, treatment: v }
-                    const p = card.prices?.[v] ?? card.currentMarketValue
-                    return { ...f, treatment: v, acquisitionPrice: p != null ? p.toFixed(2) : '' }
-                  })
-                }}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {sorted.map(t => (
-                    <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="font-medium">{card.name}</p>
+              <p className="text-xs text-muted-foreground font-mono">{card.identifier}</p>
             </div>
-            <div>
-              <Label>Condition</Label>
-              <Select value={form.condition} onValueChange={v => setForm(f => ({ ...f, condition: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CONDITIONS.map(c => (
-                    <SelectItem key={c} value={c}>{c} - {CONDITION_LABELS[c]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex gap-1 shrink-0">
+              <ToggleChip active={mode === 'collection'} onClick={() => { setMode('collection'); setError('') }}>
+                Collection
+              </ToggleChip>
+              <ToggleChip active={mode === 'wishlist'} onClick={() => { setMode('wishlist'); setError('') }}>
+                Wishlist
+              </ToggleChip>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Quantity</Label>
-              <Input
-                type="number" min={1}
-                value={form.quantity}
-                onChange={e => setForm(f => ({ ...f, quantity: parseInt(e.target.value) || 1 }))}
-              />
-            </div>
-            <div className="flex items-end pb-1">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="qa-autographed"
-                  checked={form.autographed}
-                  onChange={e => setForm(f => ({ ...f, autographed: e.target.checked }))}
-                  className="h-4 w-4 rounded border-input"
-                />
-                <label htmlFor="qa-autographed" className="text-sm">Autographed</label>
+          {mode === 'collection' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Treatment</Label>
+                  <Select
+                    value={form.treatment}
+                    onValueChange={v => {
+                      setForm(f => {
+                        if (priceManuallyEdited) return { ...f, treatment: v }
+                        const p = card.prices?.[v] ?? card.currentMarketValue
+                        return { ...f, treatment: v, acquisitionPrice: p != null ? p.toFixed(2) : '' }
+                      })
+                    }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {sorted.map(t => (
+                        <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Condition</Label>
+                  <Select value={form.condition} onValueChange={v => setForm(f => ({ ...f, condition: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CONDITIONS.map(c => (
+                        <SelectItem key={c} value={c}>{c} - {CONDITION_LABELS[c]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Acquisition Date</Label>
-              <Input
-                type="date" value={form.acquisitionDate}
-                onChange={e => setForm(f => ({ ...f, acquisitionDate: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Acquisition Price</Label>
-              <Input
-                type="number" min={0} step="0.01" placeholder="0.00"
-                value={form.acquisitionPrice}
-                onChange={e => {
-                  setPriceManuallyEdited(true)
-                  setForm(f => ({ ...f, acquisitionPrice: e.target.value }))
-                }}
-              />
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Quantity</Label>
+                  <Input
+                    type="number" min={1}
+                    value={form.quantity}
+                    onChange={e => setForm(f => ({ ...f, quantity: parseInt(e.target.value) || 1 }))}
+                  />
+                </div>
+                <div className="flex items-end pb-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="qa-autographed"
+                      checked={form.autographed}
+                      onChange={e => setForm(f => ({ ...f, autographed: e.target.checked }))}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <label htmlFor="qa-autographed" className="text-sm">Autographed</label>
+                  </div>
+                </div>
+              </div>
 
-          <div>
-            <Label>Notes <span className="text-xs text-muted-foreground">(optional)</span></Label>
-            <Input
-              value={form.notes}
-              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Any notes..."
-            />
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Acquisition Date</Label>
+                  <Input
+                    type="date" value={form.acquisitionDate}
+                    onChange={e => setForm(f => ({ ...f, acquisitionDate: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label>Acquisition Price <span className="text-xs text-muted-foreground">(blank = $0)</span></Label>
+                  <Input
+                    type="number" min={0} step="0.01" placeholder="0.00"
+                    value={form.acquisitionPrice}
+                    onChange={e => {
+                      setPriceManuallyEdited(true)
+                      setForm(f => ({ ...f, acquisitionPrice: e.target.value }))
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>Notes <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                <Input
+                  value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  placeholder="Any notes..."
+                />
+              </div>
+            </>
+          )}
+
+          {mode === 'wishlist' && (
+            <p className="text-sm text-muted-foreground">
+              This card will be added to your wishlist. You can add it to your collection from the Wishlist page.
+            </p>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Adding...' : 'Add to Collection'}
+            {saving
+              ? 'Adding...'
+              : mode === 'collection' ? 'Add to Collection' : 'Add to Wishlist'}
           </Button>
         </DialogFooter>
       </DialogContent>
