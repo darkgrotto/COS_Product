@@ -9,4 +9,5 @@ public class SetCompletionResult
     public decimal Percentage { get; set; }
     public decimal? TotalValue { get; set; }
     public decimal? TotalProfitLoss { get; set; }
+    public DateOnly? ReleaseDate { get; set; }
 }

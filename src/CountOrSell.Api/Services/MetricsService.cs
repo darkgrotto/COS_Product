@@ -319,7 +319,8 @@ public class MetricsService : IMetricsService
                 TotalCards = set.TotalCards,
                 Percentage = percentage,
                 TotalValue = val?.TotalValue,
-                TotalProfitLoss = val?.TotalProfitLoss
+                TotalProfitLoss = val?.TotalProfitLoss,
+                ReleaseDate = set.ReleaseDate
             });
         }
 
