@@ -57,7 +57,9 @@ public class StartupMigrationService : IHostedService
                         "Found {Count} pending migrations, taking pre-update backup...",
                         pendingMigrations.Count);
 
-                    var backupOk = await preBackup.TakeBackupAsync("startup-migration", cancellationToken);
+                    // Use CancellationToken.None: backup runs pg_dump which can take longer
+                    // than the host startup timeout. The startup token must not cancel it.
+                    var backupOk = await preBackup.TakeBackupAsync("startup-migration", CancellationToken.None);
                     if (!backupOk)
                     {
                         _logger.LogError("Startup migration aborted: pre-update backup failed");
@@ -66,7 +68,7 @@ public class StartupMigrationService : IHostedService
                             await notifications.NotifyAsync(
                                 "Startup migration aborted: pre-update backup failed. " +
                                 "Fix backup configuration and restart.",
-                                "schema", cancellationToken);
+                                "schema", CancellationToken.None);
                         }
                         catch (Exception notifyEx)
                         {
@@ -79,7 +81,9 @@ public class StartupMigrationService : IHostedService
 
                 try
                 {
-                    await db.Database.MigrateAsync(cancellationToken);
+                    // Use CancellationToken.None for the same reason: migration must complete
+                    // or explicitly fail; it must not be abandoned mid-flight by a timeout.
+                    await db.Database.MigrateAsync(CancellationToken.None);
                     _logger.LogInformation("Startup migrations applied successfully");
                 }
                 catch (Exception ex)
@@ -92,7 +96,7 @@ public class StartupMigrationService : IHostedService
                         latestBackup = await db.BackupRecords
                             .Where(b => b.BackupType == BackupType.PreUpdate)
                             .OrderByDescending(b => b.CreatedAt)
-                            .FirstOrDefaultAsync(cancellationToken);
+                            .FirstOrDefaultAsync(CancellationToken.None);
                     }
 
                     if (latestBackup != null)
@@ -107,7 +111,7 @@ public class StartupMigrationService : IHostedService
                             try
                             {
                                 using var stream = File.OpenRead(backupPath);
-                                await restore.RestoreAsync(stream, cancellationToken);
+                                await restore.RestoreAsync(stream, CancellationToken.None);
                                 _logger.LogInformation("Restore from pre-update backup succeeded");
                             }
                             catch (Exception restoreEx)
@@ -124,7 +128,7 @@ public class StartupMigrationService : IHostedService
                         {
                             await notifications.NotifyAsync(
                                 $"Startup migration failed: {ex.Message}. Application will not start.",
-                                "schema", cancellationToken);
+                                "schema", CancellationToken.None);
                         }
                         catch (Exception notifyEx)
                         {
