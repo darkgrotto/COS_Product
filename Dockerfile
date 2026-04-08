@@ -33,10 +33,18 @@ RUN DOTNET_ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "x64" || echo "$TARGETARCH
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
-# Install curl for health checks, then create non-root user.
+# Install curl for health checks and postgresql-client-16 for pg_dump backups.
+# The default bookworm repo ships client 15; add the PGDG repo to get client 16
+# so pg_dump matches the postgres:16 server and doesn't abort on version mismatch.
 # All root operations complete before USER is set.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl postgresql-client && \
+    apt-get install -y --no-install-recommends gnupg2 curl ca-certificates && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends postgresql-client-16 && \
     rm -rf /var/lib/apt/lists/* && \
     addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 --ingroup appgroup --no-create-home appuser && \
