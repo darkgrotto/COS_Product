@@ -1,8 +1,15 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, Plus, Search, Star } from 'lucide-react'
+import { ChevronLeft, Plus, Search, Star, BookmarkPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import {
   SortTh, SortDir, ToggleChip, CardDetailDialog, QuickAddDialog,
   Treatment, AddableCard, sortTreatments, fmt,
@@ -25,6 +32,94 @@ interface BrowseCard extends AddableCard {
   cardType: string | null
   rarity: string | null
   isReserved: boolean
+}
+
+// ---- Bulk add dialog --------------------------------------------------------
+
+const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'DMG'] as const
+
+interface BulkAddResult { added: number; skipped: number }
+
+function BulkAddToCollectionDialog({
+  cards,
+  treatments,
+  onClose,
+  onDone,
+}: {
+  cards: BrowseCard[]
+  treatments: Treatment[]
+  onClose: () => void
+  onDone: (result: BulkAddResult) => void
+}) {
+  const regularKey = treatments.find(t => t.key === 'regular')?.key ?? treatments[0]?.key ?? 'regular'
+  const [treatmentKey, setTreatmentKey] = useState(regularKey)
+  const [condition, setCondition] = useState<string>('NM')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleAdd() {
+    setBusy(true)
+    setError('')
+    let added = 0
+    let skipped = 0
+    for (const card of cards) {
+      const res = await fetch('/api/collection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cardIdentifier: card.identifier.toLowerCase(),
+          treatment: treatmentKey,
+          quantity: 1,
+          condition,
+          autographed: false,
+          acquisitionDate: new Date().toISOString().slice(0, 10),
+          acquisitionPrice: card.currentMarketValue ?? 0,
+        }),
+      })
+      if (res.ok) added++
+      else skipped++
+    }
+    setBusy(false)
+    onDone({ added, skipped })
+    onClose()
+  }
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Add {cards.length} card{cards.length !== 1 ? 's' : ''} to Collection</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Treatment</Label>
+            <Select value={treatmentKey} onValueChange={setTreatmentKey}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {treatments.map(t => <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Condition</Label>
+            <Select value={condition} onValueChange={setCondition}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CONDITIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleAdd} disabled={busy}>
+            {busy ? 'Adding...' : 'Add to Collection'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 // ---- Constants --------------------------------------------------------------
@@ -212,6 +307,9 @@ function CardListView({
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
   const [sortKey, setSortKey] = useState('card')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkCollectionOpen, setBulkCollectionOpen] = useState(false)
+  const [bulkAddResult, setBulkAddResult] = useState<BulkAddResult | null>(null)
 
   const loadCards = useCallback(async () => {
     setLoading(true)
@@ -277,6 +375,29 @@ function CardListView({
     if (mode === 'collection' && addCard)
       setAddedIds(prev => new Set(prev).add(addCard.identifier))
   }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+
+  function toggleSelectAll(all: boolean) {
+    setSelected(all ? new Set(filtered.map(c => c.identifier)) : new Set())
+  }
+
+  async function handleBulkAddWishlist() {
+    const toAdd = filtered.filter(c => selected.has(c.identifier))
+    for (const card of toAdd) {
+      await fetch('/api/wishlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardIdentifier: card.identifier.toLowerCase() }),
+      })
+    }
+    setAddedIds(prev => new Set([...prev, ...toAdd.map(c => c.identifier)]))
+    setSelected(new Set())
+  }
+
+  const selectedCards = filtered.filter(c => selected.has(c.identifier))
 
   return (
     <div className="space-y-3">
@@ -365,6 +486,26 @@ function CardListView({
         )}
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted border text-sm">
+          <span className="font-medium">{selected.size} selected</span>
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setBulkCollectionOpen(true)}>
+            <Plus className="h-3.5 w-3.5" /> Add to Collection
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleBulkAddWishlist}>
+            <BookmarkPlus className="h-3.5 w-3.5" /> Add to Wishlist
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelected(new Set())}>
+            Clear
+          </Button>
+          {bulkAddResult && (
+            <span className="text-xs text-muted-foreground ml-1">
+              Added {bulkAddResult.added}{bulkAddResult.skipped > 0 ? `, ${bulkAddResult.skipped} skipped` : ''}
+            </span>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Loading cards...</p>
       ) : (
@@ -372,6 +513,14 @@ function CardListView({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground">
+                <th className="px-3 py-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && filtered.every(c => selected.has(c.identifier))}
+                    onChange={ev => toggleSelectAll(ev.target.checked)}
+                    aria-label="Select all"
+                  />
+                </th>
                 <th className="px-3 py-2 w-10"></th>
                 <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Color" sortKey="color" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
@@ -384,7 +533,7 @@ function CardListView({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     No cards match the current filters.
                   </td>
                 </tr>
@@ -394,12 +543,20 @@ function CardListView({
                   return (
                     <tr
                       key={c.identifier}
-                      className="border-b last:border-0 hover:bg-muted/20 cursor-pointer"
+                      className={`border-b last:border-0 hover:bg-muted/20 cursor-pointer ${selected.has(c.identifier) ? 'bg-muted/30' : ''}`}
                       onClick={e => {
-                        if ((e.target as HTMLElement).closest('button')) return
+                        if ((e.target as HTMLElement).closest('button,input')) return
                         setDetailCard(c)
                       }}
                     >
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(c.identifier)}
+                          onChange={() => toggleSelect(c.identifier)}
+                          aria-label={`Select ${c.name}`}
+                        />
+                      </td>
                       <td className="px-3 py-2">
                         <img
                           src={`/api/images/cards/${c.identifier.toLowerCase()}.jpg`}
@@ -467,6 +624,19 @@ function CardListView({
           treatments={treatments}
           onClose={() => setAddCard(null)}
           onAdded={handleAdded}
+        />
+      )}
+
+      {bulkCollectionOpen && (
+        <BulkAddToCollectionDialog
+          cards={selectedCards}
+          treatments={treatments}
+          onClose={() => setBulkCollectionOpen(false)}
+          onDone={result => {
+            setBulkAddResult(result)
+            setAddedIds(prev => new Set([...prev, ...selectedCards.map(c => c.identifier)]))
+            setSelected(new Set())
+          }}
         />
       )}
     </div>

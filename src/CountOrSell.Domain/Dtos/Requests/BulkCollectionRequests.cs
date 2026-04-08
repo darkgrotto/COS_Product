@@ -16,3 +16,9 @@ public class BulkSetAcquisitionDateRequest
     public List<Guid> Ids { get; set; } = [];
     public DateOnly AcquisitionDate { get; set; }
 }
+
+public class BulkSetConditionRequest
+{
+    public List<Guid> Ids { get; set; } = [];
+    public string Condition { get; set; } = string.Empty;
+}

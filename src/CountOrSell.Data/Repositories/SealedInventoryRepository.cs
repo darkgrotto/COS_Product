@@ -63,6 +63,30 @@ public class SealedInventoryRepository : ISealedInventoryRepository
         return entries.Count;
     }
 
+    public async Task<int> BulkSetConditionAsync(IEnumerable<Guid> ids, Guid userId, string condition, CancellationToken ct = default)
+    {
+        if (!Enum.TryParse<CountOrSell.Domain.Models.CardCondition>(condition, true, out var parsed))
+            return 0;
+        var idList = ids.ToList();
+        var entries = await _db.SealedInventoryEntries
+            .Where(e => idList.Contains(e.Id) && e.UserId == userId)
+            .ToListAsync(ct);
+        foreach (var e in entries) e.Condition = parsed;
+        await _db.SaveChangesAsync(ct);
+        return entries.Count;
+    }
+
+    public async Task<int> BulkSetAcquisitionDateAsync(IEnumerable<Guid> ids, Guid userId, DateOnly date, CancellationToken ct = default)
+    {
+        var idList = ids.ToList();
+        var entries = await _db.SealedInventoryEntries
+            .Where(e => idList.Contains(e.Id) && e.UserId == userId)
+            .ToListAsync(ct);
+        foreach (var e in entries) e.AcquisitionDate = date;
+        await _db.SaveChangesAsync(ct);
+        return entries.Count;
+    }
+
     public async Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default)
     {
         var entries = await _db.SealedInventoryEntries.Where(e => e.UserId == userId).ToListAsync(ct);

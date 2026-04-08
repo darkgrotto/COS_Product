@@ -148,6 +148,17 @@ public class SlabsController : ControllerBase
         return Ok(new { deleted });
     }
 
+    [HttpPost("bulk-set-condition")]
+    public async Task<IActionResult> BulkSetCondition([FromBody] BulkSetConditionRequest request, CancellationToken ct)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "At least one id is required." });
+        if (!TryParseCondition(request.Condition, out _))
+            return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+        var updated = await _slabs.BulkSetConditionAsync(request.Ids, CurrentUserId, request.Condition, ct);
+        return Ok(new { updated });
+    }
+
     private static bool HasFilters(CollectionFilter filter) =>
         filter.SetCode != null || filter.Treatment != null || filter.Condition != null ||
         filter.Autographed.HasValue || filter.GradingAgency != null;

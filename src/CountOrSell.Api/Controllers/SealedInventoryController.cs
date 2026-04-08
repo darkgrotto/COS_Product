@@ -192,6 +192,26 @@ public class SealedInventoryController : ControllerBase
         return Ok(new { deleted });
     }
 
+    [HttpPost("bulk-set-condition")]
+    public async Task<IActionResult> BulkSetCondition([FromBody] BulkSetConditionRequest request, CancellationToken ct)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "At least one id is required." });
+        if (!TryParseCondition(request.Condition, out _))
+            return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+        var updated = await _sealedInventory.BulkSetConditionAsync(request.Ids, CurrentUserId, request.Condition, ct);
+        return Ok(new { updated });
+    }
+
+    [HttpPost("bulk-set-acquisition-date")]
+    public async Task<IActionResult> BulkSetAcquisitionDate([FromBody] BulkSetAcquisitionDateRequest request, CancellationToken ct)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "At least one id is required." });
+        var updated = await _sealedInventory.BulkSetAcquisitionDateAsync(request.Ids, CurrentUserId, request.AcquisitionDate, ct);
+        return Ok(new { updated });
+    }
+
     private static bool TryParseCondition(string value, out CardCondition result) =>
         Enum.TryParse(value, true, out result);
 

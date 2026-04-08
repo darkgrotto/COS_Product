@@ -2,6 +2,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { Download, Plus, Search, Star, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import {
   SortTh, SortDir, ToggleChip, QuickAddDialog,
   Treatment, AddableCard, sortTreatments, fmt,
@@ -11,6 +15,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { SetSymbol } from '@/components/ui/SetSymbol'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 // ---- Types ------------------------------------------------------------------
 
@@ -22,6 +27,7 @@ interface WishlistEntry {
   color: string | null
   cardType: string | null
   marketValue: number
+  treatmentKey: string
   createdAt: string
 }
 
@@ -37,15 +43,18 @@ interface SearchResult extends AddableCard {
 function AddToWishlistDialog({
   onClose,
   onAdded,
+  treatments,
 }: {
   onClose: () => void
   onAdded: () => void
+  treatments: Treatment[]
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [adding, setAdding] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [treatmentKey, setTreatmentKey] = useState('regular')
 
   useEffect(() => {
     const trimmed = query.trim()
@@ -69,7 +78,7 @@ function AddToWishlistDialog({
       const res = await fetch('/api/wishlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardIdentifier: card.identifier.toLowerCase() }),
+        body: JSON.stringify({ cardIdentifier: card.identifier.toLowerCase(), treatmentKey }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -101,6 +110,21 @@ function AddToWishlistDialog({
               className="pl-8"
             />
           </div>
+          {treatments.length > 0 && (
+            <div className="space-y-1">
+              <Label className="text-xs">Treatment</Label>
+              <Select value={treatmentKey} onValueChange={setTreatmentKey}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {treatments.map(t => (
+                    <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           {searching && (
             <p className="text-sm text-muted-foreground text-center py-2">Searching...</p>
@@ -160,6 +184,8 @@ export function WishlistPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addToCollection, setAddToCollection] = useState<AddableCard | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
 
   // Filters
   const [search, setSearch] = useState('')
@@ -201,9 +227,33 @@ export function WishlistPage() {
     try {
       await fetch(`/api/wishlist/${id}`, { method: 'DELETE' })
       setEntries(prev => prev.filter(e => e.id !== id))
+      setSelected(prev => { const n = new Set(prev); n.delete(id); return n })
     } finally {
       setRemoving(null)
     }
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
+
+  function toggleSelectAll(all: boolean) {
+    setSelected(all ? new Set(filtered.map(e => e.id)) : new Set())
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selected)
+    await fetch('/api/wishlist/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    setSelected(new Set())
+    await load()
   }
 
   async function handleExport() {
@@ -363,102 +413,160 @@ export function WishlistPage() {
           </Button>
         </div>
       ) : (
-        <div className="rounded-md border overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50 text-muted-foreground">
-                <SortTh label="Card" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
-                <SortTh label="Set" sortKey="set" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
-                <th className="px-3 py-2 text-left">Type</th>
-                <SortTh label="Market" sortKey="value" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
-                <SortTh label="Added" sortKey="added" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
-                <th className="px-3 py-2 text-right"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    No entries match the current filters.
-                  </td>
+        <>
+          {selected.size > 0 && (
+            <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted border text-sm mb-2">
+              <span className="font-medium">{selected.size} selected</span>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-7 text-xs"
+                onClick={() => setBulkDeleteConfirm(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove selected
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => setSelected(new Set())}
+              >
+                Clear
+              </Button>
+            </div>
+          )}
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50 text-muted-foreground">
+                  <th className="px-3 py-2 w-8">
+                    <input
+                      type="checkbox"
+                      checked={filtered.length > 0 && filtered.every(e => selected.has(e.id))}
+                      onChange={ev => toggleSelectAll(ev.target.checked)}
+                      aria-label="Select all"
+                    />
+                  </th>
+                  <SortTh label="Card" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                  <SortTh label="Set" sortKey="set" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                  <th className="px-3 py-2 text-left">Treatment</th>
+                  <th className="px-3 py-2 text-left">Type</th>
+                  <SortTh label="Market" sortKey="value" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+                  <SortTh label="Added" sortKey="added" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+                  <th className="px-3 py-2 text-right"></th>
                 </tr>
-              ) : (
-                filtered.map(e => (
-                  <tr key={e.id} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className="px-3 py-2.5">
-                      <div className="font-medium">{e.cardName ?? e.cardIdentifier}</div>
-                      <div className="text-xs text-muted-foreground font-mono">{e.cardIdentifier}</div>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {e.setCode ? (
-                        <div className="flex items-center gap-1.5">
-                          <SetSymbol setCode={e.setCode} className="text-sm" />
-                          <span className="font-mono text-xs">{e.setCode}</span>
-                        </div>
-                      ) : '-'}
-                    </td>
-                    <td className="px-3 py-2.5 text-muted-foreground text-xs max-w-36 truncate">
-                      {e.cardType ?? '-'}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">
-                      {fmt(e.marketValue)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-xs text-muted-foreground">
-                      {new Date(e.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs gap-1"
-                          onClick={() => setAddToCollection({
-                            identifier: e.cardIdentifier,
-                            name: e.cardName ?? e.cardIdentifier,
-                            currentMarketValue: e.marketValue,
-                          })}
-                        >
-                          <Plus className="h-3 w-3" /> Collect
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                          disabled={removing === e.id}
-                          onClick={() => handleRemove(e.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                      No entries match the current filters.
                     </td>
                   </tr>
-                ))
+                ) : (
+                  filtered.map(e => {
+                    const treatmentLabel = treatments.find(t => t.key === e.treatmentKey)?.displayName ?? e.treatmentKey
+                    return (
+                      <tr key={e.id} className={`border-b last:border-0 hover:bg-muted/20 ${selected.has(e.id) ? 'bg-muted/30' : ''}`}>
+                        <td className="px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(e.id)}
+                            onChange={() => toggleSelect(e.id)}
+                            aria-label={`Select ${e.cardName ?? e.cardIdentifier}`}
+                          />
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="font-medium">{e.cardName ?? e.cardIdentifier}</div>
+                          <div className="text-xs text-muted-foreground font-mono">{e.cardIdentifier}</div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {e.setCode ? (
+                            <div className="flex items-center gap-1.5">
+                              <SetSymbol setCode={e.setCode} className="text-sm" />
+                              <span className="font-mono text-xs">{e.setCode}</span>
+                            </div>
+                          ) : '-'}
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                          {treatmentLabel}
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground text-xs max-w-36 truncate">
+                          {e.cardType ?? '-'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {fmt(e.marketValue)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-xs text-muted-foreground">
+                          {new Date(e.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => setAddToCollection({
+                                identifier: e.cardIdentifier,
+                                name: e.cardName ?? e.cardIdentifier,
+                                currentMarketValue: e.marketValue,
+                              })}
+                            >
+                              <Plus className="h-3 w-3" /> Collect
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                              disabled={removing === e.id}
+                              onClick={() => handleRemove(e.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+              {filtered.length > 0 && (
+                <tfoot>
+                  <tr className="border-t bg-muted/30 text-muted-foreground text-xs">
+                    <td />
+                    <td colSpan={3} className="px-3 py-2">
+                      {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'}
+                      {hasFilters && ` (filtered from ${entries.length})`}
+                    </td>
+                    <td />
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">
+                      {fmt(filteredTotal)}
+                    </td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
               )}
-            </tbody>
-            {filtered.length > 0 && (
-              <tfoot>
-                <tr className="border-t bg-muted/30 text-muted-foreground text-xs">
-                  <td colSpan={3} className="px-3 py-2">
-                    {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'}
-                    {hasFilters && ` (filtered from ${entries.length})`}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">
-                    {fmt(filteredTotal)}
-                  </td>
-                  <td colSpan={2} />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
+            </table>
+          </div>
+        </>
       )}
 
       {addDialogOpen && (
         <AddToWishlistDialog
           onClose={() => setAddDialogOpen(false)}
           onAdded={load}
+          treatments={treatments}
         />
       )}
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={v => { if (!v) setBulkDeleteConfirm(false) }}
+        title={`Remove ${selected.size} ${selected.size === 1 ? 'entry' : 'entries'}?`}
+        description="This will permanently remove the selected entries from your wishlist."
+        confirmLabel="Remove All"
+        destructive
+        onConfirm={handleBulkDelete}
+      />
 
       {addToCollection && (
         <QuickAddDialog

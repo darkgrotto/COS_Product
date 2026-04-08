@@ -9,5 +9,6 @@ public interface IWishlistRepository
     Task<WishlistEntry?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<WishlistEntry> CreateAsync(WishlistEntry entry, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    Task<int> BulkDeleteAsync(IEnumerable<Guid> ids, Guid userId, CancellationToken ct = default);
     Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default);
 }

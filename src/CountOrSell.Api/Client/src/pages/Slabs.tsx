@@ -398,6 +398,8 @@ export function SlabsPage() {
   const [deleteEntry, setDeleteEntry] = useState<SlabEntry | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [conditionPick, setConditionPick] = useState('')
+  const [conditionConfirm, setConditionConfirm] = useState(false)
 
   const treatmentMap = Object.fromEntries(treatments.map(t => [t.key, t.displayName]))
   const agencyMap = Object.fromEntries(agencies.map(a => [a.code, a]))
@@ -442,6 +444,17 @@ export function SlabsPage() {
     await load()
   }
 
+  async function handleBulkSetCondition() {
+    await fetch('/api/slabs/bulk-set-condition', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: Array.from(selected), condition: conditionPick }),
+    })
+    setSelected(new Set())
+    setConditionPick('')
+    await load()
+  }
+
   function toggleSelect(id: string) {
     setSelected(prev => {
       const next = new Set(prev)
@@ -479,12 +492,27 @@ export function SlabsPage() {
         onClear={() => setFilters({ gradingAgency: '', condition: '' })} />
 
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm">
+        <div className="mb-3 flex flex-wrap items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm">
           <span className="font-medium">{selected.size} selected</span>
+          <div className="flex items-center gap-1">
+            <Select value={conditionPick} onValueChange={setConditionPick}>
+              <SelectTrigger className="h-7 text-xs w-28">
+                <SelectValue placeholder="Condition..." />
+              </SelectTrigger>
+              <SelectContent>
+                {['NM', 'LP', 'MP', 'HP', 'DMG'].map(c => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!conditionPick} onClick={() => setConditionConfirm(true)}>
+              Apply
+            </Button>
+          </div>
           <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => setBulkDeleteConfirm(true)}>
-            <Trash2 className="h-3 w-3 mr-1" /> Remove all
+            <Trash2 className="h-3 w-3 mr-1" /> Remove
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 text-xs ml-auto" onClick={() => setSelected(new Set())}>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelected(new Set())}>
             <X className="h-3 w-3 mr-1" /> Clear
           </Button>
         </div>
@@ -624,6 +652,14 @@ export function SlabsPage() {
         confirmLabel="Remove All"
         destructive
         onConfirm={handleBulkDelete}
+      />
+      <ConfirmDialog
+        open={conditionConfirm}
+        onOpenChange={v => { if (!v) setConditionConfirm(false) }}
+        title={`Set condition on ${selected.size} slab${selected.size !== 1 ? 's' : ''}?`}
+        description={`Change condition to "${conditionPick}" for the selected slabs.`}
+        confirmLabel="Apply"
+        onConfirm={handleBulkSetCondition}
       />
     </div>
   )

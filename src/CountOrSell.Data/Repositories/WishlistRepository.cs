@@ -50,6 +50,17 @@ public class WishlistRepository : IWishlistRepository
         }
     }
 
+    public async Task<int> BulkDeleteAsync(IEnumerable<Guid> ids, Guid userId, CancellationToken ct = default)
+    {
+        var idList = ids.ToList();
+        var entries = await _db.WishlistEntries
+            .Where(e => idList.Contains(e.Id) && e.UserId == userId)
+            .ToListAsync(ct);
+        _db.WishlistEntries.RemoveRange(entries);
+        await _db.SaveChangesAsync(ct);
+        return entries.Count;
+    }
+
     public async Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default)
     {
         var entries = await _db.WishlistEntries.Where(e => e.UserId == userId).ToListAsync(ct);

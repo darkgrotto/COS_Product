@@ -528,6 +528,10 @@ export function SealedProductPage() {
   const [deleteEntry, setDeleteEntry] = useState<SealedInventoryEntry | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [conditionPick, setConditionPick] = useState('')
+  const [conditionConfirm, setConditionConfirm] = useState(false)
+  const [datePick, setDatePick] = useState('')
+  const [dateConfirm, setDateConfirm] = useState(false)
 
   const fetchEntries = useCallback(async () => {
     setLoading(true)
@@ -625,6 +629,28 @@ export function SealedProductPage() {
     fetchEntries()
   }
 
+  async function handleBulkSetCondition() {
+    await fetch('/api/sealed-inventory/bulk-set-condition', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: Array.from(selected), condition: conditionPick }),
+    })
+    setSelected(new Set())
+    setConditionPick('')
+    fetchEntries()
+  }
+
+  async function handleBulkSetDate() {
+    await fetch('/api/sealed-inventory/bulk-set-acquisition-date', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: Array.from(selected), acquisitionDate: datePick }),
+    })
+    setSelected(new Set())
+    setDatePick('')
+    fetchEntries()
+  }
+
   function toggleSelect(id: string) {
     setSelected(prev => {
       const next = new Set(prev)
@@ -685,12 +711,33 @@ export function SealedProductPage() {
       )}
 
       {selected.size > 0 && (
-        <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm">
+        <div className="flex flex-wrap items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm">
           <span className="font-medium">{selected.size} selected</span>
+          <div className="flex items-center gap-1">
+            <Select value={conditionPick} onValueChange={setConditionPick}>
+              <SelectTrigger className="h-7 text-xs w-28">
+                <SelectValue placeholder="Condition..." />
+              </SelectTrigger>
+              <SelectContent>
+                {['NM', 'LP', 'MP', 'HP', 'DMG'].map(c => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!conditionPick} onClick={() => setConditionConfirm(true)}>
+              Apply
+            </Button>
+          </div>
+          <div className="flex items-center gap-1">
+            <Input type="date" value={datePick} onChange={e => setDatePick(e.target.value)} className="h-7 text-xs w-36" />
+            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!datePick} onClick={() => setDateConfirm(true)}>
+              Apply
+            </Button>
+          </div>
           <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => setBulkDeleteConfirm(true)}>
-            <Trash2 className="h-3 w-3 mr-1" /> Remove all
+            <Trash2 className="h-3 w-3 mr-1" /> Remove
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 text-xs ml-auto" onClick={() => setSelected(new Set())}>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelected(new Set())}>
             <X className="h-3 w-3 mr-1" /> Clear
           </Button>
         </div>
@@ -860,6 +907,22 @@ export function SealedProductPage() {
         confirmLabel="Remove All"
         destructive
         onConfirm={handleBulkDelete}
+      />
+      <ConfirmDialog
+        open={conditionConfirm}
+        onOpenChange={v => { if (!v) setConditionConfirm(false) }}
+        title={`Set condition on ${selected.size} entr${selected.size !== 1 ? 'ies' : 'y'}?`}
+        description={`Change condition to "${conditionPick}" for the selected entries.`}
+        confirmLabel="Apply"
+        onConfirm={handleBulkSetCondition}
+      />
+      <ConfirmDialog
+        open={dateConfirm}
+        onOpenChange={v => { if (!v) setDateConfirm(false) }}
+        title={`Set acquisition date on ${selected.size} entr${selected.size !== 1 ? 'ies' : 'y'}?`}
+        description={`Change acquisition date to "${datePick}" for the selected entries.`}
+        confirmLabel="Apply"
+        onConfirm={handleBulkSetDate}
       />
     </div>
   )

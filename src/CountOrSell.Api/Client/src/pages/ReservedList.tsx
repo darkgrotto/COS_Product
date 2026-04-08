@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Star, Plus } from 'lucide-react'
+import { Star, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import {
   SortTh, SortDir, ToggleChip, CardDetailDialog, QuickAddDialog,
   Treatment, AddableCard, sortTreatments, fmt,
   COLORS, CARD_TYPES,
 } from '@/components/cards/CardDialogs'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 // ---- Types ------------------------------------------------------------------
 
@@ -17,12 +21,25 @@ interface RLCard extends AddableCard {
   ownedQuantity: number
 }
 
+interface OwnedEntry {
+  id: string
+  cardIdentifier: string
+  cardName: string | null
+  setCode: string | null
+  treatmentKey: string
+  quantity: number
+  condition: string
+  acquisitionDate: string
+  acquisitionPrice: number
+}
+
 type SortKey = 'name' | 'setCode' | 'cardType' | 'currentMarketValue' | 'ownedQuantity'
 
 // ---- Main page --------------------------------------------------------------
 
 export function ReservedListPage() {
   const [cards, setCards] = useState<RLCard[]>([])
+  const [ownedEntries, setOwnedEntries] = useState<OwnedEntry[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('name')
@@ -33,14 +50,25 @@ export function ReservedListPage() {
   const [addCard, setAddCard] = useState<RLCard | null>(null)
   const [detailCard, setDetailCard] = useState<RLCard | null>(null)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [treatmentPick, setTreatmentPick] = useState('')
+  const [treatmentConfirm, setTreatmentConfirm] = useState(false)
+
+  async function loadOwned() {
+    const res = await fetch('/api/collection/reserved')
+    if (res.ok) setOwnedEntries(await res.json())
+  }
 
   useEffect(() => {
     Promise.all([
       fetch('/api/cards/reserved-list').then(r => r.ok ? r.json() : []),
       fetch('/api/treatments').then(r => r.ok ? r.json() : []),
-    ]).then(([rl, t]) => {
+      fetch('/api/collection/reserved').then(r => r.ok ? r.json() : []),
+    ]).then(([rl, t, owned]) => {
       setCards(rl)
       setTreatments(sortTreatments(t))
+      setOwnedEntries(owned)
       setLoading(false)
     })
   }, [])
@@ -114,7 +142,39 @@ export function ReservedListPage() {
           ? { ...c, ownedQuantity: c.ownedQuantity + 1 }
           : c
       ))
+      loadOwned()
     }
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+
+  function toggleSelectAll(all: boolean) {
+    setSelected(all ? new Set(ownedEntries.map(e => e.id)) : new Set())
+  }
+
+  async function handleBulkDelete() {
+    await fetch('/api/collection/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: Array.from(selected) }),
+    })
+    setSelected(new Set())
+    await loadOwned()
+    const res = await fetch('/api/cards/reserved-list')
+    if (res.ok) setCards(await res.json())
+  }
+
+  async function handleBulkSetTreatment() {
+    await fetch('/api/collection/bulk-set-treatment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: Array.from(selected), treatment: treatmentPick }),
+    })
+    setSelected(new Set())
+    setTreatmentPick('')
+    await loadOwned()
   }
 
   const hasActiveFilter = ownedOnly || !!colorFilter || !!typeFilter
@@ -198,11 +258,115 @@ export function ReservedListPage() {
             Run a content update to populate Reserved List data.
           </p>
         </div>
+      ) : ownedOnly ? (
+        // Per-treatment owned entries view
+        <>
+          {selected.size > 0 && (
+            <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted border text-sm">
+              <span className="font-medium">{selected.size} selected</span>
+              <div className="flex items-center gap-1.5">
+                <Select value={treatmentPick} onValueChange={setTreatmentPick}>
+                  <SelectTrigger className="h-7 text-xs w-36">
+                    <SelectValue placeholder="Set treatment..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {treatments.map(t => (
+                      <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  disabled={!treatmentPick}
+                  onClick={() => setTreatmentConfirm(true)}
+                >
+                  Apply
+                </Button>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-7 text-xs"
+                onClick={() => setBulkDeleteConfirm(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove selected
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelected(new Set())}>
+                Clear
+              </Button>
+            </div>
+          )}
+          {ownedEntries.length === 0 ? (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground text-sm">No owned Reserved List cards.</p>
+            </div>
+          ) : (
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50 text-muted-foreground">
+                    <th className="px-3 py-2 w-8">
+                      <input
+                        type="checkbox"
+                        checked={ownedEntries.length > 0 && ownedEntries.every(e => selected.has(e.id))}
+                        onChange={ev => toggleSelectAll(ev.target.checked)}
+                        aria-label="Select all"
+                      />
+                    </th>
+                    <th className="px-3 py-2 w-10"></th>
+                    <th className="px-3 py-2 text-left">Card</th>
+                    <th className="px-3 py-2 text-left">Treatment</th>
+                    <th className="px-3 py-2 text-left">Condition</th>
+                    <th className="px-3 py-2 text-center">Qty</th>
+                    <th className="px-3 py-2 text-right">Acq. Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ownedEntries.map(e => {
+                    const treatmentLabel = treatments.find(t => t.key === e.treatmentKey)?.displayName ?? e.treatmentKey
+                    return (
+                      <tr key={e.id} className={`border-b last:border-0 hover:bg-muted/20 ${selected.has(e.id) ? 'bg-muted/30' : ''}`}>
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(e.id)}
+                            onChange={() => toggleSelect(e.id)}
+                            aria-label={`Select ${e.cardName ?? e.cardIdentifier}`}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <img
+                            src={`/api/images/cards/${e.cardIdentifier.toLowerCase()}.jpg`}
+                            alt=""
+                            className="h-8 w-6 rounded object-cover bg-muted"
+                            loading="lazy"
+                            onError={ev => { (ev.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="font-medium leading-tight">{e.cardName ?? e.cardIdentifier}</div>
+                          <div className="text-xs text-muted-foreground font-mono">{e.cardIdentifier}</div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{treatmentLabel}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{e.condition}</td>
+                        <td className="px-3 py-2 text-center tabular-nums">{e.quantity}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(e.acquisitionPrice)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       ) : sorted.length === 0 ? (
         <div className="py-12 text-center">
           <p className="text-muted-foreground text-sm">No cards match the current filters.</p>
         </div>
       ) : (
+        // Catalog view - single row per card
         <div className="rounded-md border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -293,6 +457,24 @@ export function ReservedListPage() {
           onAdded={handleAdded}
         />
       )}
+
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={v => { if (!v) setBulkDeleteConfirm(false) }}
+        title={`Remove ${selected.size} ${selected.size === 1 ? 'entry' : 'entries'}?`}
+        description="This will permanently remove the selected entries from your collection."
+        confirmLabel="Remove All"
+        destructive
+        onConfirm={handleBulkDelete}
+      />
+      <ConfirmDialog
+        open={treatmentConfirm}
+        onOpenChange={v => { if (!v) setTreatmentConfirm(false) }}
+        title={`Set treatment on ${selected.size} ${selected.size === 1 ? 'entry' : 'entries'}?`}
+        description={`Change treatment to "${treatments.find(t => t.key === treatmentPick)?.displayName ?? treatmentPick}" for the selected entries.`}
+        confirmLabel="Apply"
+        onConfirm={handleBulkSetTreatment}
+      />
     </div>
   )
 }

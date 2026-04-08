@@ -39,6 +39,7 @@ public class WishlistController : ControllerBase
             Color = r.Card?.Color,
             CardType = r.Card?.CardType,
             MarketValue = r.Card?.CurrentMarketValue ?? 0,
+            TreatmentKey = r.Entry.TreatmentKey,
             r.Entry.CreatedAt
         }).ToList();
 
@@ -52,11 +53,14 @@ public class WishlistController : ControllerBase
         if (!CardIdentifierValidator.IsValid(cardId))
             return BadRequest(new { error = $"Invalid card identifier: {request.CardIdentifier.ToUpperInvariant()}. Expected format: set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000)." });
 
+        var treatmentKey = string.IsNullOrWhiteSpace(request.TreatmentKey) ? "regular" : request.TreatmentKey.Trim().ToLowerInvariant();
+
         var entry = new WishlistEntry
         {
             Id = Guid.NewGuid(),
             UserId = CurrentUserId,
             CardIdentifier = cardId,
+            TreatmentKey = treatmentKey,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -78,6 +82,15 @@ public class WishlistController : ControllerBase
             .Where(r => r.Card != null)
             .Select(r => $"1 {r.Card!.Name} [{r.Card.SetCode.ToUpperInvariant()}]");
         return Content(string.Join("\n", lines), "text/plain");
+    }
+
+    [HttpPost("bulk-delete")]
+    public async Task<IActionResult> BulkDelete([FromBody] BulkIdsRequest request, CancellationToken ct)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "At least one id is required." });
+        var deleted = await _wishlist.BulkDeleteAsync(request.Ids, CurrentUserId, ct);
+        return Ok(new { deleted });
     }
 
     [HttpDelete("{id:guid}")]

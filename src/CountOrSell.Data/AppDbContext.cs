@@ -412,10 +412,12 @@ public class AppDbContext : DbContext
             e.Property(w => w.Id).HasColumnName("id");
             e.Property(w => w.UserId).HasColumnName("user_id").IsRequired();
             e.Property(w => w.CardIdentifier).HasColumnName("card_identifier").HasMaxLength(9).IsRequired();
+            e.Property(w => w.TreatmentKey).HasColumnName("treatment_key").HasMaxLength(50).IsRequired().HasDefaultValue("regular");
             e.Property(w => w.CreatedAt).HasColumnName("created_at").IsRequired();
             e.HasOne(w => w.User).WithMany().HasForeignKey(w => w.UserId);
+            e.HasOne<Treatment>().WithMany().HasForeignKey(w => w.TreatmentKey);
             e.HasIndex(w => w.UserId);
-            e.HasIndex(w => new { w.UserId, w.CardIdentifier }).IsUnique();
+            e.HasIndex(w => new { w.UserId, w.CardIdentifier, w.TreatmentKey }).IsUnique();
         });
     }
 
