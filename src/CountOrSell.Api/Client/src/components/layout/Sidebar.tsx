@@ -15,12 +15,15 @@ import {
   Info,
   LogOut,
   KeyRound,
+  Moon,
+  Sun,
   UserCircle,
   BookOpen,
   Star,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranding } from '@/contexts/BrandingContext'
+import { usePreferences } from '@/contexts/PreferencesContext'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -83,6 +86,7 @@ function NavItem({ item }: { item: NavItem }) {
 export function Sidebar() {
   const { user, logout } = useAuth()
   const { instanceName } = useBranding()
+  const { prefs, patchPrefs } = usePreferences()
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const isAdmin = user?.role === 'Admin'
@@ -131,6 +135,12 @@ export function Sidebar() {
                   Change Password
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem onClick={() => patchPrefs({ darkMode: !prefs.darkMode })}>
+                {prefs.darkMode
+                  ? <Sun className="h-4 w-4 mr-2" />
+                  : <Moon className="h-4 w-4 mr-2" />}
+                {prefs.darkMode ? 'Light Mode' : 'Dark Mode'}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
                 <LogOut className="h-4 w-4 mr-2" />

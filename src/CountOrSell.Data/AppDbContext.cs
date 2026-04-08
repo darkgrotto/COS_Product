@@ -107,6 +107,8 @@ public class AppDbContext : DbContext
             e.Property(p => p.DefaultPage).HasColumnName("default_page").HasMaxLength(100);
             e.Property(p => p.SetCompletionRegularOnly).HasColumnName("set_completion_regular_only")
                 .HasDefaultValue(false).IsRequired();
+            e.Property(p => p.DarkMode).HasColumnName("dark_mode")
+                .HasDefaultValue(false).IsRequired();
         });
     }
 

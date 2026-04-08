@@ -5,12 +5,14 @@ export interface UserPreferences {
   setCompletionRegularOnly: boolean
   defaultPage: string | null
   defaultAcquisitionPriceToMarket: boolean
+  darkMode: boolean
 }
 
 const DEFAULT_PREFS: UserPreferences = {
   setCompletionRegularOnly: false,
   defaultPage: null,
   defaultAcquisitionPriceToMarket: true,
+  darkMode: false,
 }
 
 interface PreferencesContextValue {
@@ -33,6 +35,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       })
       .catch(() => {})
   }, [user])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', prefs.darkMode)
+  }, [prefs.darkMode])
 
   const patchPrefs = useCallback(async (patch: Partial<UserPreferences>) => {
     const res = await fetch('/api/users/me/preferences', {

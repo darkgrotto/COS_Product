@@ -17,5 +17,5 @@ public interface IUserService
     Task DeleteExportFileAsync(Guid exportFileId, CancellationToken ct = default);
     Task<UserServiceResult> UpdateDisplayNameAsync(Guid targetUserId, string displayName, CancellationToken ct = default);
     Task<UserPreferences?> GetPreferencesAsync(Guid userId, CancellationToken ct = default);
-    Task UpdatePreferencesAsync(Guid userId, bool? setCompletionRegularOnly, string? defaultPage, bool? defaultAcquisitionPriceToMarket, CancellationToken ct = default);
+    Task UpdatePreferencesAsync(Guid userId, bool? setCompletionRegularOnly, string? defaultPage, bool? defaultAcquisitionPriceToMarket, bool? darkMode, CancellationToken ct = default);
 }

@@ -6,6 +6,7 @@ public class UserPreferences
     public string? DefaultPage { get; set; }
     public bool SetCompletionRegularOnly { get; set; }
     public bool DefaultAcquisitionPriceToMarket { get; set; } = true;
+    public bool DarkMode { get; set; }
     // Navigation
     public User? User { get; set; }
 }
