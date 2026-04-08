@@ -146,8 +146,8 @@ function SetListView({
   onSelectSet: (s: BrowseSet) => void
 }) {
   const [search, setSearch] = useState('')
-  const [sortKey, setSortKey] = useState('name')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [sortKey, setSortKey] = useState('releaseDate')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [typeFilter, setTypeFilter] = useState('')
   const [standardOnly, setStandardOnly] = useState(false)
 
