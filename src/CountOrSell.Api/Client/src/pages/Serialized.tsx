@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Plus, Pencil, Trash2, ExternalLink, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { CardDetailDialog, QuickAddDialog, AddableCard } from '@/components/cards/CardDialogs'
 
 // ---- Types ----------------------------------------------------------------
 
@@ -399,6 +400,8 @@ export function SerializedPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<SerializedEntry | null>(null)
   const [deleteEntry, setDeleteEntry] = useState<SerializedEntry | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [addFromDetail, setAddFromDetail] = useState<AddableCard | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
 
@@ -549,19 +552,20 @@ export function SerializedPage() {
                           onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                         />
                         <div>
-                          <div className="font-medium leading-tight">
-                            {entry.cardName ?? entry.cardIdentifier}
+                          <div className="leading-tight">
+                            <button
+                              type="button"
+                              className="font-medium hover:underline text-left"
+                              onClick={() => setDetailId(entry.cardIdentifier)}
+                            >
+                              {entry.cardName ?? entry.cardIdentifier}
+                            </button>
                             {entry.autographed && (
                               <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>
                             )}
                           </div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <div className="text-xs text-muted-foreground">
                             {entry.cardIdentifier}
-                            {entry.oracleRulingUrl && (
-                              <a href={entry.oracleRulingUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -605,6 +609,25 @@ export function SerializedPage() {
         open={!!editEntry} onOpenChange={v => { if (!v) setEditEntry(null) }}
         treatments={treatments} initial={editEntry} onSave={handleSave}
       />
+      {detailId && (
+        <CardDetailDialog
+          identifier={detailId}
+          onClose={() => setDetailId(null)}
+          onAdd={() => {
+            const e = entries.find(x => x.cardIdentifier === detailId)
+            if (e) setAddFromDetail({ identifier: e.cardIdentifier, name: e.cardName ?? e.cardIdentifier, currentMarketValue: e.marketValue })
+            setDetailId(null)
+          }}
+        />
+      )}
+      {addFromDetail && (
+        <QuickAddDialog
+          card={addFromDetail}
+          treatments={treatments}
+          onClose={() => setAddFromDetail(null)}
+          onAdded={() => setAddFromDetail(null)}
+        />
+      )}
       <ConfirmDialog
         open={!!deleteEntry}
         onOpenChange={v => { if (!v) setDeleteEntry(null) }}

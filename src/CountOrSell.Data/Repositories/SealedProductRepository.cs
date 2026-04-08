@@ -8,6 +8,9 @@ public class SealedProductRepository : ISealedProductRepository
     private readonly AppDbContext _db;
     public SealedProductRepository(AppDbContext db) => _db = db;
 
+    public Task<SealedProduct?> GetByIdentifierAsync(string identifier, CancellationToken ct = default) =>
+        _db.SealedProducts.FirstOrDefaultAsync(p => p.Identifier == identifier, ct);
+
     public Task<Dictionary<string, SealedProduct>> GetByIdentifiersAsync(
         IEnumerable<string> identifiers, CancellationToken ct = default) =>
         _db.SealedProducts

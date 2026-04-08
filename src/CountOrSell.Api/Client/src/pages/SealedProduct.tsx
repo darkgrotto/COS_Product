@@ -515,6 +515,114 @@ function FiltersPanel({
   )
 }
 
+// ---- Sealed product detail dialog -------------------------------------------
+
+interface SealedProductDetail {
+  identifier: string
+  name: string
+  setCode: string | null
+  categorySlug: string | null
+  subTypeSlug: string | null
+  currentMarketValue: number | null
+  imageUrl: string
+  supplementalImageUrl: string
+}
+
+function SealedProductDetailDialog({
+  identifier,
+  categories,
+  onClose,
+}: {
+  identifier: string
+  categories: TaxonomyCategory[]
+  onClose: () => void
+}) {
+  const [product, setProduct] = useState<SealedProductDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/sealed-products/${encodeURIComponent(identifier)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setProduct(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [identifier])
+
+  const categoryName = product?.categorySlug
+    ? (categories.find(c => c.slug === product.categorySlug)?.displayName ?? product.categorySlug)
+    : null
+  const subTypeName = product?.subTypeSlug && product?.categorySlug
+    ? (categories.find(c => c.slug === product.categorySlug)?.subTypes.find(s => s.slug === product.subTypeSlug)?.displayName ?? product.subTypeSlug)
+    : null
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{loading ? 'Loading...' : product?.name ?? identifier}</DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground py-4">Loading product details...</p>
+        ) : !product ? (
+          <p className="text-sm text-muted-foreground py-4">Product details not available.</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex gap-4">
+              <div className="flex flex-col gap-2 shrink-0">
+                <img
+                  src={product.imageUrl}
+                  alt={product.name}
+                  className="h-32 w-24 rounded object-cover bg-muted"
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+                <img
+                  src={product.supplementalImageUrl}
+                  alt=""
+                  className="h-16 w-16 rounded object-cover bg-muted"
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              </div>
+              <div className="space-y-1.5 text-sm min-w-0">
+                <div>
+                  <p className="text-xs text-muted-foreground">Identifier</p>
+                  <p className="font-mono font-medium">{product.identifier}</p>
+                </div>
+                {product.setCode && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Set</p>
+                    <p className="font-mono font-medium">{product.setCode}</p>
+                  </div>
+                )}
+                {categoryName && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Category</p>
+                    <p>{categoryName}</p>
+                  </div>
+                )}
+                {subTypeName && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Type</p>
+                    <p>{subTypeName}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-muted-foreground">Market Value</p>
+                  <p className="font-medium">{fmt(product.currentMarketValue)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ---- Main page --------------------------------------------------------------
 
 export function SealedProductPage() {
@@ -526,6 +634,7 @@ export function SealedProductPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<SealedInventoryEntry | null>(null)
   const [deleteEntry, setDeleteEntry] = useState<SealedInventoryEntry | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
   const [conditionPick, setConditionPick] = useState('')
@@ -797,7 +906,13 @@ export function SealedProductPage() {
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <div className="font-medium">{e.productName ?? e.productIdentifier}</div>
+                      <button
+                        type="button"
+                        className="font-medium hover:underline text-left"
+                        onClick={() => setDetailId(e.productIdentifier)}
+                      >
+                        {e.productName ?? e.productIdentifier}
+                      </button>
                       <div className="text-xs text-muted-foreground">{e.productIdentifier}</div>
                     </td>
                     <td className="px-3 py-2">
@@ -888,6 +1003,14 @@ export function SealedProductPage() {
           }}
           categories={categories}
           isEdit
+        />
+      )}
+
+      {detailId && (
+        <SealedProductDetailDialog
+          identifier={detailId}
+          categories={categories}
+          onClose={() => setDetailId(null)}
         />
       )}
 
