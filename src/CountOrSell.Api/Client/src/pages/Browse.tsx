@@ -559,7 +559,7 @@ function CardListView({
                       </td>
                       <td className="px-3 py-2">
                         <img
-                          src={`/api/images/cards/${c.identifier.toLowerCase()}.jpg`}
+                          src={`/api/images/cards/${set.code.toLowerCase()}/${c.identifier.toLowerCase()}.jpg`}
                           alt=""
                           className="h-8 w-6 rounded object-cover bg-muted"
                           loading="lazy"

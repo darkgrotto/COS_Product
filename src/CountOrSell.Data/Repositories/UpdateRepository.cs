@@ -60,6 +60,14 @@ public class UpdateRepository : IUpdateRepository
         await _db.SaveChangesAsync(ct);
     }
 
+    public async Task MarkAllNotificationsReadAsync(CancellationToken ct)
+    {
+        var unread = await _db.AdminNotifications.Where(n => !n.IsRead).ToListAsync(ct);
+        foreach (var n in unread)
+            n.IsRead = true;
+        await _db.SaveChangesAsync(ct);
+    }
+
     public async Task<string?> GetLatestApplicationVersionAsync(CancellationToken ct)
     {
         var setting = await _db.AppSettings.FindAsync(new object[] { "latest_app_version" }, ct);

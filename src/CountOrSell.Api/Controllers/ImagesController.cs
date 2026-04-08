@@ -14,6 +14,11 @@ public class ImagesController : ControllerBase
     private readonly ICardImageFetcher _imageFetcher;
     private readonly ILogger<ImagesController> _logger;
 
+    // Set code: 3-4 lowercase alphanumeric characters
+    private static readonly System.Text.RegularExpressions.Regex SetCodeRegex =
+        new(@"^[a-z0-9]{3,4}$",
+            System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     // Card image filename is {identifier}.jpg e.g. "eoe019.jpg"
     private static readonly System.Text.RegularExpressions.Regex CardFileNameRegex =
         new(@"^[a-z0-9]{3,4}\d{3,4}[a-z]?\.(jpg|jpeg|png|webp)$",
@@ -34,13 +39,13 @@ public class ImagesController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet("cards/{fileName}")]
-    public async Task<IActionResult> GetCardImage(string fileName, CancellationToken ct)
+    [HttpGet("cards/{setCode}/{fileName}")]
+    public async Task<IActionResult> GetCardImage(string setCode, string fileName, CancellationToken ct)
     {
-        if (!CardFileNameRegex.IsMatch(fileName))
+        if (!SetCodeRegex.IsMatch(setCode) || !CardFileNameRegex.IsMatch(fileName))
             return BadRequest();
 
-        var relativePath = Path.Combine("cards", fileName);
+        var relativePath = Path.Combine("sets", setCode.ToLowerInvariant(), fileName.ToLowerInvariant());
 
         var data = await _imageStore.GetImageAsync(relativePath, ct);
 

@@ -6,6 +6,7 @@ export interface UserPreferences {
   defaultPage: string | null
   defaultAcquisitionPriceToMarket: boolean
   darkMode: boolean
+  navLayout: 'sidebar' | 'top'
 }
 
 const DEFAULT_PREFS: UserPreferences = {
@@ -13,6 +14,7 @@ const DEFAULT_PREFS: UserPreferences = {
   defaultPage: null,
   defaultAcquisitionPriceToMarket: true,
   darkMode: false,
+  navLayout: 'sidebar',
 }
 
 interface PreferencesContextValue {

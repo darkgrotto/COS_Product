@@ -334,21 +334,6 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         await _db.SaveChangesAsync(ct);
     }
 
-    // Translate the ZIP image path to the flat storage path the ImagesController expects.
-    // ZIP:  images/sets/{set_code}/{card_id}.jpg  -> store: cards/{card_id}.jpg
-    // ZIP:  images/sealed/{product_id}.jpg        -> store: sealed/{product_id}.jpg
-    // ZIP:  images/sealed/{product_id}_s.jpg      -> store: sealed/{product_id}_s.jpg
-    private static string? ZipImagePathToStorePath(string zipPath)
-    {
-        if (zipPath.StartsWith("images/sets/", StringComparison.OrdinalIgnoreCase))
-            return "cards/" + Path.GetFileName(zipPath);
-
-        if (zipPath.StartsWith("images/sealed/", StringComparison.OrdinalIgnoreCase))
-            return "sealed/" + Path.GetFileName(zipPath);
-
-        return null; // unknown structure - skip
-    }
-
     private async Task SaveImagesAsync(
         ZipArchive archive, Dictionary<string, string> checksums, CancellationToken ct)
     {
@@ -357,8 +342,11 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             if (!entry.FullName.StartsWith("images/", StringComparison.OrdinalIgnoreCase)) continue;
             if (entry.Name.Length == 0) continue; // directory entry
 
-            var storePath = ZipImagePathToStorePath(entry.FullName);
-            if (storePath == null)
+            // Strip the leading "images/" prefix so the store path mirrors the ZIP hierarchy:
+            //   images/sets/{set_code}/{card_id}.jpg  -> sets/{set_code}/{card_id}.jpg
+            //   images/sealed/{product_id}.jpg        -> sealed/{product_id}.jpg
+            var storePath = entry.FullName.Substring("images/".Length);
+            if (string.IsNullOrEmpty(storePath))
             {
                 _logger.LogWarning("Unrecognised image path in package, skipping: {Path}", entry.FullName);
                 continue;

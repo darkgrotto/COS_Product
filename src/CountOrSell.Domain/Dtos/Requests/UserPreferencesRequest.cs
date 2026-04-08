@@ -6,4 +6,5 @@ public class UserPreferencesRequest
     public string? DefaultPage { get; set; }
     public bool? DefaultAcquisitionPriceToMarket { get; set; }
     public bool? DarkMode { get; set; }
+    public string? NavLayout { get; set; }
 }

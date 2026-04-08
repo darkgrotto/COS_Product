@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, AlertTriangle, CheckCircle, Info, X } from 'lucide-react'
+import { RefreshCw, AlertTriangle, CheckCircle, Info, X, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -30,8 +30,10 @@ export function UpdatesPage() {
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [checking, setChecking] = useState(false)
+  const [forceRedownloading, setForceRedownloading] = useState(false)
   const [approving, setApproving] = useState(false)
   const [schemaConfirmOpen, setSchemaConfirmOpen] = useState(false)
+  const [forceConfirmOpen, setForceConfirmOpen] = useState(false)
   const [error, setError] = useState('')
   const [checkMessage, setCheckMessage] = useState<{ text: string; applied: boolean } | null>(null)
 
@@ -83,9 +85,31 @@ export function UpdatesPage() {
     }
   }
 
+  async function handleForceRedownload() {
+    setForceRedownloading(true)
+    setError('')
+    setCheckMessage(null)
+    try {
+      const res = await fetch('/api/updates/redownload', { method: 'POST', credentials: 'include' })
+      if (!res.ok) throw new Error('Redownload failed')
+      const data = await res.json()
+      setCheckMessage({ text: data.message, applied: data.packagesAvailable })
+      await load()
+    } catch {
+      setError('Force redownload failed. Check the application logs.')
+    } finally {
+      setForceRedownloading(false)
+    }
+  }
+
   async function dismissNotification(id: number) {
     await fetch(`/api/updates/notifications/${id}/read`, { method: 'POST', credentials: 'include' })
     setNotifications(prev => prev.filter(n => n.id !== id))
+  }
+
+  async function clearAllNotifications() {
+    await fetch('/api/updates/notifications/read-all', { method: 'POST', credentials: 'include' })
+    setNotifications([])
   }
 
   const allClear = status &&
@@ -97,10 +121,16 @@ export function UpdatesPage() {
     <div className="space-y-6 max-w-3xl">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Updates</h1>
-        <Button onClick={handleCheck} disabled={checking}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${checking ? 'animate-spin' : ''}`} />
-          {checking ? 'Checking...' : 'Check for Updates'}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setForceConfirmOpen(true)} disabled={forceRedownloading || checking}>
+            <RotateCcw className={`h-4 w-4 mr-2 ${forceRedownloading ? 'animate-spin' : ''}`} />
+            {forceRedownloading ? 'Downloading...' : 'Force Redownload'}
+          </Button>
+          <Button onClick={handleCheck} disabled={checking || forceRedownloading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${checking ? 'animate-spin' : ''}`} />
+            {checking ? 'Checking...' : 'Check for Updates'}
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -181,9 +211,19 @@ export function UpdatesPage() {
 
       {notifications.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Notifications
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Notifications
+            </p>
+            {notifications.length > 1 && (
+              <button
+                onClick={clearAllNotifications}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
           {notifications.map(n => (
             <div
               key={n.id}
@@ -223,6 +263,15 @@ export function UpdatesPage() {
         confirmLabel="Apply Schema Update"
         destructive
         onConfirm={handleApproveSchema}
+      />
+
+      <ConfirmDialog
+        open={forceConfirmOpen}
+        onOpenChange={setForceConfirmOpen}
+        title="Force Redownload"
+        description="This will re-download and re-apply the latest content package from countorsell.com, even if the content version is already current. All content data will be overwritten from the package. Proceed?"
+        confirmLabel="Force Redownload"
+        onConfirm={handleForceRedownload}
       />
     </div>
   )

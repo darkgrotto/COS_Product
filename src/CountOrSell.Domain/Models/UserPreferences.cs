@@ -7,6 +7,7 @@ public class UserPreferences
     public bool SetCompletionRegularOnly { get; set; }
     public bool DefaultAcquisitionPriceToMarket { get; set; } = true;
     public bool DarkMode { get; set; }
-    // Navigation
+    // "sidebar" or "top"
+    public string NavLayout { get; set; } = "sidebar";
     public User? User { get; set; }
 }

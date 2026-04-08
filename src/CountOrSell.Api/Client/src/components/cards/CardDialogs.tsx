@@ -259,7 +259,7 @@ export function CardDetailDialog({
           <div className="space-y-4">
             <div className="flex gap-4">
               <img
-                src={`/api/images/cards/${card.identifier.toLowerCase()}.jpg`}
+                src={`/api/images/cards/${card.setCode.toLowerCase()}/${card.identifier.toLowerCase()}.jpg`}
                 alt={card.name}
                 className="h-32 w-24 rounded object-cover bg-muted shrink-0"
                 onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}

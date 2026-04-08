@@ -127,6 +127,21 @@ public class UpdatesController : ControllerBase
         await _updateRepo.MarkNotificationReadAsync(id, ct);
         return Ok();
     }
+
+    [HttpPost("notifications/read-all")]
+    public async Task<IActionResult> MarkAllNotificationsRead(CancellationToken ct)
+    {
+        await _updateRepo.MarkAllNotificationsReadAsync(ct);
+        return Ok();
+    }
+
+    [HttpPost("redownload")]
+    [DemoLocked]
+    public async Task<IActionResult> ForceRedownload(CancellationToken ct)
+    {
+        var result = await _updateTrigger.TriggerForceAsync(ct);
+        return Ok(new { result.PackagesAvailable, result.Message });
+    }
 }
 
 public sealed class DeployRequest

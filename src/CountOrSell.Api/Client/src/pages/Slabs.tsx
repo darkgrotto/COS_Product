@@ -575,7 +575,7 @@ export function SlabsPage() {
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <img
-                          src={`/api/images/cards/${entry.cardIdentifier.toLowerCase()}.jpg`}
+                          src={`/api/images/cards/${(entry.setCode ?? '').toLowerCase()}/${entry.cardIdentifier.toLowerCase()}.jpg`}
                           alt="" className="h-8 w-6 rounded object-cover shrink-0 bg-muted" loading="lazy"
                           onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                         />

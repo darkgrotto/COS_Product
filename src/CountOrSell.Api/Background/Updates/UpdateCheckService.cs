@@ -33,16 +33,17 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             {
                 break;
             }
-            await RunUpdateCheckAsync(stoppingToken);
+            await RunUpdateCheckAsync(force: false, stoppingToken);
         }
     }
 
     public async Task<UpdateCheckResult> TriggerAsync(CancellationToken ct)
-    {
-        return await RunUpdateCheckAsync(ct);
-    }
+        => await RunUpdateCheckAsync(force: false, ct);
 
-    public async Task<UpdateCheckResult> RunUpdateCheckAsync(CancellationToken ct)
+    public async Task<UpdateCheckResult> TriggerForceAsync(CancellationToken ct)
+        => await RunUpdateCheckAsync(force: true, ct);
+
+    public async Task<UpdateCheckResult> RunUpdateCheckAsync(bool force, CancellationToken ct)
     {
         UpdateCheckResult? result = null;
         IUpdateRepository? updateRepo = null;
@@ -91,7 +92,7 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             }
 
             var currentContentVersion = await updateRepo.GetCurrentContentVersionAsync(ct);
-            if (currentContentVersion == cardsVersion.Version)
+            if (!force && currentContentVersion == cardsVersion.Version)
             {
                 _logger.LogInformation("Content already up to date at version {Version}", currentContentVersion);
                 result = new UpdateCheckResult(false, $"Content is already up to date (version {currentContentVersion}).");

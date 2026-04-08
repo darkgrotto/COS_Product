@@ -338,7 +338,7 @@ export function ReservedListPage() {
                         </td>
                         <td className="px-3 py-2">
                           <img
-                            src={`/api/images/cards/${e.cardIdentifier.toLowerCase()}.jpg`}
+                            src={`/api/images/cards/${(e.setCode ?? '').toLowerCase()}/${e.cardIdentifier.toLowerCase()}.jpg`}
                             alt=""
                             className="h-8 w-6 rounded object-cover bg-muted"
                             loading="lazy"
@@ -394,7 +394,7 @@ export function ReservedListPage() {
                   >
                     <td className="px-3 py-2">
                       <img
-                        src={`/api/images/cards/${c.identifier.toLowerCase()}.jpg`}
+                        src={`/api/images/cards/${c.setCode.toLowerCase()}/${c.identifier.toLowerCase()}.jpg`}
                         alt=""
                         className="h-8 w-6 rounded object-cover bg-muted"
                         loading="lazy"

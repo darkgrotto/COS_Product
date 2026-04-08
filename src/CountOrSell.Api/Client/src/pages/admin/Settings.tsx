@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Settings } from 'lucide-react'
+import { useBranding } from '@/contexts/BrandingContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -153,9 +154,10 @@ function useFlash() {
 // ---- Main page --------------------------------------------------------------
 
 export function SettingsPage() {
+  const { instanceName: brandingName } = useBranding()
   // Instance branding
-  const [instanceName, setInstanceName] = useState('')
-  const [instanceNameInput, setInstanceNameInput] = useState('')
+  const [instanceName, setInstanceName] = useState(brandingName)
+  const [instanceNameInput, setInstanceNameInput] = useState(brandingName)
   const [instanceSaving, setInstanceSaving] = useState(false)
 
   // TCGPlayer

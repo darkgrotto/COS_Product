@@ -11,6 +11,7 @@ public interface IUpdateRepository
     Task ApprovePendingSchemaUpdateAsync(int id, Guid approvedByUserId, CancellationToken ct);
     Task<List<AdminNotification>> GetUnreadNotificationsAsync(CancellationToken ct);
     Task MarkNotificationReadAsync(int id, CancellationToken ct);
+    Task MarkAllNotificationsReadAsync(CancellationToken ct);
     Task<string?> GetLatestApplicationVersionAsync(CancellationToken ct);
     Task SetLatestApplicationVersionAsync(string version, CancellationToken ct);
     Task<DateTime?> GetLastUpdateCheckedAtAsync(CancellationToken ct);

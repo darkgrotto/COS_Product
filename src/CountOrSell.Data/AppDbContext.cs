@@ -109,6 +109,8 @@ public class AppDbContext : DbContext
                 .HasDefaultValue(false).IsRequired();
             e.Property(p => p.DarkMode).HasColumnName("dark_mode")
                 .HasDefaultValue(false).IsRequired();
+            e.Property(p => p.NavLayout).HasColumnName("nav_layout")
+                .HasMaxLength(20).HasDefaultValue("sidebar").IsRequired();
         });
     }
 
