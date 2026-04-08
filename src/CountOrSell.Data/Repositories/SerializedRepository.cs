@@ -58,6 +58,17 @@ public class SerializedRepository : ISerializedRepository
         }
     }
 
+    public async Task<int> BulkDeleteAsync(IEnumerable<Guid> ids, Guid userId, CancellationToken ct = default)
+    {
+        var idList = ids.ToList();
+        var entries = await _db.SerializedEntries
+            .Where(e => idList.Contains(e.Id) && e.UserId == userId)
+            .ToListAsync(ct);
+        _db.SerializedEntries.RemoveRange(entries);
+        await _db.SaveChangesAsync(ct);
+        return entries.Count;
+    }
+
     public async Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default)
     {
         var entries = await _db.SerializedEntries.Where(e => e.UserId == userId).ToListAsync(ct);

@@ -399,6 +399,8 @@ export function SerializedPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<SerializedEntry | null>(null)
   const [deleteEntry, setDeleteEntry] = useState<SerializedEntry | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
 
   const treatmentMap = Object.fromEntries(treatments.map(t => [t.key, t.displayName]))
 
@@ -430,6 +432,29 @@ export function SerializedPage() {
     await load()
   }
 
+  async function handleBulkDelete() {
+    const ids = Array.from(selected)
+    await fetch('/api/serialized/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    setSelected(new Set())
+    await load()
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll(all: boolean) {
+    setSelected(all ? new Set(entries.map(e => e.id)) : new Set())
+  }
+
   const totalValue = entries.reduce((s, e) => s + (e.marketValue ?? 0), 0)
   const hasValues = entries.some(e => e.marketValue != null)
 
@@ -456,6 +481,18 @@ export function SerializedPage() {
         onClear={() => setFilters({ treatment: '', condition: '' })}
       />
 
+      {selected.size > 0 && (
+        <div className="mb-3 flex items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm">
+          <span className="font-medium">{selected.size} selected</span>
+          <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => setBulkDeleteConfirm(true)}>
+            <Trash2 className="h-3 w-3 mr-1" /> Remove all
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 text-xs ml-auto" onClick={() => setSelected(new Set())}>
+            <X className="h-3 w-3 mr-1" /> Clear
+          </Button>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
       ) : entries.length === 0 ? (
@@ -467,6 +504,15 @@ export function SerializedPage() {
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/40">
               <tr>
+                <th className="px-3 py-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={entries.length > 0 && entries.every(e => selected.has(e.id))}
+                    onChange={e => toggleSelectAll(e.target.checked)}
+                    className="h-4 w-4 rounded border-input"
+                    aria-label="Select all"
+                  />
+                </th>
                 <th className="px-3 py-2 text-left font-medium">Card</th>
                 <th className="px-3 py-2 text-left font-medium">Set</th>
                 <th className="px-3 py-2 text-left font-medium">Treatment</th>
@@ -481,8 +527,18 @@ export function SerializedPage() {
             <tbody className="divide-y">
               {entries.map(entry => {
                 const pl = entry.marketValue != null ? entry.marketValue - entry.acquisitionPrice : null
+                const isSelected = selected.has(entry.id)
                 return (
-                  <tr key={entry.id} className="hover:bg-muted/30">
+                  <tr key={entry.id} className={`hover:bg-muted/30 ${isSelected ? 'bg-accent/30' : ''}`}>
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(entry.id)}
+                        className="h-4 w-4 rounded border-input"
+                        aria-label="Select row"
+                      />
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <img
@@ -557,6 +613,15 @@ export function SerializedPage() {
         confirmLabel="Remove"
         destructive
         onConfirm={handleDelete}
+      />
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={v => { if (!v) setBulkDeleteConfirm(false) }}
+        title={`Remove ${selected.size} card${selected.size !== 1 ? 's' : ''}?`}
+        description="This will permanently remove the selected serialized cards from your collection."
+        confirmLabel="Remove All"
+        destructive
+        onConfirm={handleBulkDelete}
       />
     </div>
   )

@@ -183,6 +183,15 @@ public class SealedInventoryController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("bulk-delete")]
+    public async Task<IActionResult> BulkDelete([FromBody] BulkIdsRequest request, CancellationToken ct)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "At least one id is required." });
+        var deleted = await _sealedInventory.BulkDeleteAsync(request.Ids, CurrentUserId, ct);
+        return Ok(new { deleted });
+    }
+
     private static bool TryParseCondition(string value, out CardCondition result) =>
         Enum.TryParse(value, true, out result);
 

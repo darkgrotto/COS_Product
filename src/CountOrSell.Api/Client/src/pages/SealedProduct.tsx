@@ -526,6 +526,8 @@ export function SealedProductPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<SealedInventoryEntry | null>(null)
   const [deleteEntry, setDeleteEntry] = useState<SealedInventoryEntry | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
 
   const fetchEntries = useCallback(async () => {
     setLoading(true)
@@ -612,6 +614,29 @@ export function SealedProductPage() {
     fetchEntries()
   }
 
+  async function handleBulkDelete() {
+    const ids = Array.from(selected)
+    await fetch('/api/sealed-inventory/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    setSelected(new Set())
+    fetchEntries()
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll(all: boolean) {
+    setSelected(all ? new Set(entries.map(e => e.id)) : new Set())
+  }
+
   async function adjustQty(entry: SealedInventoryEntry, delta: number) {
     const newQty = Math.max(1, entry.quantity + delta)
     if (newQty === entry.quantity) return
@@ -659,6 +684,18 @@ export function SealedProductPage() {
         />
       )}
 
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm">
+          <span className="font-medium">{selected.size} selected</span>
+          <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => setBulkDeleteConfirm(true)}>
+            <Trash2 className="h-3 w-3 mr-1" /> Remove all
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 text-xs ml-auto" onClick={() => setSelected(new Set())}>
+            <X className="h-3 w-3 mr-1" /> Clear
+          </Button>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-muted-foreground text-sm">Loading...</p>
       ) : entries.length === 0 ? (
@@ -668,6 +705,15 @@ export function SealedProductPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground">
+                <th className="px-3 py-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={entries.length > 0 && entries.every(e => selected.has(e.id))}
+                    onChange={ev => toggleSelectAll(ev.target.checked)}
+                    className="h-4 w-4 rounded border-input"
+                    aria-label="Select all"
+                  />
+                </th>
                 <th className="px-3 py-2 text-left w-12"></th>
                 <th className="px-3 py-2 text-left">Product</th>
                 <th className="px-3 py-2 text-left">Category</th>
@@ -683,8 +729,18 @@ export function SealedProductPage() {
               {entries.map(e => {
                 const mv = e.currentMarketValue
                 const pl = mv != null ? (mv - e.acquisitionPrice) * e.quantity : null
+                const isSelected = selected.has(e.id)
                 return (
-                  <tr key={e.id} className="border-b last:border-0 hover:bg-muted/20">
+                  <tr key={e.id} className={`border-b last:border-0 hover:bg-muted/20 ${isSelected ? 'bg-accent/30' : ''}`}>
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(e.id)}
+                        className="h-4 w-4 rounded border-input"
+                        aria-label="Select row"
+                      />
+                    </td>
                     <td className="px-3 py-2">
                       <img
                         src={`/api/images/sealed/${e.productIdentifier}.jpg`}
@@ -795,6 +851,15 @@ export function SealedProductPage() {
         onConfirm={handleDelete}
         onOpenChange={v => !v && setDeleteEntry(null)}
         destructive
+      />
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={v => { if (!v) setBulkDeleteConfirm(false) }}
+        title={`Remove ${selected.size} entr${selected.size !== 1 ? 'ies' : 'y'}?`}
+        description="This will permanently remove the selected sealed product entries from your inventory."
+        confirmLabel="Remove All"
+        destructive
+        onConfirm={handleBulkDelete}
       />
     </div>
   )

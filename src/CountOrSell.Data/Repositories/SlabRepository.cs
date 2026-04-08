@@ -60,6 +60,17 @@ public class SlabRepository : ISlabRepository
         }
     }
 
+    public async Task<int> BulkDeleteAsync(IEnumerable<Guid> ids, Guid userId, CancellationToken ct = default)
+    {
+        var idList = ids.ToList();
+        var entries = await _db.SlabEntries
+            .Where(e => idList.Contains(e.Id) && e.UserId == userId)
+            .ToListAsync(ct);
+        _db.SlabEntries.RemoveRange(entries);
+        await _db.SaveChangesAsync(ct);
+        return entries.Count;
+    }
+
     public async Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default)
     {
         var entries = await _db.SlabEntries.Where(e => e.UserId == userId).ToListAsync(ct);

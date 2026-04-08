@@ -655,25 +655,46 @@ function BulkActionBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm">
-      <span className="font-medium">{count} selected</span>
-      <div className="flex items-center gap-1.5">
-        <Select value={treatmentPick} onValueChange={v => { setTreatmentPick(v); onSetTreatment(v) }}>
-          <SelectTrigger className="h-7 w-36 text-xs"><SelectValue placeholder="Set treatment" /></SelectTrigger>
+      <span className="font-medium shrink-0">{count} selected</span>
+
+      <div className="flex items-center gap-1">
+        <Select value={treatmentPick} onValueChange={setTreatmentPick}>
+          <SelectTrigger className="h-7 w-36 text-xs"><SelectValue placeholder="Set treatment..." /></SelectTrigger>
           <SelectContent>
             {treatments.map(t => (
               <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          disabled={!treatmentPick}
+          onClick={() => { onSetTreatment(treatmentPick); setTreatmentPick('') }}
+        >
+          Apply
+        </Button>
       </div>
-      <div className="flex items-center gap-1.5">
+
+      <div className="flex items-center gap-1">
         <Input
           type="date"
           className="h-7 w-36 text-xs"
           value={datePick}
-          onChange={e => { setDatePick(e.target.value); if (e.target.value) onSetDate(e.target.value) }}
+          onChange={e => setDatePick(e.target.value)}
         />
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          disabled={!datePick}
+          onClick={() => { onSetDate(datePick); setDatePick('') }}
+        >
+          Apply
+        </Button>
       </div>
+
       <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={onDelete}>
         <Trash2 className="h-3 w-3 mr-1" /> Remove all
       </Button>

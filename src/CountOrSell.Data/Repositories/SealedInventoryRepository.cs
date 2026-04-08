@@ -52,6 +52,17 @@ public class SealedInventoryRepository : ISealedInventoryRepository
         }
     }
 
+    public async Task<int> BulkDeleteAsync(IEnumerable<Guid> ids, Guid userId, CancellationToken ct = default)
+    {
+        var idList = ids.ToList();
+        var entries = await _db.SealedInventoryEntries
+            .Where(e => idList.Contains(e.Id) && e.UserId == userId)
+            .ToListAsync(ct);
+        _db.SealedInventoryEntries.RemoveRange(entries);
+        await _db.SaveChangesAsync(ct);
+        return entries.Count;
+    }
+
     public async Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default)
     {
         var entries = await _db.SealedInventoryEntries.Where(e => e.UserId == userId).ToListAsync(ct);

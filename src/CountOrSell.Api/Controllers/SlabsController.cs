@@ -139,6 +139,15 @@ public class SlabsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("bulk-delete")]
+    public async Task<IActionResult> BulkDelete([FromBody] BulkIdsRequest request, CancellationToken ct)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "At least one id is required." });
+        var deleted = await _slabs.BulkDeleteAsync(request.Ids, CurrentUserId, ct);
+        return Ok(new { deleted });
+    }
+
     private static bool HasFilters(CollectionFilter filter) =>
         filter.SetCode != null || filter.Treatment != null || filter.Condition != null ||
         filter.Autographed.HasValue || filter.GradingAgency != null;
