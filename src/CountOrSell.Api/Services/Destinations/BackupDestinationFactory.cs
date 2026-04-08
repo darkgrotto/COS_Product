@@ -18,7 +18,8 @@ public class BackupDestinationFactory : IBackupDestinationFactory
         {
             "local" => new LocalFileBackupDestination(
                 opts.TryGetValue("path", out var p) ? p
-                    : Path.Combine(AppContext.BaseDirectory, "backups"),
+                    : Environment.GetEnvironmentVariable("BACKUP_LOCAL_PATH")
+                      ?? "/app/data/backups",
                 config.Label),
             "azure-blob" => new AzureBlobBackupDestination(config.Label),
             "aws-s3" => new AwsS3BackupDestination(config.Label),

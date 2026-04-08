@@ -39,8 +39,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 --ingroup appgroup --no-create-home appuser && \
-    mkdir -p /app/data && \
-    chown appuser:appgroup /app/data
+    mkdir -p /app/data/images /app/data/backups && \
+    chown -R appuser:appgroup /app/data
 
 COPY --from=build /app/publish .
 
