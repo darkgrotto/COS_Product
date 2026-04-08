@@ -262,10 +262,10 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             .Select(d => new SealedProduct
             {
                 Identifier = d.Identifier,
-                SetCode = d.SetCode,
+                SetCode = d.SetCode ?? string.Empty,
                 Name = d.Name,
-                // product_type maps to sub_type_slug; category_slug is resolved via taxonomy FK
-                SubTypeSlug = d.ProductType,
+                CategorySlug = d.CategorySlug,
+                SubTypeSlug = d.SubTypeSlug,
                 UpdatedAt = DateTime.UtcNow
             }));
 
@@ -274,9 +274,10 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             var entity = await _db.SealedProducts.FindAsync(new object[] { dto.Identifier }, ct);
             if (entity != null)
             {
-                entity.SetCode = dto.SetCode;
+                entity.SetCode = dto.SetCode ?? string.Empty;
                 entity.Name = dto.Name;
-                entity.SubTypeSlug = dto.ProductType;
+                entity.CategorySlug = dto.CategorySlug;
+                entity.SubTypeSlug = dto.SubTypeSlug;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }

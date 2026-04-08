@@ -165,17 +165,18 @@ All canonical data arrives as fully resolved flat view. No layer logic exists in
 
 | Content type | Notes |
 |---|---|
-| Cards | Fully resolved flat view |
-| Card images | Bundled in update packages, fallback fetch from third party |
-| Card pricing | Scryfall-cached, may be refreshed per card via TCGPlayer |
-| Sets | Fully resolved flat view |
+| Cards | Fully resolved flat view; includes rarity, set_type, treatments array |
+| Card images | Bundled in update packages |
+| Card pricing | Per-set pricing.json in packages; may be refreshed per card via TCGPlayer |
+| Sets | Fully resolved flat view; includes set_type |
 | Treatments | Reference table, never hardcoded |
 | Set symbols | Keyrune TTF font, bundled; updated with app version updates; never fetched at runtime |
-| Sealed product | Fully resolved flat view |
+| Sealed product | Fully resolved flat view; category_slug and sub_type_slug shipped directly |
 | Sealed product images | Bundled in update packages |
 | Oracle ruling URLs | Stored as card field, linked only |
-| Slabs | Product-managed only, not in update packages |
+| Slabs | Product-managed only, NOT in update packages; slabs content_version key always 0.0.0/0 in manifests |
 | Serialized cards | Product-managed only, not in update packages |
+| Grading agencies | Product-managed only, NOT in update packages; canonical agencies seeded at first run |
 
 ### Treatments Reference Table
 Received via update packages, versioned independently. Never hardcoded in application code or UI. All treatment display logic references this table.
@@ -208,7 +209,7 @@ Same as standard collection entry except: Serial number (required, integer), Pri
 - Cannot be marked as opened; both acquisition fields editable after entry
 
 ### Grading Agency Reference Table
-Received via update packages for canonical agencies. Product instance admins can add local agencies.
+Canonical agencies are NOT received via update packages - they are seeded into the Product at first run and are fixed. Product instance admins can add local agencies.
 
 Fields: agency code (required, unique across canonical and local, e.g. "PSA"), agency full name (required), validation URL template (required; configurable by admin for local agencies, not modifiable for canonical), supports direct certificate lookup (boolean, default true), source (canonical or local, system-assigned), active flag (boolean, default true).
 
@@ -324,12 +325,22 @@ Per-package manifest format:
   "generated_at": "<ISO 8601>",
   "base_full_version": "1.0.0 or null",
   "schema_version": "1.0.0",
-  "content_versions": { "cards": { "version": "...", "record_count": 123 }, ... },
+  "content_versions": {
+    "cards":           { "version": "...", "record_count": 123 },
+    "sets":            { "version": "...", "record_count": 42 },
+    "sealed_products": { "version": "...", "record_count": 18 },
+    "treatments":      { "version": "...", "record_count": 11 },
+    "taxonomy":        { "version": "...", "record_count": 5 },
+    "prices":          { "version": "...", "record_count": null },
+    "images":          { "version": "...", "record_count": null },
+    "slabs":           { "version": "0.0.0", "record_count": 0 }
+  },
   "retained_full_versions": ["1.0.0"],
   "checksums": {
     "metadata/treatments.json": "sha256:<hex_lowercase>",
     "metadata/sets/eoe/set.json": "sha256:<hex_lowercase>",
     "metadata/sets/eoe/cards.json": "sha256:<hex_lowercase>",
+    "metadata/sets/eoe/pricing.json": "sha256:<hex_lowercase>",
     "metadata/sealed/<id>.json": "sha256:<hex_lowercase>",
     "images/sets/eoe/<card_id>.jpg": "sha256:<hex_lowercase>",
     "images/sealed/<id>.jpg": "sha256:<hex_lowercase>"
@@ -342,22 +353,27 @@ ZIP file structure (package.zip):
 manifest.json
 metadata/
   treatments.json          - array of {treatment_id, normalized_name, display_name, sort_order}
-  taxonomy.json            - {version, categories:[{slug, display_name, sort_order, sub_types:[...]}]}
+  taxonomy.json            - {version, categories:[{slug, display_name, sort_order, sub_types:[{slug, display_name, sort_order},...]}]}
   sets/{set_code}/
     set.json               - {set_code, name, card_count, released_at, set_type, scryfall_id}
     cards.json             - array of {card_id, set_code, collector_number, name, oracle_id,
                              mana_cost, cmc, type_line, oracle_text, colors, color_identity,
                              keywords, layout, rarity, scryfall_id, oracle_ruling_uri,
-                             is_reserved, treatments}
-  sealed/{product_id}.json - {product_id, set_code, name, product_type,
+                             is_reserved, treatments, image_path}
+                             Note: image_path is nullable; present only when image exists in package.
+                             treatments is an array of normalized_name strings.
+    pricing.json           - array of {card_id, treatment, price_usd, captured_at}
+                             treatment is normalized_name; price_usd nullable; captured_at ISO 8601 UTC.
+  sealed/{product_id}.json - {product_id, set_code, name, category_slug, sub_type_slug,
                              front_image_blob_name, supplemental_image_blob_name}
+                             set_code, category_slug, sub_type_slug are all nullable.
 images/
   sets/{set_code}/{card_id}.jpg
   sealed/{product_id}.jpg
   sealed/{product_id}_s.jpg
 ```
 
-Package types: "full" (complete snapshot, base_full_version is null), "delta" (incremental from base_full_version, contains only changed files). No separate schema packages - schema version is a metadata field only; schema migrations run on startup.
+Package types: "full" (complete snapshot, base_full_version is null), "delta" (incremental from base_full_version, contains only changed files). Deltas are cumulative from their base_full_version; sequential application not required. Backend retains 3 full versions at all times. No separate schema packages - schema version is a metadata field only; schema migrations run on startup. slabs content type is always present in manifests with version 0.0.0 and record_count 0 (placeholder only - no slab data is ever shipped).
 
 ### Application Version Updates
 Docker: UI notifies admin when new version is available; update performed via generated update.sh script (wraps docker compose pull and docker compose up -d); UI displays exact script location and commands; no Docker socket access from within containers.
@@ -531,8 +547,8 @@ docker compose -f docker/test/docker-compose.test.yml up --abort-on-container-ex
 - [ ] Validation URL templates for BGS, SGC, CGC, ISA (confirm exact patterns at implementation)
 - [ ] OAuth configuration UI design (post-setup admin settings)
 - [ ] Application version check source URL - no app-version.json endpoint exists on countorsell.com currently; version check is a no-op pending a defined endpoint
-- [ ] product_type field in sealed product packages - whether it maps to category_slug or sub_type_slug must be confirmed at first real package ingestion
 - [ ] Additional backup destinations beyond initial three (e.g. Dropbox, Google Drive)
+- [ ] pricing.json per-set file in update packages - format confirmed, but Product currently does not apply per-treatment pricing from packages; all market values currently come as a single CurrentMarketValue per card. Decide whether per-treatment pricing should be stored and surfaced.
 
 ## Decision Log
 Decisions are recorded here when they resolve open questions or override defaults. Implementation details are in the sections above.
@@ -542,3 +558,4 @@ Decisions are recorded here when they resolve open questions or override default
 - 2026-03-19 - Docker images published to ghcr.io/darkgrotto/countorsell; linux/amd64 and linux/arm64; :dev from main push; release builds from manual vX.Y.Z tag push. Card identifier pattern extended with optional trailing letter (e.g. "pala001a") for letter-suffixed collector numbers; cards differing only by trailing letter are distinct. Demo mode is runtime-only (DEMO_MODE=true env var); not a DB flag or user setting; demo sets fixed; expiry via DEMO_EXPIRES_AT; visitor tracking via per-session UUID; locked endpoints return 403; instance name overridden to "CountOrSell Demo"; seed script at docker/scripts/demo-seed.sql.
 - 2026-03-31 - Trailing letter "x" permanently reserved as synthetic mapping for Scryfall dagger (†) collector numbers (e.g. DRK/77† -> drk077x). "x" will never appear as a real collector number letter.
 - 2026-04-05 - Update package format confirmed from COS_Backend analysis. Website manifest at www.countorsell.com/updates/manifest.json uses packages array with package_id, package_type (full or delta), download_url, manifest_url, base_full_version, generated_at. No separate schema packages - schema migration runs on startup only. Per-package manifest has per-file checksums in format sha256:<hex_lowercase>. ZIP uses metadata/ prefix for all data files. Images are in ZIP at images/ paths (NOT fetched separately). No app-version.json endpoint on countorsell.com currently. Card colors published as array of symbols. Treatment key is normalized_name field. Set total cards is card_count field. Set code is set_code field.
+- 2026-04-08 - COS_Backend deep review. Sealed product package format corrected: backend ships category_slug and sub_type_slug as two separate nullable fields (NOT a single product_type field); SealedProductDto and ContentUpdateApplicator updated accordingly. Confirmed: grading agencies are NOT in update packages - canonical agencies are Product-seeded only; slabs content_version key always 0.0.0/record_count 0 in manifests (placeholder). Confirmed: cards.json includes rarity (Scryfall values: common/uncommon/rare/mythic/special), image_path (nullable, only present if image in package), and treatments array (normalized_name strings). set.json confirmed to include set_type (Scryfall values: core/expansion/masters/alchemy/promo/box/duel-deck/token/memorabilia/vanguard/funny/starter/commander/planechase/archenemy/scheme/masterpiece/digital and others). Per-package manifest content_versions keys: cards, sets, sealed_products, treatments, taxonomy, prices, images, slabs. pricing.json confirmed as per-set file {card_id, treatment, price_usd, captured_at} - Product does not yet apply per-treatment pricing from packages. Backend retains 3 full versions; deltas are cumulative from base_full_version.
