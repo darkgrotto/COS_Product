@@ -321,7 +321,9 @@ export function CardDetailDialog({
             {card.oracleText && (
               <div className="border-t pt-3">
                 <p className="text-xs text-muted-foreground mb-1">Rules Text</p>
-                <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{card.oracleText}</p>
+                <div className="max-h-28 overflow-y-auto pr-1">
+                  <p className="text-xs text-foreground leading-relaxed whitespace-pre-line">{card.oracleText}</p>
+                </div>
               </div>
             )}
 

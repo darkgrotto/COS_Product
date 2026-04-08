@@ -2,10 +2,14 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { SetSymbol } from '@/components/ui/SetSymbol'
 import { usePreferences } from '@/contexts/PreferencesContext'
 import {
-  Plus, Pencil, Trash2, ChevronUp, ChevronDown, X, ExternalLink,
+  Plus, Pencil, Trash2, ChevronUp, ChevronDown, X,
   ChevronLeft, LayoutList, LayoutGrid, Search, Upload, Download,
   CheckCircle, XCircle,
 } from 'lucide-react'
+import {
+  CardDetailDialog, QuickAddDialog, SortTh, AddableCard,
+} from '@/components/cards/CardDialogs'
+import type { SortDir } from '@/components/cards/CardDialogs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,7 +37,6 @@ interface CollectionEntry {
   acquisitionDate: string
   acquisitionPrice: number
   notes: string | null
-  oracleRulingUrl: string | null
 }
 
 interface SetCompletion {
@@ -907,6 +910,8 @@ function SetGroupedView({
 
 // ---- Cards flat table -------------------------------------------------------
 
+const CONDITION_ORDER: Record<string, number> = { NM: 0, LP: 1, MP: 2, HP: 3, DMG: 4 }
+
 function CardsTable({
   entries,
   treatments,
@@ -916,6 +921,7 @@ function CardsTable({
   onEdit,
   onDelete,
   onAdjustQty,
+  onDetail,
 }: {
   entries: CollectionEntry[]
   treatments: Treatment[]
@@ -925,9 +931,38 @@ function CardsTable({
   onEdit: (e: CollectionEntry) => void
   onDelete: (e: CollectionEntry) => void
   onAdjustQty: (e: CollectionEntry, delta: number) => void
+  onDetail: (id: string) => void
 }) {
+  const [sortKey, setSortKey] = useState('card')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  function handleSort(key: string) {
+    if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
   const treatmentMap = Object.fromEntries(treatments.map(t => [t.key, t.displayName]))
   const allSelected = entries.length > 0 && entries.every(e => selected.has(e.id))
+
+  const sorted = [...entries].sort((a, b) => {
+    let cmp = 0
+    switch (sortKey) {
+      case 'card': cmp = (a.cardName ?? a.cardIdentifier).localeCompare(b.cardName ?? b.cardIdentifier); break
+      case 'set': cmp = (a.setCode ?? '').localeCompare(b.setCode ?? ''); break
+      case 'treatment': cmp = (treatmentMap[a.treatmentKey] ?? a.treatmentKey).localeCompare(treatmentMap[b.treatmentKey] ?? b.treatmentKey); break
+      case 'qty': cmp = a.quantity - b.quantity; break
+      case 'condition': cmp = (CONDITION_ORDER[a.condition] ?? 99) - (CONDITION_ORDER[b.condition] ?? 99); break
+      case 'market': cmp = (a.marketValue ?? -1) - (b.marketValue ?? -1); break
+      case 'acq': cmp = a.acquisitionPrice - b.acquisitionPrice; break
+      case 'pl': {
+        const pa = a.marketValue != null ? (a.marketValue - a.acquisitionPrice) * a.quantity : null
+        const pb = b.marketValue != null ? (b.marketValue - b.acquisitionPrice) * b.quantity : null
+        cmp = (pa ?? -Infinity) - (pb ?? -Infinity)
+        break
+      }
+    }
+    return sortDir === 'asc' ? cmp : -cmp
+  })
 
   if (entries.length === 0) {
     return (
@@ -940,7 +975,7 @@ function CardsTable({
   return (
     <div className="rounded-md border overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="border-b bg-muted/40">
+        <thead className="border-b bg-muted/40 text-left">
           <tr>
             <th className="px-3 py-2 w-8">
               <input
@@ -951,19 +986,19 @@ function CardsTable({
                 aria-label="Select all"
               />
             </th>
-            <th className="px-3 py-2 text-left font-medium">Card</th>
-            <th className="px-3 py-2 text-left font-medium">Set</th>
-            <th className="px-3 py-2 text-left font-medium">Treatment</th>
-            <th className="px-3 py-2 text-center font-medium">Qty</th>
-            <th className="px-3 py-2 text-left font-medium">Cond.</th>
-            <th className="px-3 py-2 text-right font-medium">Market</th>
-            <th className="px-3 py-2 text-right font-medium">Acq.</th>
-            <th className="px-3 py-2 text-right font-medium">P/L</th>
+            <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={handleSort} />
+            <SortTh label="Set" sortKey="set" current={sortKey} dir={sortDir} onSort={handleSort} />
+            <SortTh label="Treatment" sortKey="treatment" current={sortKey} dir={sortDir} onSort={handleSort} />
+            <SortTh label="Qty" sortKey="qty" current={sortKey} dir={sortDir} onSort={handleSort} className="text-center" />
+            <SortTh label="Cond." sortKey="condition" current={sortKey} dir={sortDir} onSort={handleSort} />
+            <SortTh label="Market" sortKey="market" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+            <SortTh label="Acq." sortKey="acq" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+            <SortTh label="P/L" sortKey="pl" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
             <th className="px-3 py-2 text-right font-medium">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y">
-          {entries.map(entry => {
+          {sorted.map(entry => {
             const pl = entry.marketValue != null
               ? (entry.marketValue - entry.acquisitionPrice) * entry.quantity
               : null
@@ -989,21 +1024,17 @@ function CardsTable({
                       onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                     />
                     <div>
-                      <div className="font-medium leading-tight">
+                      <button
+                        type="button"
+                        className="font-medium leading-tight hover:underline text-left"
+                        onClick={() => onDetail(entry.cardIdentifier)}
+                      >
                         {entry.cardName ?? entry.cardIdentifier}
-                        {entry.autographed && (
-                          <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        {entry.cardIdentifier}
-                        {entry.oracleRulingUrl && (
-                          <a href={entry.oracleRulingUrl} target="_blank" rel="noopener noreferrer"
-                            className="hover:text-foreground">
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </div>
+                      </button>
+                      {entry.autographed && (
+                        <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>
+                      )}
+                      <div className="text-xs text-muted-foreground">{entry.cardIdentifier}</div>
                     </div>
                   </div>
                 </td>
@@ -1274,6 +1305,8 @@ export function CollectionPage() {
   const [importExportOpen, setImportExportOpen] = useState(false)
   const [deleteEntry, setDeleteEntry] = useState<CollectionEntry | null>(null)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [addFromDetail, setAddFromDetail] = useState<AddableCard | null>(null)
 
   async function loadCompletion() {
     const res = await fetch('/api/collection/completion')
@@ -1512,6 +1545,7 @@ export function CollectionPage() {
             onEdit={setEditEntry}
             onDelete={setDeleteEntry}
             onAdjustQty={adjustQuantity}
+            onDetail={setDetailId}
           />
         )
       )}
@@ -1543,6 +1577,31 @@ export function CollectionPage() {
         onOpenChange={setImportExportOpen}
         onImportDone={handleSave}
       />
+      {detailId && (
+        <CardDetailDialog
+          identifier={detailId}
+          onClose={() => setDetailId(null)}
+          onAdd={() => {
+            const e = entries.find(x => x.cardIdentifier === detailId)
+            if (e) {
+              setAddFromDetail({
+                identifier: e.cardIdentifier,
+                name: e.cardName ?? e.cardIdentifier,
+                currentMarketValue: e.marketValue,
+              })
+            }
+            setDetailId(null)
+          }}
+        />
+      )}
+      {addFromDetail && (
+        <QuickAddDialog
+          card={addFromDetail}
+          treatments={treatments}
+          onClose={() => setAddFromDetail(null)}
+          onAdded={() => { setAddFromDetail(null); handleSave() }}
+        />
+      )}
       <ConfirmDialog
         open={!!deleteEntry}
         onOpenChange={v => { if (!v) setDeleteEntry(null) }}
