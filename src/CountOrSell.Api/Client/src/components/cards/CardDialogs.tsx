@@ -281,30 +281,30 @@ export function CardDetailDialog({
                     <p className="font-mono text-xs">{card.manaCost}</p>
                   </div>
                 )}
+                <div>
+                  <p className="text-xs text-muted-foreground">CMC</p>
+                  <p className="text-xs">{card.cmc != null ? card.cmc : '-'}</p>
+                </div>
                 {card.cardType && (
                   <div>
                     <p className="text-xs text-muted-foreground">Type</p>
                     <p className="text-xs leading-snug">{card.cardType}</p>
                   </div>
                 )}
-                {card.rarity && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">Rarity</p>
-                    <p className="text-xs capitalize">{card.rarity}</p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-xs text-muted-foreground">Rarity</p>
+                  <p className="text-xs capitalize">{card.rarity ?? '-'}</p>
+                </div>
                 {card.color && (
                   <div>
                     <p className="text-xs text-muted-foreground">Color</p>
                     <p className="font-mono text-xs">{card.color}</p>
                   </div>
                 )}
-                {card.colorIdentity && card.colorIdentity !== card.color && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">Color Identity</p>
-                    <p className="font-mono text-xs">{card.colorIdentity}</p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-xs text-muted-foreground">Color Identity</p>
+                  <p className="font-mono text-xs">{card.colorIdentity ?? '-'}</p>
+                </div>
                 {card.keywords && (
                   <div>
                     <p className="text-xs text-muted-foreground">Keywords</p>
@@ -318,14 +318,16 @@ export function CardDetailDialog({
               </div>
             </div>
 
-            {card.oracleText && (
-              <div className="border-t pt-3">
-                <p className="text-xs text-muted-foreground mb-1">Rules Text</p>
+            <div className="border-t pt-3">
+              <p className="text-xs text-muted-foreground mb-1">Card Text</p>
+              {card.oracleText ? (
                 <div className="max-h-28 overflow-y-auto pr-1">
                   <p className="text-xs text-foreground leading-relaxed whitespace-pre-line">{card.oracleText}</p>
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="text-xs text-muted-foreground">-</p>
+              )}
+            </div>
 
             {card.flavorText && (
               <div className={card.oracleText ? 'pt-2' : 'border-t pt-3'}>
