@@ -79,4 +79,28 @@ public class UpdateRepository : IUpdateRepository
         }
         await _db.SaveChangesAsync(ct);
     }
+
+    public async Task<DateTime?> GetLastUpdateCheckedAtAsync(CancellationToken ct)
+    {
+        var setting = await _db.AppSettings.FindAsync(new object[] { "last_update_checked_at" }, ct);
+        if (setting == null) return null;
+        return DateTime.TryParse(setting.Value, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
+            ? dt
+            : null;
+    }
+
+    public async Task SetLastUpdateCheckedAtAsync(DateTime checkedAt, CancellationToken ct)
+    {
+        var setting = await _db.AppSettings.FindAsync(new object[] { "last_update_checked_at" }, ct);
+        var value = checkedAt.ToUniversalTime().ToString("O");
+        if (setting == null)
+        {
+            _db.AppSettings.Add(new AppSetting { Key = "last_update_checked_at", Value = value });
+        }
+        else
+        {
+            setting.Value = value;
+        }
+        await _db.SaveChangesAsync(ct);
+    }
 }

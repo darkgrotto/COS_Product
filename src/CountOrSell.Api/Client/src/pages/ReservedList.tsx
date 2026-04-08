@@ -1,85 +1,79 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Star, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Star, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  SortTh, SortDir, ToggleChip, CardDetailDialog, QuickAddDialog,
+  Treatment, AddableCard, sortTreatments, fmt,
+  COLORS, CARD_TYPES,
+} from '@/components/cards/CardDialogs'
 
 // ---- Types ------------------------------------------------------------------
 
-interface RLCard {
-  identifier: string
+interface RLCard extends AddableCard {
   setCode: string
-  name: string
   cardType: string | null
   color: string | null
-  currentMarketValue: number | null
   ownedQuantity: number
 }
 
 type SortKey = 'name' | 'setCode' | 'cardType' | 'currentMarketValue' | 'ownedQuantity'
-type SortDir = 'asc' | 'desc'
-
-// ---- Helpers ----------------------------------------------------------------
-
-function fmt(v: number | null | undefined) {
-  if (v == null) return '-'
-  return `$${v.toFixed(2)}`
-}
-
-function SortTh({
-  label,
-  sortKey,
-  active,
-  dir,
-  onSort,
-  className,
-}: {
-  label: string
-  sortKey: SortKey
-  active: SortKey
-  dir: SortDir
-  onSort: (k: SortKey) => void
-  className?: string
-}) {
-  const isActive = active === sortKey
-  const Icon = isActive ? (dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown
-  return (
-    <th className={className}>
-      <button
-        className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors w-full"
-        onClick={() => onSort(sortKey)}
-      >
-        {label}
-        <Icon className="h-3 w-3 shrink-0" />
-      </button>
-    </th>
-  )
-}
 
 // ---- Main page --------------------------------------------------------------
 
 export function ReservedListPage() {
   const [cards, setCards] = useState<RLCard[]>([])
+  const [treatments, setTreatments] = useState<Treatment[]>([])
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [ownedOnly, setOwnedOnly] = useState(false)
+  const [colorFilter, setColorFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [addCard, setAddCard] = useState<RLCard | null>(null)
+  const [detailCard, setDetailCard] = useState<RLCard | null>(null)
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    fetch('/api/cards/reserved-list')
-      .then(r => r.ok ? r.json() : [])
-      .then((data: RLCard[]) => setCards(data))
-      .finally(() => setLoading(false))
+    Promise.all([
+      fetch('/api/cards/reserved-list').then(r => r.ok ? r.json() : []),
+      fetch('/api/treatments').then(r => r.ok ? r.json() : []),
+    ]).then(([rl, t]) => {
+      setCards(rl)
+      setTreatments(sortTreatments(t))
+      setLoading(false)
+    })
   }, [])
 
-  function handleSort(k: SortKey) {
-    if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(k); setSortDir('asc') }
+  function handleSort(k: string) {
+    const key = k as SortKey
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
   }
 
-  const filtered = useMemo(
-    () => ownedOnly ? cards.filter(c => c.ownedQuantity > 0) : cards,
-    [cards, ownedOnly]
+  // Derive available filter values from the full card list.
+  const allColors = useMemo(
+    () => new Set(cards.flatMap(c => c.color ? c.color.split('') : [])),
+    [cards]
   )
+  const visibleColors = COLORS.filter(col => allColors.has(col.key))
+
+  const allTypes = useMemo(
+    () => new Set(cards.flatMap(c => {
+      if (!c.cardType) return []
+      return CARD_TYPES.filter(t => c.cardType!.includes(t))
+    })),
+    [cards]
+  )
+  const visibleTypes = CARD_TYPES.filter(t => allTypes.has(t))
+
+  const filtered = useMemo(() => {
+    let result = cards
+    if (ownedOnly) result = result.filter(c => c.ownedQuantity > 0)
+    if (colorFilter) result = result.filter(c => (c.color ?? '').includes(colorFilter))
+    if (typeFilter) result = result.filter(c => (c.cardType ?? '').includes(typeFilter))
+    return result
+  }, [cards, ownedOnly, colorFilter, typeFilter])
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -112,7 +106,18 @@ export function ReservedListPage() {
     0
   )
 
-  const thCls = 'px-3 py-2 text-left font-medium'
+  function handleAdded() {
+    if (addCard) {
+      setAddedIds(prev => new Set(prev).add(addCard.identifier))
+      setCards(prev => prev.map(c =>
+        c.identifier === addCard.identifier
+          ? { ...c, ownedQuantity: c.ownedQuantity + 1 }
+          : c
+      ))
+    }
+  }
+
+  const hasActiveFilter = ownedOnly || !!colorFilter || !!typeFilter
 
   return (
     <div className="space-y-4">
@@ -129,16 +134,59 @@ export function ReservedListPage() {
             </p>
           )}
         </div>
-        {!loading && cards.length > 0 && (
-          <Button
-            variant={ownedOnly ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setOwnedOnly(v => !v)}
-          >
-            {ownedOnly ? 'Showing owned only' : 'Show owned only'}
-          </Button>
-        )}
       </div>
+
+      {!loading && cards.length > 0 && (
+        <div className="space-y-2">
+          {visibleColors.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs text-muted-foreground">Color:</span>
+              {visibleColors.map(col => (
+                <ToggleChip
+                  key={col.key}
+                  active={colorFilter === col.key}
+                  onClick={() => setColorFilter(colorFilter === col.key ? '' : col.key)}
+                >
+                  {col.label}
+                </ToggleChip>
+              ))}
+            </div>
+          )}
+
+          {visibleTypes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs text-muted-foreground">Type:</span>
+              {visibleTypes.map(t => (
+                <ToggleChip
+                  key={t}
+                  active={typeFilter === t}
+                  onClick={() => setTypeFilter(typeFilter === t ? '' : t)}
+                >
+                  {t}
+                </ToggleChip>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-1.5 items-center">
+            <span className="text-xs text-muted-foreground">Show:</span>
+            <ToggleChip active={ownedOnly} onClick={() => setOwnedOnly(v => !v)}>
+              <span className="inline-flex items-center gap-1">
+                <Star className="h-3 w-3" /> Owned only
+              </span>
+            </ToggleChip>
+            {hasActiveFilter && (
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground underline ml-1"
+                onClick={() => { setColorFilter(''); setTypeFilter(''); setOwnedOnly(false) }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading...</p>
@@ -152,56 +200,98 @@ export function ReservedListPage() {
         </div>
       ) : sorted.length === 0 ? (
         <div className="py-12 text-center">
-          <p className="text-muted-foreground text-sm">No owned Reserved List cards.</p>
+          <p className="text-muted-foreground text-sm">No cards match the current filters.</p>
         </div>
       ) : (
         <div className="rounded-md border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-muted/50">
+              <tr className="border-b bg-muted/50 text-muted-foreground">
                 <th className="px-3 py-2 w-10"></th>
-                <SortTh label="Card" sortKey="name" active={sortKey} dir={sortDir} onSort={handleSort} className={thCls} />
-                <SortTh label="Set" sortKey="setCode" active={sortKey} dir={sortDir} onSort={handleSort} className={thCls} />
-                <SortTh label="Type" sortKey="cardType" active={sortKey} dir={sortDir} onSort={handleSort} className={thCls} />
-                <SortTh label="Market" sortKey="currentMarketValue" active={sortKey} dir={sortDir} onSort={handleSort} className={`${thCls} text-right`} />
-                <SortTh label="Owned" sortKey="ownedQuantity" active={sortKey} dir={sortDir} onSort={handleSort} className={`${thCls} text-center`} />
+                <SortTh label="Card" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="Set" sortKey="setCode" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="Type" sortKey="cardType" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="Market" sortKey="currentMarketValue" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+                <SortTh label="Owned" sortKey="ownedQuantity" current={sortKey} dir={sortDir} onSort={handleSort} className="text-center" />
+                <th className="px-3 py-2 text-right"></th>
               </tr>
             </thead>
             <tbody>
-              {sorted.map(c => (
-                <tr key={c.identifier} className="border-b last:border-0 hover:bg-muted/20">
-                  <td className="px-3 py-2">
-                    <img
-                      src={`/api/images/cards/${c.identifier.toLowerCase()}.jpg`}
-                      alt=""
-                      className="h-8 w-6 rounded object-cover bg-muted"
-                      loading="lazy"
-                      onError={ev => { (ev.target as HTMLImageElement).style.display = 'none' }}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium leading-tight">{c.name}</div>
-                    <div className="text-xs text-muted-foreground font-mono">{c.identifier}</div>
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs">{c.setCode.toUpperCase()}</td>
-                  <td className="px-3 py-2 text-muted-foreground text-xs max-w-36 truncate">
-                    {c.cardType || '-'}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{fmt(c.currentMarketValue)}</td>
-                  <td className="px-3 py-2 text-center">
-                    {c.ownedQuantity > 0 ? (
-                      <Badge variant="secondary" className="tabular-nums">
-                        {c.ownedQuantity}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">-</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {sorted.map(c => {
+                const recentlyAdded = addedIds.has(c.identifier)
+                return (
+                  <tr
+                    key={c.identifier}
+                    className="border-b last:border-0 hover:bg-muted/20 cursor-pointer"
+                    onClick={e => {
+                      if ((e.target as HTMLElement).closest('button')) return
+                      setDetailCard(c)
+                    }}
+                  >
+                    <td className="px-3 py-2">
+                      <img
+                        src={`/api/images/cards/${c.identifier.toLowerCase()}.jpg`}
+                        alt=""
+                        className="h-8 w-6 rounded object-cover bg-muted"
+                        loading="lazy"
+                        onError={ev => { (ev.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium leading-tight">{c.name}</div>
+                      <div className="text-xs text-muted-foreground font-mono">{c.identifier}</div>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs">{c.setCode.toUpperCase()}</td>
+                    <td className="px-3 py-2 text-muted-foreground text-xs max-w-36 truncate">
+                      {c.cardType || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmt(c.currentMarketValue)}</td>
+                    <td className="px-3 py-2 text-center">
+                      {c.ownedQuantity > 0 ? (
+                        <Badge variant="secondary" className="tabular-nums">
+                          {c.ownedQuantity}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {recentlyAdded ? (
+                        <Badge variant="secondary" className="text-xs">Added</Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => setAddCard(c)}
+                        >
+                          <Plus className="h-3 w-3" /> Add
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
+      )}
+
+      {detailCard && (
+        <CardDetailDialog
+          identifier={detailCard.identifier}
+          onClose={() => setDetailCard(null)}
+          onAdd={() => setAddCard(detailCard)}
+        />
+      )}
+
+      {addCard && (
+        <QuickAddDialog
+          card={addCard}
+          treatments={treatments}
+          onClose={() => setAddCard(null)}
+          onAdded={handleAdded}
+        />
       )}
     </div>
   )

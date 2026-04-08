@@ -13,4 +13,6 @@ public interface IUpdateRepository
     Task MarkNotificationReadAsync(int id, CancellationToken ct);
     Task<string?> GetLatestApplicationVersionAsync(CancellationToken ct);
     Task SetLatestApplicationVersionAsync(string version, CancellationToken ct);
+    Task<DateTime?> GetLastUpdateCheckedAtAsync(CancellationToken ct);
+    Task SetLastUpdateCheckedAtAsync(DateTime checkedAt, CancellationToken ct);
 }

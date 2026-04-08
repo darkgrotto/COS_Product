@@ -3,19 +3,38 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 
+interface ContentStats {
+  totalCards: number
+  totalSets: number
+  totalCardImages: number
+  totalSealedImages: number
+}
+
 interface AboutData {
   currentVersion: string
   latestReleasedVersion: string
   updatePending: boolean
   lastContentUpdate: string | null
+  lastUpdateCheckedAt: string | null
+  scheduledUpdateCheckTime: string | null
   instanceName: string
   isDemo: boolean
   demoSets: string[]
+  contentStats: ContentStats
   license: {
     name: string
     fullName: string
     url: string
   }
+}
+
+function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return 'Never'
+  const d = new Date(iso)
+  return d.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 }
 
 export function AboutPage() {
@@ -63,6 +82,41 @@ export function AboutPage() {
           <Row
             label="Last content update"
             value={data.lastContentUpdate ?? 'No updates applied'}
+          />
+          <Row
+            label="Last update check"
+            value={fmtDateTime(data.lastUpdateCheckedAt)}
+          />
+          {data.scheduledUpdateCheckTime && (
+            <Row
+              label="Scheduled check time"
+              value={`Daily at ${data.scheduledUpdateCheckTime} UTC`}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Content</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <Row
+            label="Cards"
+            value={data.contentStats.totalCards.toLocaleString()}
+          />
+          <Row
+            label="Sets"
+            value={data.contentStats.totalSets.toLocaleString()}
+          />
+          <Separator />
+          <Row
+            label="Card images"
+            value={data.contentStats.totalCardImages.toLocaleString()}
+          />
+          <Row
+            label="Sealed product images"
+            value={data.contentStats.totalSealedImages.toLocaleString()}
           />
         </CardContent>
       </Card>

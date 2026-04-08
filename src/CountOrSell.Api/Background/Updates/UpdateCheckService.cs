@@ -54,6 +54,9 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             var notificationService = scope.ServiceProvider.GetRequiredService<IAdminNotificationService>();
             var updateRepo = scope.ServiceProvider.GetRequiredService<IUpdateRepository>();
 
+            // Record that a check ran, regardless of outcome.
+            await updateRepo.SetLastUpdateCheckedAtAsync(DateTime.UtcNow, ct);
+
             var manifest = await manifestClient.FetchManifestAsync(ct);
             if (manifest == null)
                 return new UpdateCheckResult(false, "Could not reach update server. Check network connectivity.");

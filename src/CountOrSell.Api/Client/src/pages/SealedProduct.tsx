@@ -192,6 +192,9 @@ function EntryDialog({
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // True when category/subtype were auto-populated from the selected product's metadata.
+  // Editing is locked until the user explicitly requests to change it.
+  const [categoryLocked, setCategoryLocked] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -207,6 +210,8 @@ function EntryDialog({
         notes: '',
         ...initial,
       })
+      // When editing an existing entry, category was already user-confirmed; leave editable.
+      setCategoryLocked(false)
       setError(null)
     }
   }, [open])
@@ -215,7 +220,15 @@ function EntryDialog({
     ? (categories.find(c => c.slug === form.categorySlug)?.subTypes ?? [])
     : []
 
+  const categoryDisplayName = form.categorySlug
+    ? (categories.find(c => c.slug === form.categorySlug)?.displayName ?? form.categorySlug)
+    : null
+  const subTypeDisplayName = form.subTypeSlug
+    ? (availableSubTypes.find(s => s.slug === form.subTypeSlug)?.displayName ?? form.subTypeSlug)
+    : null
+
   function handleProductSelect(r: ProductSearchResult) {
+    const hasCategory = !!(r.categorySlug || r.subTypeSlug)
     setForm(f => ({
       ...f,
       productIdentifier: r.identifier,
@@ -224,6 +237,7 @@ function EntryDialog({
       subTypeSlug: r.subTypeSlug ?? '',
       acquisitionPrice: r.currentMarketValue != null ? r.currentMarketValue.toFixed(2) : '',
     }))
+    setCategoryLocked(hasCategory)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -271,49 +285,71 @@ function EntryDialog({
             </div>
           )}
 
-          {categories.length > 0 && (
-            <div>
-              <Label>Category</Label>
-              <Select
-                value={form.categorySlug || '_none'}
-                onValueChange={v => setForm(f => ({
-                  ...f,
-                  categorySlug: v === '_none' ? '' : v,
-                  subTypeSlug: '',
-                }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="(none)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">(none)</SelectItem>
-                  {categories.map(c => (
-                    <SelectItem key={c.slug} value={c.slug}>{c.displayName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {categories.length > 0 && categoryLocked ? (
+            // Category and sub-type were read from product metadata - show as read-only.
+            <div className="rounded-md border bg-muted/30 px-3 py-2 space-y-0.5">
+              <div className="flex items-center justify-between">
+                <div className="text-sm">
+                  <span className="text-muted-foreground text-xs">Category</span>
+                  <div className="font-medium">{categoryDisplayName ?? '(none)'}</div>
+                  {subTypeDisplayName && (
+                    <div className="text-xs text-muted-foreground">{subTypeDisplayName}</div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline shrink-0"
+                  onClick={() => setCategoryLocked(false)}
+                >
+                  Edit
+                </button>
+              </div>
             </div>
-          )}
+          ) : categories.length > 0 ? (
+            <>
+              <div>
+                <Label>Category</Label>
+                <Select
+                  value={form.categorySlug || '_none'}
+                  onValueChange={v => setForm(f => ({
+                    ...f,
+                    categorySlug: v === '_none' ? '' : v,
+                    subTypeSlug: '',
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="(none)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">(none)</SelectItem>
+                    {categories.map(c => (
+                      <SelectItem key={c.slug} value={c.slug}>{c.displayName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {availableSubTypes.length > 0 && (
-            <div>
-              <Label>Sub-type</Label>
-              <Select
-                value={form.subTypeSlug || '_none'}
-                onValueChange={v => setForm(f => ({ ...f, subTypeSlug: v === '_none' ? '' : v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="(none)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">(none)</SelectItem>
-                  {availableSubTypes.map(s => (
-                    <SelectItem key={s.slug} value={s.slug}>{s.displayName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+              {availableSubTypes.length > 0 && (
+                <div>
+                  <Label>Sub-type</Label>
+                  <Select
+                    value={form.subTypeSlug || '_none'}
+                    onValueChange={v => setForm(f => ({ ...f, subTypeSlug: v === '_none' ? '' : v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="(none)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">(none)</SelectItem>
+                      {availableSubTypes.map(s => (
+                        <SelectItem key={s.slug} value={s.slug}>{s.displayName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
