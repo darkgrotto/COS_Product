@@ -1,5 +1,6 @@
 # Stage 1: Build frontend
-FROM node:20-alpine AS frontend
+# Run on the build platform (native, not emulated) - JS output is architecture-independent.
+FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend
 WORKDIR /client
 COPY src/CountOrSell.Api/Client/package.json ./
 RUN npm install
