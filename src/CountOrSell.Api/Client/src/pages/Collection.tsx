@@ -3,7 +3,8 @@ import { SetSymbol } from '@/components/ui/SetSymbol'
 import { usePreferences } from '@/contexts/PreferencesContext'
 import {
   Plus, Pencil, Trash2, ChevronUp, ChevronDown, X, ExternalLink,
-  ChevronLeft, LayoutList, LayoutGrid, Search,
+  ChevronLeft, LayoutList, LayoutGrid, Search, Upload, Download,
+  CheckCircle, XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1054,6 +1055,209 @@ function CardsTable({
 
 type ViewMode = 'by-set' | 'cards'
 
+// ---- Import / Export dialog -------------------------------------------------
+
+const FORMAT_OPTIONS = [
+  { value: 'cos',         label: 'CountOrSell (lossless)' },
+  { value: 'moxfield',   label: 'Moxfield' },
+  { value: 'deckbox',    label: 'Deckbox' },
+  { value: 'tcgplayer',  label: 'TCGPlayer' },
+  { value: 'dragonshield', label: 'Dragon Shield' },
+  { value: 'manabox',    label: 'Manabox' },
+]
+
+interface ImportResult {
+  added: number
+  skipped: number
+  failed: number
+  failures: string[]
+}
+
+function ImportExportDialog({
+  open,
+  onOpenChange,
+  onImportDone,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onImportDone: () => void
+}) {
+  const [tab, setTab] = useState<'export' | 'import'>('export')
+  const [format, setFormat] = useState('cos')
+  const [busy, setBusy] = useState(false)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function reset() {
+    setTab('export')
+    setFormat('cos')
+    setBusy(false)
+    setImportResult(null)
+    setImportError(null)
+  }
+
+  function handleOpenChange(v: boolean) {
+    if (!v) reset()
+    onOpenChange(v)
+  }
+
+  async function handleExport() {
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/collection/export?format=${format}`)
+      if (!res.ok) throw new Error(`Export failed (${res.status})`)
+      const blob = await res.blob()
+      const cd = res.headers.get('content-disposition') ?? ''
+      const match = cd.match(/filename="?([^"]+)"?/)
+      const name = match ? match[1] : `collection-${format}.csv`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      a.click()
+      URL.revokeObjectURL(url)
+      handleOpenChange(false)
+    } catch (e: unknown) {
+      setImportError(e instanceof Error ? e.message : 'Export failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleImport() {
+    const file = fileRef.current?.files?.[0]
+    if (!file) return
+    setBusy(true)
+    setImportResult(null)
+    setImportError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`/api/collection/import?format=${format}`, {
+        method: 'POST',
+        body: fd,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `Import failed (${res.status})`)
+      }
+      const result: ImportResult = await res.json()
+      setImportResult(result)
+      if (result.added > 0) onImportDone()
+    } catch (e: unknown) {
+      setImportError(e instanceof Error ? e.message : 'Import failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Import / Export</DialogTitle>
+        </DialogHeader>
+
+        {/* Tab strip */}
+        <div className="flex border-b mb-4">
+          {(['export', 'import'] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              className={`px-4 py-2 text-sm capitalize border-b-2 transition-colors ${
+                tab === t
+                  ? 'border-primary text-primary font-medium'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => { setTab(t); setImportResult(null); setImportError(null) }}
+            >
+              {t === 'export' ? <><Download className="h-3.5 w-3.5 inline mr-1" />Export</> : <><Upload className="h-3.5 w-3.5 inline mr-1" />Import</>}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Format</Label>
+            <Select value={format} onValueChange={setFormat}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FORMAT_OPTIONS.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {tab === 'import' && (
+            <div className="space-y-1.5">
+              <Label>CSV file</Label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="block w-full text-sm file:mr-3 file:py-1 file:px-3 file:rounded-md file:border file:border-input file:text-sm file:bg-background file:cursor-pointer cursor-pointer"
+              />
+              <p className="text-xs text-muted-foreground">
+                {format === 'cos'
+                  ? 'Import a previously exported CountOrSell CSV. All fields are restored.'
+                  : `Import a CSV exported from ${FORMAT_OPTIONS.find(o => o.value === format)?.label ?? format}. Cards not found in the database are skipped.`}
+              </p>
+            </div>
+          )}
+
+          {importError && (
+            <p className="flex items-center gap-1.5 text-sm text-destructive">
+              <XCircle className="h-4 w-4 shrink-0" />
+              {importError}
+            </p>
+          )}
+
+          {importResult && (
+            <div className="rounded-md border p-3 space-y-1 text-sm">
+              <p className="flex items-center gap-1.5 font-medium text-green-600 dark:text-green-400">
+                <CheckCircle className="h-4 w-4 shrink-0" />
+                Import complete
+              </p>
+              <p className="text-muted-foreground">
+                Added: {importResult.added} &nbsp;&middot;&nbsp;
+                Skipped: {importResult.skipped} &nbsp;&middot;&nbsp;
+                Failed: {importResult.failed}
+              </p>
+              {importResult.failures.length > 0 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                    Show {importResult.failures.length} failure{importResult.failures.length !== 1 ? 's' : ''}
+                  </summary>
+                  <ul className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
+                    {importResult.failures.map((f, i) => (
+                      <li key={i} className="text-xs text-muted-foreground">{f}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
+            {importResult ? 'Close' : 'Cancel'}
+          </Button>
+          {!importResult && (
+            <Button onClick={tab === 'export' ? handleExport : handleImport} disabled={busy}>
+              {busy ? (tab === 'export' ? 'Exporting...' : 'Importing...') : (tab === 'export' ? 'Export' : 'Import')}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function CollectionPage() {
   const [entries, setEntries] = useState<CollectionEntry[]>([])
   const [completion, setCompletion] = useState<SetCompletion[]>([])
@@ -1067,6 +1271,7 @@ export function CollectionPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<CollectionEntry | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
+  const [importExportOpen, setImportExportOpen] = useState(false)
   const [deleteEntry, setDeleteEntry] = useState<CollectionEntry | null>(null)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
 
@@ -1230,6 +1435,9 @@ export function CollectionPage() {
               <LayoutList className="h-3.5 w-3.5" /> Cards
             </button>
           </div>
+          <Button variant="outline" size="sm" onClick={() => setImportExportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Import / Export
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)}>
             Bulk Add Set
           </Button>
@@ -1329,6 +1537,11 @@ export function CollectionPage() {
         sets={sets}
         treatments={treatments}
         onSave={handleSave}
+      />
+      <ImportExportDialog
+        open={importExportOpen}
+        onOpenChange={setImportExportOpen}
+        onImportDone={handleSave}
       />
       <ConfirmDialog
         open={!!deleteEntry}

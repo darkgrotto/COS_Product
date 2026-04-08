@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CountOrSell.Api.Filters;
+using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos.Requests;
@@ -21,19 +22,22 @@ public class CollectionController : ControllerBase
     private readonly IMetricsService _metrics;
     private readonly IUserRepository _users;
     private readonly ITcgPlayerService _tcgPlayer;
+    private readonly ICollectionImportExportService _importExport;
 
     public CollectionController(
         ICollectionRepository collection,
         ICardRepository cards,
         IMetricsService metrics,
         IUserRepository users,
-        ITcgPlayerService tcgPlayer)
+        ITcgPlayerService tcgPlayer,
+        ICollectionImportExportService importExport)
     {
         _collection = collection;
         _cards = cards;
         _metrics = metrics;
         _users = users;
         _tcgPlayer = tcgPlayer;
+        _importExport = importExport;
     }
 
     private Guid CurrentUserId =>
@@ -289,6 +293,48 @@ public class CollectionController : ControllerBase
 
         return Ok(new { added = toAdd.Count, skipped = ownedIdentifiers.Count });
     }
+
+    [HttpGet("export")]
+    public async Task<IActionResult> Export([FromQuery] string format = "cos", CancellationToken ct = default)
+    {
+        var fmt = ParseFormat(format);
+        var (data, fileName) = await _importExport.ExportAsync(CurrentUserId, fmt, ct);
+        return File(data, "text/csv; charset=utf-8", fileName);
+    }
+
+    [HttpPost("import")]
+    [RequestSizeLimit(10_485_760)] // 10 MB
+    public async Task<IActionResult> Import(
+        IFormFile file,
+        [FromQuery] string format = "cos",
+        CancellationToken ct = default)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { error = "No file provided." });
+
+        var fmt = ParseFormat(format);
+        using var stream = file.OpenReadStream();
+        var result = await _importExport.ImportAsync(CurrentUserId, fmt, stream, ct);
+
+        return Ok(new
+        {
+            result.Added,
+            result.Skipped,
+            result.Failed,
+            result.Failures,
+        });
+    }
+
+    private static CollectionExportFormat ParseFormat(string format) =>
+        format.ToLowerInvariant() switch
+        {
+            "moxfield"    => CollectionExportFormat.Moxfield,
+            "deckbox"     => CollectionExportFormat.Deckbox,
+            "tcgplayer"   => CollectionExportFormat.TcgPlayer,
+            "dragonshield" => CollectionExportFormat.DragonShield,
+            "manabox"     => CollectionExportFormat.Manabox,
+            _             => CollectionExportFormat.Cos,
+        };
 
     [HttpPost("refresh-price/{cardIdentifier}")]
     [DemoLocked]

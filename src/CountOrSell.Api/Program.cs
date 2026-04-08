@@ -67,6 +67,7 @@ builder.Services.AddScoped<IUserExportFileRepository, UserExportFileRepository>(
 // Feature services
 builder.Services.AddScoped<IMetricsService, MetricsService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+builder.Services.AddScoped<ICollectionImportExportService, CollectionImportExportService>();
 builder.Services.AddHttpClient<ITcgPlayerService, TcgPlayerService>();
 
 // Image store
