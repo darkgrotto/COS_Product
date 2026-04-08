@@ -125,6 +125,77 @@ export function SortTh({
   )
 }
 
+// ---- Rulings panel ----------------------------------------------------------
+
+interface ScryfallRuling {
+  source: string
+  published_at: string
+  comment: string
+}
+
+function RulingsPanel({ rulingUrl }: { rulingUrl: string }) {
+  const [rulings, setRulings] = useState<ScryfallRuling[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setRulings(null)
+    setError(null)
+    fetch(rulingUrl, { headers: { Accept: 'application/json' } })
+      .then(r => {
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+        return r.json() as Promise<{ data: ScryfallRuling[] }>
+      })
+      .then(body => setRulings(body.data))
+      .catch((e: Error) => setError(e.message))
+  }, [rulingUrl])
+
+  return (
+    <div className="border-t pt-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Rulings</p>
+        <a
+          href={rulingUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+        >
+          Scryfall <ExternalLink className="h-2.5 w-2.5" />
+        </a>
+      </div>
+
+      {error && (
+        <p className="text-xs text-destructive">Failed to load rulings: {error}</p>
+      )}
+
+      {!error && !rulings && (
+        <p className="text-xs text-muted-foreground">Loading rulings...</p>
+      )}
+
+      {rulings && rulings.length === 0 && (
+        <p className="text-xs text-muted-foreground">No rulings on record.</p>
+      )}
+
+      {rulings && rulings.length > 0 && (
+        <div className="space-y-2">
+          {rulings.map((r, i) => (
+            <div
+              key={i}
+              className={`rounded-md px-3 py-2 text-sm border-l-2 bg-muted/40 ${
+                r.source === 'wotc' ? 'border-primary' : 'border-muted-foreground/30'
+              }`}
+            >
+              <p className="text-xs text-muted-foreground mb-1">
+                {r.published_at} - {r.source === 'wotc' ? 'Wizards of the Coast' : 'Scryfall'}
+              </p>
+              <p className="leading-relaxed">{r.comment}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---- Card detail dialog -----------------------------------------------------
 
 interface CardDetail {
@@ -262,16 +333,7 @@ export function CardDetailDialog({
             )}
 
             {card.oracleRulingUrl && (
-              <div className={card.oracleText || card.flavorText ? '' : 'border-t pt-3'}>
-                <a
-                  href={card.oracleRulingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                >
-                  Oracle Rulings <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
+              <RulingsPanel rulingUrl={card.oracleRulingUrl} />
             )}
           </div>
         )}
