@@ -11,6 +11,7 @@ import {
   COLORS, CARD_TYPES,
 } from '@/components/cards/CardDialogs'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { usePreferences } from '@/contexts/PreferencesContext'
 
 // ---- Types ------------------------------------------------------------------
 
@@ -33,16 +34,17 @@ interface OwnedEntry {
   acquisitionPrice: number
 }
 
-type SortKey = 'name' | 'setCode' | 'cardType' | 'currentMarketValue' | 'ownedQuantity'
+type SortKey = 'name' | 'identifier' | 'setCode' | 'cardType' | 'currentMarketValue' | 'ownedQuantity'
 
 // ---- Main page --------------------------------------------------------------
 
 export function ReservedListPage() {
+  const { prefs } = usePreferences()
   const [cards, setCards] = useState<RLCard[]>([])
   const [ownedEntries, setOwnedEntries] = useState<OwnedEntry[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [loading, setLoading] = useState(true)
-  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortKey, setSortKey] = useState<SortKey>(prefs.cardSortDefault === 'identifier' ? 'identifier' : 'name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [ownedOnly, setOwnedOnly] = useState(false)
   const [colorFilter, setColorFilter] = useState('')
@@ -109,6 +111,9 @@ export function ReservedListPage() {
       switch (sortKey) {
         case 'name':
           cmp = a.name.localeCompare(b.name)
+          break
+        case 'identifier':
+          cmp = a.identifier.localeCompare(b.identifier)
           break
         case 'setCode':
           cmp = a.setCode.localeCompare(b.setCode) || a.name.localeCompare(b.name)
@@ -373,6 +378,7 @@ export function ReservedListPage() {
               <tr className="border-b bg-muted/50 text-muted-foreground">
                 <th className="px-3 py-2 w-10"></th>
                 <SortTh label="Card" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="ID" sortKey="identifier" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Set" sortKey="setCode" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Type" sortKey="cardType" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Market" sortKey="currentMarketValue" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
@@ -403,7 +409,9 @@ export function ReservedListPage() {
                     </td>
                     <td className="px-3 py-2">
                       <div className="font-medium leading-tight">{c.name}</div>
-                      <div className="text-xs text-muted-foreground font-mono">{c.identifier}</div>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                      {c.identifier.toUpperCase()}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs">{c.setCode.toUpperCase()}</td>
                     <td className="px-3 py-2 text-muted-foreground text-xs max-w-36 truncate">

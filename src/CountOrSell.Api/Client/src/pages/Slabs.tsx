@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { CardDetailDialog, QuickAddDialog, AddableCard } from '@/components/cards/CardDialogs'
+import { CardDetailDialog, QuickAddDialog, AddableCard, SortTh, SortDir } from '@/components/cards/CardDialogs'
+import { usePreferences } from '@/contexts/PreferencesContext'
 
 // ---- Types ----------------------------------------------------------------
 
@@ -389,6 +390,9 @@ function FiltersPanel({ filters, agencies, onChange, onClear }: {
 // ---- Main page ------------------------------------------------------------
 
 export function SlabsPage() {
+  const { prefs } = usePreferences()
+  const [sortKey, setSortKey] = useState(prefs.cardSortDefault === 'identifier' ? 'identifier' : 'card')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [entries, setEntries] = useState<SlabEntry[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [agencies, setAgencies] = useState<GradingAgency[]>([])
@@ -406,6 +410,18 @@ export function SlabsPage() {
 
   const treatmentMap = Object.fromEntries(treatments.map(t => [t.key, t.displayName]))
   const agencyMap = Object.fromEntries(agencies.map(a => [a.code, a]))
+
+  function handleSort(key: string) {
+    if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const sorted = [...entries].sort((a, b) => {
+    let cmp = 0
+    if (sortKey === 'card') cmp = (a.cardName ?? a.cardIdentifier).localeCompare(b.cardName ?? b.cardIdentifier)
+    else if (sortKey === 'identifier') cmp = a.cardIdentifier.localeCompare(b.cardIdentifier)
+    return sortDir === 'asc' ? cmp : -cmp
+  })
 
   async function load() {
     const params = new URLSearchParams()
@@ -541,7 +557,8 @@ export function SlabsPage() {
                     aria-label="Select all"
                   />
                 </th>
-                <th className="px-3 py-2 text-left font-medium">Card</th>
+                <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="ID" sortKey="identifier" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <th className="px-3 py-2 text-left font-medium">Set</th>
                 <th className="px-3 py-2 text-left font-medium">Treatment</th>
                 <th className="px-3 py-2 text-left font-medium">Agency</th>
@@ -555,7 +572,7 @@ export function SlabsPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {entries.map(entry => {
+              {sorted.map(entry => {
                 const pl = entry.marketValue != null ? entry.marketValue - entry.acquisitionPrice : null
                 const agency = agencyMap[entry.gradingAgencyCode]
                 const certLink = agency ? certUrl(agency, entry.certificateNumber) : null
@@ -588,9 +605,11 @@ export function SlabsPage() {
                             {entry.cardName ?? entry.cardIdentifier}
                           </button>
                           {entry.autographed && <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>}
-                          <div className="text-xs text-muted-foreground">{entry.cardIdentifier}</div>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                      {entry.cardIdentifier.toUpperCase()}
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">{entry.setCode ?? '-'}</td>
                     <td className="px-3 py-2">{treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}</td>

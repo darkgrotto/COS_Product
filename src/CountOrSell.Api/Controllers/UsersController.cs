@@ -275,7 +275,7 @@ public class UsersController : ControllerBase
     {
         var prefs = await _userService.GetPreferencesAsync(CurrentUserId, ct);
         if (prefs == null)
-            return Ok(new { setCompletionRegularOnly = false, defaultPage = (string?)null, defaultAcquisitionPriceToMarket = true, darkMode = false, navLayout = "sidebar" });
+            return Ok(new { setCompletionRegularOnly = false, defaultPage = (string?)null, defaultAcquisitionPriceToMarket = true, darkMode = false, navLayout = "sidebar", cardSortDefault = "name" });
 
         return Ok(new
         {
@@ -284,6 +284,7 @@ public class UsersController : ControllerBase
             prefs.DefaultAcquisitionPriceToMarket,
             prefs.DarkMode,
             prefs.NavLayout,
+            prefs.CardSortDefault,
         });
     }
 
@@ -291,7 +292,7 @@ public class UsersController : ControllerBase
     [Authorize]
     public async Task<IActionResult> PatchMyPreferences([FromBody] UserPreferencesRequest request, CancellationToken ct)
     {
-        await _userService.UpdatePreferencesAsync(CurrentUserId, request.SetCompletionRegularOnly, request.DefaultPage, request.DefaultAcquisitionPriceToMarket, request.DarkMode, request.NavLayout, ct);
+        await _userService.UpdatePreferencesAsync(CurrentUserId, request.SetCompletionRegularOnly, request.DefaultPage, request.DefaultAcquisitionPriceToMarket, request.DarkMode, request.NavLayout, request.CardSortDefault, ct);
         return Ok();
     }
 }

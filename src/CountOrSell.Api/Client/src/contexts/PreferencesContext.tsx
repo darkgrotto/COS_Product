@@ -7,6 +7,7 @@ export interface UserPreferences {
   defaultAcquisitionPriceToMarket: boolean
   darkMode: boolean
   navLayout: 'sidebar' | 'top'
+  cardSortDefault: 'name' | 'identifier'
 }
 
 const DEFAULT_PREFS: UserPreferences = {
@@ -15,6 +16,7 @@ const DEFAULT_PREFS: UserPreferences = {
   defaultAcquisitionPriceToMarket: true,
   darkMode: false,
   navLayout: 'sidebar',
+  cardSortDefault: 'name',
 }
 
 interface PreferencesContextValue {

@@ -16,6 +16,7 @@ import {
   COLORS, CARD_TYPES,
 } from '@/components/cards/CardDialogs'
 import { SetSymbol } from '@/components/ui/SetSymbol'
+import { usePreferences } from '@/contexts/PreferencesContext'
 
 // ---- Types ------------------------------------------------------------------
 
@@ -302,10 +303,11 @@ function CardListView({
   const [typeFilter, setTypeFilter] = useState('')
   const [rarityFilter, setRarityFilter] = useState('')
   const [rlFilter, setRlFilter] = useState(false)
+  const { prefs } = usePreferences()
   const [addCard, setAddCard] = useState<BrowseCard | null>(null)
   const [detailCard, setDetailCard] = useState<BrowseCard | null>(null)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
-  const [sortKey, setSortKey] = useState('card')
+  const [sortKey, setSortKey] = useState(prefs.cardSortDefault === 'identifier' ? 'identifier' : 'card')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkCollectionOpen, setBulkCollectionOpen] = useState(false)
@@ -345,6 +347,7 @@ function CardListView({
     .sort((a, b) => {
       let cmp = 0
       if (sortKey === 'card') cmp = a.name.localeCompare(b.name) || a.identifier.localeCompare(b.identifier)
+      else if (sortKey === 'identifier') cmp = a.identifier.localeCompare(b.identifier)
       else if (sortKey === 'color') cmp = (a.color ?? '').localeCompare(b.color ?? '')
       else if (sortKey === 'type') cmp = (a.cardType ?? '').localeCompare(b.cardType ?? '')
       else if (sortKey === 'rarity') {
@@ -523,6 +526,7 @@ function CardListView({
                 </th>
                 <th className="px-3 py-2 w-10"></th>
                 <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="ID" sortKey="identifier" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Color" sortKey="color" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Type" sortKey="type" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Rarity" sortKey="rarity" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
@@ -533,7 +537,7 @@ function CardListView({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                     No cards match the current filters.
                   </td>
                 </tr>
@@ -575,7 +579,9 @@ function CardListView({
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground">{c.identifier}</div>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                        {c.identifier.toUpperCase()}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground font-mono text-xs">
                         {c.color || '-'}

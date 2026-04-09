@@ -7,4 +7,5 @@ public class UserPreferencesRequest
     public bool? DefaultAcquisitionPriceToMarket { get; set; }
     public bool? DarkMode { get; set; }
     public string? NavLayout { get; set; }
+    public string? CardSortDefault { get; set; }
 }

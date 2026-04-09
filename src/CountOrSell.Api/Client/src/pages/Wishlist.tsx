@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { SetSymbol } from '@/components/ui/SetSymbol'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { usePreferences } from '@/contexts/PreferencesContext'
 
 // ---- Types ------------------------------------------------------------------
 
@@ -178,6 +179,7 @@ function AddToWishlistDialog({
 // ---- Main page --------------------------------------------------------------
 
 export function WishlistPage() {
+  const { prefs } = usePreferences()
   const [entries, setEntries] = useState<WishlistEntry[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [loading, setLoading] = useState(true)
@@ -195,7 +197,7 @@ export function WishlistPage() {
   const [rlFilter, setRlFilter] = useState(false)
 
   // Sort
-  const [sortKey, setSortKey] = useState('name')
+  const [sortKey, setSortKey] = useState(prefs.cardSortDefault === 'identifier' ? 'identifier' : 'name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const load = useCallback(async () => {
@@ -301,6 +303,7 @@ export function WishlistPage() {
     .sort((a, b) => {
       let cmp = 0
       if (sortKey === 'name') cmp = (a.cardName ?? '').localeCompare(b.cardName ?? '') || a.cardIdentifier.localeCompare(b.cardIdentifier)
+      else if (sortKey === 'identifier') cmp = a.cardIdentifier.localeCompare(b.cardIdentifier)
       else if (sortKey === 'set') cmp = (a.setCode ?? '').localeCompare(b.setCode ?? '')
       else if (sortKey === 'value') cmp = (a.marketValue ?? -1) - (b.marketValue ?? -1)
       else if (sortKey === 'added') cmp = a.createdAt.localeCompare(b.createdAt)
@@ -448,6 +451,7 @@ export function WishlistPage() {
                     />
                   </th>
                   <SortTh label="Card" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                  <SortTh label="ID" sortKey="identifier" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                   <SortTh label="Set" sortKey="set" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                   <th className="px-3 py-2 text-left">Treatment</th>
                   <th className="px-3 py-2 text-left">Type</th>
@@ -478,7 +482,9 @@ export function WishlistPage() {
                         </td>
                         <td className="px-3 py-2.5">
                           <div className="font-medium">{e.cardName ?? e.cardIdentifier}</div>
-                          <div className="text-xs text-muted-foreground font-mono">{e.cardIdentifier}</div>
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                          {e.cardIdentifier.toUpperCase()}
                         </td>
                         <td className="px-3 py-2.5">
                           {e.setCode ? (

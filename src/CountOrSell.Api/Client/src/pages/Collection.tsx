@@ -922,6 +922,7 @@ function CardsTable({
   onDelete,
   onAdjustQty,
   onDetail,
+  defaultSortKey,
 }: {
   entries: CollectionEntry[]
   treatments: Treatment[]
@@ -932,8 +933,9 @@ function CardsTable({
   onDelete: (e: CollectionEntry) => void
   onAdjustQty: (e: CollectionEntry, delta: number) => void
   onDetail: (id: string) => void
+  defaultSortKey: string
 }) {
-  const [sortKey, setSortKey] = useState('card')
+  const [sortKey, setSortKey] = useState(defaultSortKey)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   function handleSort(key: string) {
@@ -948,6 +950,7 @@ function CardsTable({
     let cmp = 0
     switch (sortKey) {
       case 'card': cmp = (a.cardName ?? a.cardIdentifier).localeCompare(b.cardName ?? b.cardIdentifier); break
+      case 'identifier': cmp = a.cardIdentifier.localeCompare(b.cardIdentifier); break
       case 'set': cmp = (a.setCode ?? '').localeCompare(b.setCode ?? ''); break
       case 'treatment': cmp = (treatmentMap[a.treatmentKey] ?? a.treatmentKey).localeCompare(treatmentMap[b.treatmentKey] ?? b.treatmentKey); break
       case 'qty': cmp = a.quantity - b.quantity; break
@@ -987,6 +990,7 @@ function CardsTable({
               />
             </th>
             <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={handleSort} />
+            <SortTh label="ID" sortKey="identifier" current={sortKey} dir={sortDir} onSort={handleSort} />
             <SortTh label="Set" sortKey="set" current={sortKey} dir={sortDir} onSort={handleSort} />
             <SortTh label="Treatment" sortKey="treatment" current={sortKey} dir={sortDir} onSort={handleSort} />
             <SortTh label="Qty" sortKey="qty" current={sortKey} dir={sortDir} onSort={handleSort} className="text-center" />
@@ -1034,9 +1038,11 @@ function CardsTable({
                       {entry.autographed && (
                         <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>
                       )}
-                      <div className="text-xs text-muted-foreground">{entry.cardIdentifier}</div>
                     </div>
                   </div>
+                </td>
+                <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                  {entry.cardIdentifier.toUpperCase()}
                 </td>
                 <td className="px-3 py-2 text-muted-foreground">{entry.setCode ?? '-'}</td>
                 <td className="px-3 py-2">{treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}</td>
@@ -1290,6 +1296,7 @@ function ImportExportDialog({
 }
 
 export function CollectionPage() {
+  const { prefs } = usePreferences()
   const [entries, setEntries] = useState<CollectionEntry[]>([])
   const [completion, setCompletion] = useState<SetCompletion[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
@@ -1546,6 +1553,7 @@ export function CollectionPage() {
             onDelete={setDeleteEntry}
             onAdjustQty={adjustQuantity}
             onDetail={setDetailId}
+            defaultSortKey={prefs.cardSortDefault === 'identifier' ? 'identifier' : 'card'}
           />
         )
       )}

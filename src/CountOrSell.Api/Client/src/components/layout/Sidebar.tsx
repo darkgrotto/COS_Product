@@ -21,6 +21,7 @@ import {
   BookOpen,
   Star,
   PanelTop,
+  ArrowUpAZ,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranding } from '@/contexts/BrandingContext'
@@ -141,6 +142,10 @@ export function Sidebar() {
                   ? <Sun className="h-4 w-4 mr-2" />
                   : <Moon className="h-4 w-4 mr-2" />}
                 {prefs.darkMode ? 'Light Mode' : 'Dark Mode'}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => patchPrefs({ cardSortDefault: prefs.cardSortDefault === 'name' ? 'identifier' : 'name' })}>
+                <ArrowUpAZ className="h-4 w-4 mr-2" />
+                Card sort: {prefs.cardSortDefault === 'name' ? 'Name' : 'ID'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => patchPrefs({ navLayout: 'top' })}>
                 <PanelTop className="h-4 w-4 mr-2" />

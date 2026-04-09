@@ -9,5 +9,7 @@ public class UserPreferences
     public bool DarkMode { get; set; }
     // "sidebar" or "top"
     public string NavLayout { get; set; } = "sidebar";
+    // "name" or "identifier"
+    public string CardSortDefault { get; set; } = "name";
     public User? User { get; set; }
 }
