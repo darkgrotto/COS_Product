@@ -149,6 +149,19 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
   const [form, setForm] = useState<EntryForm>(blank())
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [validTreatments, setValidTreatments] = useState<string[]>([])
+
+  async function fetchValidTreatments(identifier: string) {
+    try {
+      const res = await fetch(`/api/cards/${identifier.toLowerCase()}`)
+      if (res.ok) {
+        const data = await res.json()
+        setValidTreatments(data.validTreatments ?? [])
+      }
+    } catch {
+      setValidTreatments([])
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -168,12 +181,17 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
         acquisitionPrice: initial.acquisitionPrice.toString(),
         notes: initial.notes ?? '',
       })
-    } else { setForm(blank()) }
+      fetchValidTreatments(initial.cardIdentifier)
+    } else {
+      setForm(blank())
+      setValidTreatments([])
+    }
     setError('')
   }, [open, initial, treatments, agencies])
 
   function handleCardSelect(card: CardSearchResult) {
     setForm(f => ({ ...f, cardIdentifier: card.identifier, cardName: card.name }))
+    fetchValidTreatments(card.identifier)
   }
 
   async function handleSave() {
@@ -220,6 +238,10 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
       setError(err instanceof Error ? err.message : 'Failed to save.')
     } finally { setSaving(false) }
   }
+
+  const availableTreatments = validTreatments.length > 0
+    ? treatments.filter(t => validTreatments.includes(t.key))
+    : treatments
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -273,7 +295,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
               <Select value={form.treatment} onValueChange={v => setForm(f => ({ ...f, treatment: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {treatments.map(t => <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>)}
+                  {availableTreatments.map(t => <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -349,13 +371,13 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
 
 // ---- Filters --------------------------------------------------------------
 
-interface Filters { gradingAgency: string; condition: string }
+interface Filters { gradingAgency: string; condition: string; treatment: string }
 
-function FiltersPanel({ filters, agencies, onChange, onClear }: {
-  filters: Filters; agencies: GradingAgency[]
+function FiltersPanel({ filters, agencies, treatments, onChange, onClear }: {
+  filters: Filters; agencies: GradingAgency[]; treatments: Treatment[]
   onChange: (f: Filters) => void; onClear: () => void
 }) {
-  const active = filters.gradingAgency || filters.condition
+  const active = filters.gradingAgency || filters.condition || filters.treatment
   return (
     <div className="flex flex-wrap items-end gap-3 mb-4">
       <div className="grid gap-1">
@@ -365,6 +387,16 @@ function FiltersPanel({ filters, agencies, onChange, onClear }: {
           <SelectContent>
             <SelectItem value="__all__">All</SelectItem>
             {agencies.map(a => <SelectItem key={a.code} value={a.code}>{a.code.toUpperCase()}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-1">
+        <Label className="text-xs text-muted-foreground">Treatment</Label>
+        <Select value={filters.treatment || '__all__'} onValueChange={v => onChange({ ...filters, treatment: v === '__all__' ? '' : v })}>
+          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All</SelectItem>
+            {treatments.map(t => <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -397,7 +429,7 @@ export function SlabsPage() {
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [agencies, setAgencies] = useState<GradingAgency[]>([])
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState<Filters>({ gradingAgency: '', condition: '' })
+  const [filters, setFilters] = useState<Filters>({ gradingAgency: '', condition: '', treatment: '' })
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<SlabEntry | null>(null)
   const [deleteEntry, setDeleteEntry] = useState<SlabEntry | null>(null)
@@ -427,6 +459,7 @@ export function SlabsPage() {
     const params = new URLSearchParams()
     if (filters.gradingAgency) params.set('filter.gradingAgency', filters.gradingAgency)
     if (filters.condition) params.set('filter.condition', filters.condition)
+    if (filters.treatment) params.set('filter.treatment', filters.treatment)
     const res = await fetch(`/api/slabs?${params}`, { credentials: 'include' })
     if (res.ok) setEntries(await res.json())
   }
@@ -506,9 +539,9 @@ export function SlabsPage() {
         </Button>
       </div>
 
-      <FiltersPanel filters={filters} agencies={agencies}
+      <FiltersPanel filters={filters} agencies={agencies} treatments={treatments}
         onChange={f => setFilters(f)}
-        onClear={() => setFilters({ gradingAgency: '', condition: '' })} />
+        onClear={() => setFilters({ gradingAgency: '', condition: '', treatment: '' })} />
 
       {selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm">

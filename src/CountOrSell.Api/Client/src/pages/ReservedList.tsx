@@ -49,6 +49,7 @@ export function ReservedListPage() {
   const [ownedOnly, setOwnedOnly] = useState(false)
   const [colorFilter, setColorFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [treatmentFilter, setTreatmentFilter] = useState('')
   const [addCard, setAddCard] = useState<RLCard | null>(null)
   const [detailCard, setDetailCard] = useState<RLCard | null>(null)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
@@ -97,13 +98,20 @@ export function ReservedListPage() {
   )
   const visibleTypes = CARD_TYPES.filter(t => allTypes.has(t))
 
+  const allTreatmentKeys = useMemo(
+    () => new Set(cards.flatMap(c => c.validTreatments ?? [])),
+    [cards]
+  )
+  const visibleTreatments = sortTreatments(treatments.filter(t => allTreatmentKeys.has(t.key)))
+
   const filtered = useMemo(() => {
     let result = cards
     if (ownedOnly) result = result.filter(c => c.ownedQuantity > 0)
     if (colorFilter) result = result.filter(c => (c.color ?? '').includes(colorFilter))
     if (typeFilter) result = result.filter(c => (c.cardType ?? '').includes(typeFilter))
+    if (treatmentFilter) result = result.filter(c => (c.validTreatments ?? []).includes(treatmentFilter))
     return result
-  }, [cards, ownedOnly, colorFilter, typeFilter])
+  }, [cards, ownedOnly, colorFilter, typeFilter, treatmentFilter])
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -182,7 +190,7 @@ export function ReservedListPage() {
     await loadOwned()
   }
 
-  const hasActiveFilter = ownedOnly || !!colorFilter || !!typeFilter
+  const hasActiveFilter = ownedOnly || !!colorFilter || !!typeFilter || !!treatmentFilter
 
   return (
     <div className="space-y-4">
@@ -233,6 +241,21 @@ export function ReservedListPage() {
             </div>
           )}
 
+          {visibleTreatments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs text-muted-foreground">Treatment:</span>
+              {visibleTreatments.map(t => (
+                <ToggleChip
+                  key={t.key}
+                  active={treatmentFilter === t.key}
+                  onClick={() => setTreatmentFilter(treatmentFilter === t.key ? '' : t.key)}
+                >
+                  {t.displayName}
+                </ToggleChip>
+              ))}
+            </div>
+          )}
+
           <div className="flex gap-1.5 items-center">
             <span className="text-xs text-muted-foreground">Show:</span>
             <ToggleChip active={ownedOnly} onClick={() => setOwnedOnly(v => !v)}>
@@ -244,7 +267,7 @@ export function ReservedListPage() {
               <button
                 type="button"
                 className="text-xs text-muted-foreground hover:text-foreground underline ml-1"
-                onClick={() => { setColorFilter(''); setTypeFilter(''); setOwnedOnly(false) }}
+                onClick={() => { setColorFilter(''); setTypeFilter(''); setTreatmentFilter(''); setOwnedOnly(false) }}
               >
                 Clear filters
               </button>

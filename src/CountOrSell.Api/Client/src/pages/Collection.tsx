@@ -247,11 +247,24 @@ function EntryDialog({
   const [saving, setSaving] = useState(false)
   const [selectedSet, setSelectedSet] = useState<string>('')
   const [setSearch, setSetSearch] = useState('')
+  const [validTreatments, setValidTreatments] = useState<string[]>([])
 
   const filteredSets = sets.filter(s =>
     s.code.includes(setSearch.toLowerCase()) ||
     s.name.toLowerCase().includes(setSearch.toLowerCase())
   )
+
+  async function fetchValidTreatments(identifier: string) {
+    try {
+      const res = await fetch(`/api/cards/${identifier.toLowerCase()}`)
+      if (res.ok) {
+        const data = await res.json()
+        setValidTreatments(data.validTreatments ?? [])
+      }
+    } catch {
+      setValidTreatments([])
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -267,10 +280,12 @@ function EntryDialog({
         acquisitionPrice: initial.acquisitionPrice.toString(),
         notes: initial.notes ?? '',
       })
+      fetchValidTreatments(initial.cardIdentifier)
     } else {
       setForm(blankForm())
       setSelectedSet('')
       setSetSearch('')
+      setValidTreatments([])
     }
     setError('')
   }, [open, initial])
@@ -284,6 +299,7 @@ function EntryDialog({
         ? card.currentMarketValue.toFixed(2)
         : f.acquisitionPrice,
     }))
+    fetchValidTreatments(card.identifier)
   }
 
   async function handleSave() {
@@ -318,6 +334,10 @@ function EntryDialog({
       setError(err instanceof Error ? err.message : 'Failed to save.')
     } finally { setSaving(false) }
   }
+
+  const availableTreatments = validTreatments.length > 0
+    ? sortTreatments(treatments.filter(t => validTreatments.includes(t.key)))
+    : sortTreatments(treatments)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -385,7 +405,7 @@ function EntryDialog({
               <Select value={form.treatment} onValueChange={v => setForm(f => ({ ...f, treatment: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {treatments.map(t => (
+                  {availableTreatments.map(t => (
                     <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
                   ))}
                 </SelectContent>

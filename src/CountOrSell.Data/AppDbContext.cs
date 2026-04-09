@@ -249,6 +249,7 @@ public class AppDbContext : DbContext
             e.Property(c => c.IsReserved).HasColumnName("is_reserved").HasDefaultValue(false);
             e.Property(c => c.Rarity).HasColumnName("rarity").HasMaxLength(20);
             e.Property(c => c.FlavorText).HasColumnName("flavor_text").HasMaxLength(1000);
+            e.Property(c => c.ValidTreatments).HasColumnName("valid_treatments").HasMaxLength(500);
             e.HasOne<Set>().WithMany().HasForeignKey(c => c.SetCode);
             e.HasIndex(c => c.SetCode);
         });

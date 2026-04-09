@@ -247,6 +247,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 Rarity = d.Rarity,
                 IsReserved = d.IsReserved,
                 OracleRulingUrl = d.OracleRulingUri,
+                ValidTreatments = d.Treatments.Count > 0 ? string.Join(",", d.Treatments) : null,
                 UpdatedAt = DateTime.UtcNow
             }));
 
@@ -268,6 +269,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.Rarity = dto.Rarity;
                 entity.IsReserved = dto.IsReserved;
                 entity.OracleRulingUrl = dto.OracleRulingUri;
+                entity.ValidTreatments = dto.Treatments.Count > 0 ? string.Join(",", dto.Treatments) : null;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }

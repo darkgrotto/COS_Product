@@ -21,4 +21,7 @@ public class Card
     public bool IsReserved { get; set; }
     public string? Rarity { get; set; }
     public string? FlavorText { get; set; }
+    // Comma-joined normalized treatment keys valid for this card (e.g. "regular,foil,surge-foil").
+    // Null means no treatment restriction data available (pre-update packages).
+    public string? ValidTreatments { get; set; }
 }

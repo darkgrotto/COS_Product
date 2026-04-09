@@ -47,4 +47,8 @@ public class CardDto
 
     [JsonPropertyName("oracle_ruling_uri")]
     public string? OracleRulingUri { get; set; }
+
+    // Valid treatments for this card - array of normalized_name strings.
+    [JsonPropertyName("treatments")]
+    public List<string> Treatments { get; set; } = new();
 }

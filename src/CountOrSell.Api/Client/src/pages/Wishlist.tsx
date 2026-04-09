@@ -194,6 +194,7 @@ export function WishlistPage() {
   const [setFilter, setSetFilter] = useState('')
   const [colorFilter, setColorFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [treatmentFilter, setTreatmentFilter] = useState('')
   const [rlFilter, setRlFilter] = useState(false)
 
   // Sort
@@ -282,8 +283,10 @@ export function WishlistPage() {
     return CARD_TYPES.filter(t => e.cardType!.includes(t))
   }))
   const visibleTypes = CARD_TYPES.filter(t => entryTypes.has(t))
+  const entryTreatmentKeys = new Set(entries.map(e => e.treatmentKey).filter(Boolean))
+  const visibleTreatments = sortTreatments(treatments.filter(t => entryTreatmentKeys.has(t.key)))
 
-  const hasFilters = search || setFilter || colorFilter || typeFilter || rlFilter
+  const hasFilters = search || setFilter || colorFilter || typeFilter || treatmentFilter || rlFilter
 
   const filtered = entries
     .filter(e => {
@@ -297,6 +300,7 @@ export function WishlistPage() {
       if (setFilter && e.setCode !== setFilter) return false
       if (colorFilter && !(e.color ?? '').split(',').includes(colorFilter)) return false
       if (typeFilter && !(e.cardType ?? '').includes(typeFilter)) return false
+      if (treatmentFilter && e.treatmentKey !== treatmentFilter) return false
       return true
     })
     .slice()
@@ -394,11 +398,26 @@ export function WishlistPage() {
             </div>
           )}
 
+          {visibleTreatments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs text-muted-foreground">Treatment:</span>
+              {visibleTreatments.map(t => (
+                <ToggleChip
+                  key={t.key}
+                  active={treatmentFilter === t.key}
+                  onClick={() => setTreatmentFilter(treatmentFilter === t.key ? '' : t.key)}
+                >
+                  {t.displayName}
+                </ToggleChip>
+              ))}
+            </div>
+          )}
+
           {hasFilters && (
             <button
               type="button"
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => { setSearch(''); setSetFilter(''); setColorFilter(''); setTypeFilter(''); setRlFilter(false) }}
+              onClick={() => { setSearch(''); setSetFilter(''); setColorFilter(''); setTypeFilter(''); setTreatmentFilter(''); setRlFilter(false) }}
             >
               <X className="h-3 w-3" /> Clear filters
             </button>

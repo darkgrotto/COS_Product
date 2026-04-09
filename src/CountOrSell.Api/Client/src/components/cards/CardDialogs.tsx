@@ -27,6 +27,8 @@ export interface AddableCard {
   currentMarketValue: number | null
   // Per-treatment prices from pricing.json; optional - falls back to currentMarketValue.
   prices?: Record<string, number | null>
+  // Valid treatment keys for this card from update packages. Empty array means no restriction data.
+  validTreatments?: string[]
 }
 
 // ---- Shared constants -------------------------------------------------------
@@ -376,7 +378,11 @@ export function QuickAddDialog({
   onClose: () => void
   onAdded: (mode: 'collection' | 'wishlist') => void
 }) {
-  const sorted = sortTreatments(treatments)
+  // Restrict to card's valid treatments if provided; fall back to all treatments.
+  const available = card.validTreatments && card.validTreatments.length > 0
+    ? treatments.filter(t => card.validTreatments!.includes(t.key))
+    : treatments
+  const sorted = sortTreatments(available.length > 0 ? available : treatments)
   const defaultTreatment = sorted[0]?.key ?? 'regular'
   const defaultPrice = (card.prices?.[defaultTreatment] ?? card.currentMarketValue)
   const [mode, setMode] = useState<'collection' | 'wishlist'>('collection')

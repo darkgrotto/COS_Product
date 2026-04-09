@@ -67,6 +67,9 @@ public class SetsController : ControllerBase
             Prices = pricesByCard.TryGetValue(c.Identifier, out var p)
                 ? p
                 : new Dictionary<string, decimal?>(),
+            ValidTreatments = c.ValidTreatments != null
+                ? c.ValidTreatments.Split(',')
+                : Array.Empty<string>(),
         }));
     }
 }

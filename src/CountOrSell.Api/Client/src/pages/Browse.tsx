@@ -302,6 +302,7 @@ function CardListView({
   const [colorFilter, setColorFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [rarityFilter, setRarityFilter] = useState('')
+  const [treatmentFilter, setTreatmentFilter] = useState('')
   const [rlFilter, setRlFilter] = useState(false)
   const { prefs } = usePreferences()
   const [addCard, setAddCard] = useState<BrowseCard | null>(null)
@@ -340,6 +341,7 @@ function CardListView({
       if (colorFilter && !(c.color ?? '').includes(colorFilter)) return false
       if (typeFilter && !(c.cardType ?? '').includes(typeFilter)) return false
       if (rarityFilter && c.rarity !== rarityFilter) return false
+      if (treatmentFilter && !(c.validTreatments ?? []).includes(treatmentFilter)) return false
       if (rlFilter && !c.isReserved) return false
       return true
     })
@@ -371,6 +373,10 @@ function CardListView({
 
   const setRarities = new Set(cards.map(c => c.rarity).filter(Boolean) as string[])
   const visibleRarities = RARITIES.filter(r => setRarities.has(r))
+
+  // Treatments that appear for at least one card in the set (use treatments prop for display names).
+  const setTreatmentKeys = new Set(cards.flatMap(c => c.validTreatments ?? []))
+  const visibleTreatments = sortTreatments(treatments.filter(t => setTreatmentKeys.has(t.key)))
 
   const hasReserved = cards.some(c => c.isReserved)
 
@@ -472,6 +478,21 @@ function CardListView({
                 onClick={() => setRarityFilter(rarityFilter === r ? '' : r)}
               >
                 {r.charAt(0).toUpperCase() + r.slice(1)}
+              </ToggleChip>
+            ))}
+          </div>
+        )}
+
+        {visibleTreatments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-muted-foreground">Treatment:</span>
+            {visibleTreatments.map(t => (
+              <ToggleChip
+                key={t.key}
+                active={treatmentFilter === t.key}
+                onClick={() => setTreatmentFilter(treatmentFilter === t.key ? '' : t.key)}
+              >
+                {t.displayName}
               </ToggleChip>
             ))}
           </div>

@@ -160,6 +160,19 @@ function EntryDialog({ open, onOpenChange, treatments, initial, onSave }: {
   const [form, setForm] = useState<EntryForm>(blank())
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [validTreatments, setValidTreatments] = useState<string[]>([])
+
+  async function fetchValidTreatments(identifier: string) {
+    try {
+      const res = await fetch(`/api/cards/${identifier.toLowerCase()}`)
+      if (res.ok) {
+        const data = await res.json()
+        setValidTreatments(data.validTreatments ?? [])
+      }
+    } catch {
+      setValidTreatments([])
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -176,14 +189,17 @@ function EntryDialog({ open, onOpenChange, treatments, initial, onSave }: {
         acquisitionPrice: initial.acquisitionPrice.toString(),
         notes: initial.notes ?? '',
       })
+      fetchValidTreatments(initial.cardIdentifier)
     } else {
       setForm(blank())
+      setValidTreatments([])
     }
     setError('')
   }, [open, initial, treatments])
 
   function handleCardSelect(card: CardSearchResult) {
     setForm(f => ({ ...f, cardIdentifier: card.identifier, cardName: card.name }))
+    fetchValidTreatments(card.identifier)
   }
 
   async function handleSave() {
@@ -228,6 +244,10 @@ function EntryDialog({ open, onOpenChange, treatments, initial, onSave }: {
       setError(err instanceof Error ? err.message : 'Failed to save.')
     } finally { setSaving(false) }
   }
+
+  const availableTreatments = validTreatments.length > 0
+    ? treatments.filter(t => validTreatments.includes(t.key))
+    : treatments
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -277,7 +297,7 @@ function EntryDialog({ open, onOpenChange, treatments, initial, onSave }: {
               <Select value={form.treatment} onValueChange={v => setForm(f => ({ ...f, treatment: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {treatments.map(t => (
+                  {availableTreatments.map(t => (
                     <SelectItem key={t.key} value={t.key}>{t.displayName}</SelectItem>
                   ))}
                 </SelectContent>

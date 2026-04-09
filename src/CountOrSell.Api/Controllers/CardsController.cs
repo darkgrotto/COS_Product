@@ -69,7 +69,10 @@ public class CardsController : ControllerBase
             card.FlavorText,
             card.CurrentMarketValue,
             card.UpdatedAt,
-            card.IsReserved
+            card.IsReserved,
+            ValidTreatments = card.ValidTreatments != null
+                ? card.ValidTreatments.Split(',')
+                : Array.Empty<string>(),
         });
     }
 
@@ -125,6 +128,7 @@ public class CardsController : ControllerBase
                 c.CardType,
                 c.Color,
                 c.CurrentMarketValue,
+                c.ValidTreatments,
             })
             .ToListAsync(ct);
 
@@ -145,6 +149,9 @@ public class CardsController : ControllerBase
             c.Color,
             c.CurrentMarketValue,
             OwnedQuantity = owned.TryGetValue(c.Identifier.ToLowerInvariant(), out var qty) ? qty : 0,
+            ValidTreatments = c.ValidTreatments != null
+                ? c.ValidTreatments.Split(',')
+                : Array.Empty<string>(),
         }));
     }
 
