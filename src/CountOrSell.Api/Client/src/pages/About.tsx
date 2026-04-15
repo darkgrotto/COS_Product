@@ -37,6 +37,16 @@ function fmtDateTime(iso: string | null | undefined): string {
   })
 }
 
+// Formats the stored content version for display. The version key is an ISO timestamp
+// (e.g. "2026-04-10T15:30:00Z") since the switch from cards-only version tracking.
+// Old records may still hold a semver string like "1.0.0" - show those as-is.
+function fmtContentVersion(v: string | null | undefined): string {
+  if (!v) return 'No updates applied'
+  const d = new Date(v)
+  if (isNaN(d.getTime())) return v
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 export function AboutPage() {
   const [data, setData] = useState<AboutData | null>(null)
   const [error, setError] = useState(false)
@@ -81,7 +91,7 @@ export function AboutPage() {
           <Separator />
           <Row
             label="Last content update"
-            value={data.lastContentUpdate ?? 'No updates applied'}
+            value={fmtContentVersion(data.lastContentUpdate)}
           />
           <Row
             label="Last update check"

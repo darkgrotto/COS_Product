@@ -59,10 +59,9 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         if (packageStream.CanSeek) packageStream.Position = 0;
         using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
 
-        // Determine content version from package manifest (cards is the primary version key)
-        var contentVersion = packageManifest.ContentVersions.TryGetValue("cards", out var cv)
-            ? cv.Version
-            : packageManifest.GeneratedAt.ToString("yyyy-MM-dd");
+        // Store the package generated_at timestamp as the content version key so that
+        // updates to any content type (not just cards) are detected on future checks.
+        var contentVersion = packageManifest.GeneratedAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
 
         // Read and verify metadata files
         var treatments = ReadAndVerifyJson<List<TreatmentDto>>(

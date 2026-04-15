@@ -83,19 +83,25 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                 return result;
             }
 
-            // Check current content version against what the package provides
-            if (!packageManifest.ContentVersions.TryGetValue("cards", out var cardsVersion))
+            // Use the package generated_at timestamp as the version key.
+            // This detects updates to any content type (treatments, pricing, taxonomy, sealed
+            // products, etc.), not just cards. The cards-only comparison previously caused updates
+            // that contained non-card changes to be skipped with a false "already up to date".
+            if (packageManifest.ContentVersions.Count == 0)
             {
-                _logger.LogWarning("Package manifest missing cards content version");
+                _logger.LogWarning("Package manifest has no content version entries");
                 result = new UpdateCheckResult(false, "Package manifest is missing content version information.");
                 return result;
             }
 
+            var packageKey = packageManifest.GeneratedAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
             var currentContentVersion = await updateRepo.GetCurrentContentVersionAsync(ct);
-            if (!force && currentContentVersion == cardsVersion.Version)
+            if (!force && currentContentVersion == packageKey)
             {
-                _logger.LogInformation("Content already up to date at version {Version}", currentContentVersion);
-                result = new UpdateCheckResult(false, $"Content is already up to date (version {currentContentVersion}).");
+                var displayDate = packageManifest.GeneratedAt.ToUniversalTime()
+                    .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                _logger.LogInformation("Content already up to date (package from {PackageDate})", displayDate);
+                result = new UpdateCheckResult(false, $"Content is already up to date (last updated {displayDate}).");
                 return result;
             }
 
@@ -105,7 +111,9 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             // Apply the content update - the applicator verifies per-file checksums internally
             await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, ct);
 
-            result = new UpdateCheckResult(true, $"Content updated to version {cardsVersion.Version}.");
+            var appliedDate = packageManifest.GeneratedAt.ToUniversalTime()
+                .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            result = new UpdateCheckResult(true, $"Content updated (package from {appliedDate}).");
             return result;
         }
         catch (Exception ex)

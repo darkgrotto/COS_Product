@@ -1,4 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
+
+// Formats the stored content version key. Since the fix for cards-only version tracking,
+// the key is an ISO timestamp. Old records may hold a semver string like "1.0.0".
+function fmtContentVersion(v: string | null | undefined): string {
+  if (!v) return 'No updates applied'
+  const d = new Date(v)
+  if (isNaN(d.getTime())) return v
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
 import { RefreshCw, AlertTriangle, CheckCircle, Info, X, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -156,7 +165,7 @@ export function UpdatesPage() {
           <CardHeader className="pb-3">
             <CardDescription>Content Version</CardDescription>
             <CardTitle className="text-base font-medium">
-              {status?.currentContentVersion ?? 'No updates applied'}
+              {fmtContentVersion(status?.currentContentVersion)}
             </CardTitle>
           </CardHeader>
         </Card>
