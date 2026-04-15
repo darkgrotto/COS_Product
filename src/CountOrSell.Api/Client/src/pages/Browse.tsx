@@ -29,6 +29,7 @@ interface BrowseSet {
 }
 
 interface BrowseCard extends AddableCard {
+  manaCost: string | null
   color: string | null
   cardType: string | null
   rarity: string | null
@@ -304,6 +305,8 @@ function CardListView({
   const [rarityFilter, setRarityFilter] = useState('')
   const [treatmentFilter, setTreatmentFilter] = useState('')
   const [rlFilter, setRlFilter] = useState(false)
+  const [phiFilter, setPhiFilter] = useState(false)
+  const [hybridFilter, setHybridFilter] = useState(false)
   const { prefs } = usePreferences()
   const [addCard, setAddCard] = useState<BrowseCard | null>(null)
   const [detailCard, setDetailCard] = useState<BrowseCard | null>(null)
@@ -343,6 +346,8 @@ function CardListView({
       if (rarityFilter && c.rarity !== rarityFilter) return false
       if (treatmentFilter && !(c.validTreatments ?? []).includes(treatmentFilter)) return false
       if (rlFilter && !c.isReserved) return false
+      if (phiFilter && !(c.manaCost?.includes('/P}') ?? false)) return false
+      if (hybridFilter && !(c.manaCost != null && /\/[WUBRG]\}/.test(c.manaCost))) return false
       return true
     })
     .slice()
@@ -379,6 +384,8 @@ function CardListView({
   const visibleTreatments = sortTreatments(treatments.filter(t => setTreatmentKeys.has(t.key)))
 
   const hasReserved = cards.some(c => c.isReserved)
+  const hasPhiMana = cards.some(c => c.manaCost?.includes('/P}') ?? false)
+  const hasHybridMana = cards.some(c => c.manaCost != null && /\/[WUBRG]\}/.test(c.manaCost))
 
   function handleAdded(mode: 'collection' | 'wishlist') {
     if (mode === 'collection' && addCard)
@@ -498,14 +505,26 @@ function CardListView({
           </div>
         )}
 
-        {hasReserved && (
-          <div className="flex gap-1.5 items-center">
+        {(hasReserved || hasPhiMana || hasHybridMana) && (
+          <div className="flex flex-wrap gap-1.5 items-center">
             <span className="text-xs text-muted-foreground">Show:</span>
-            <ToggleChip active={rlFilter} onClick={() => setRlFilter(v => !v)}>
-              <span className="inline-flex items-center gap-1">
-                <Star className="h-3 w-3" /> Reserved List
-              </span>
-            </ToggleChip>
+            {hasReserved && (
+              <ToggleChip active={rlFilter} onClick={() => setRlFilter(v => !v)}>
+                <span className="inline-flex items-center gap-1">
+                  <Star className="h-3 w-3" /> Reserved List
+                </span>
+              </ToggleChip>
+            )}
+            {hasPhiMana && (
+              <ToggleChip active={phiFilter} onClick={() => setPhiFilter(v => !v)}>
+                Phi Mana
+              </ToggleChip>
+            )}
+            {hasHybridMana && (
+              <ToggleChip active={hybridFilter} onClick={() => setHybridFilter(v => !v)}>
+                Hybrid Mana
+              </ToggleChip>
+            )}
           </div>
         )}
       </div>

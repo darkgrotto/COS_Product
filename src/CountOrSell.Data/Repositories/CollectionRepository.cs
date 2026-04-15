@@ -43,6 +43,15 @@ public class CollectionRepository : ICollectionRepository
         if (filter.IsReserved == true)
             query = query.Where(x => x.c.IsReserved);
 
+        if (filter.HasPhyrexianMana == true)
+            query = query.Where(x => x.c.ManaCost != null && x.c.ManaCost.Contains("/P}"));
+
+        if (filter.HasHybridMana == true)
+            query = query.Where(x => x.c.ManaCost != null &&
+                (x.c.ManaCost.Contains("/W}") || x.c.ManaCost.Contains("/U}") ||
+                 x.c.ManaCost.Contains("/B}") || x.c.ManaCost.Contains("/R}") ||
+                 x.c.ManaCost.Contains("/G}")));
+
         return query.Select(x => x.ce).ToListAsync(ct);
     }
 

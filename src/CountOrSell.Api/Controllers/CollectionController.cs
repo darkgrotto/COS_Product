@@ -295,9 +295,17 @@ public class CollectionController : ControllerBase
     }
 
     [HttpGet("export")]
-    public async Task<IActionResult> Export([FromQuery] string format = "cos", CancellationToken ct = default)
+    public async Task<IActionResult> Export(
+        [FromQuery] string format = "cos",
+        [FromQuery] CollectionFilter? filter = null,
+        CancellationToken ct = default)
     {
         var fmt = ParseFormat(format);
+        if (filter != null && HasFilters(filter))
+        {
+            var (fData, fFileName) = await _importExport.ExportFilteredAsync(CurrentUserId, fmt, filter, ct);
+            return File(fData, "text/csv; charset=utf-8", fFileName);
+        }
         var (data, fileName) = await _importExport.ExportAsync(CurrentUserId, fmt, ct);
         return File(data, "text/csv; charset=utf-8", fileName);
     }
@@ -353,7 +361,7 @@ public class CollectionController : ControllerBase
     private static bool HasFilters(CollectionFilter filter) =>
         filter.SetCode != null || filter.Color != null || filter.Condition != null ||
         filter.CardType != null || filter.Treatment != null || filter.Autographed.HasValue ||
-        filter.IsReserved.HasValue;
+        filter.IsReserved.HasValue || filter.HasPhyrexianMana.HasValue || filter.HasHybridMana.HasValue;
 
     private static bool TryParseCondition(string value, out CardCondition result) =>
         Enum.TryParse(value, true, out result);

@@ -28,6 +28,24 @@ public sealed class CollectionImportExportService : ICollectionImportExportServi
         CancellationToken ct = default)
     {
         var entries = await _collection.GetByUserAsync(userId, ct);
+        return await BuildExportAsync(entries, format, ct);
+    }
+
+    public async Task<(byte[] Data, string FileName)> ExportFilteredAsync(
+        Guid userId,
+        CollectionExportFormat format,
+        CollectionFilter filter,
+        CancellationToken ct = default)
+    {
+        var entries = await _collection.GetByUserFilteredAsync(userId, filter, ct);
+        return await BuildExportAsync(entries, format, ct);
+    }
+
+    private async Task<(byte[] Data, string FileName)> BuildExportAsync(
+        List<CollectionEntry> entries,
+        CollectionExportFormat format,
+        CancellationToken ct)
+    {
         var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
 
         var cardMap = await _db.Cards

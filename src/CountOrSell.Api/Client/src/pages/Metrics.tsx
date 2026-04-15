@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X } from 'lucide-react'
+import { X, Download } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePreferences } from '@/contexts/PreferencesContext'
 import { Button } from '@/components/ui/button'
@@ -62,6 +62,9 @@ interface Filters {
   autographed: string
   color: string
   cardType: string
+  isReserved: boolean
+  hasPhyrexianMana: boolean
+  hasHybridMana: boolean
 }
 
 // ---- Constants --------------------------------------------------------------
@@ -70,6 +73,7 @@ const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'DMG'] as const
 
 const BLANK_FILTERS: Filters = {
   setCode: '', treatment: '', condition: '', autographed: '', color: '', cardType: '',
+  isReserved: false, hasPhyrexianMana: false, hasHybridMana: false,
 }
 
 const CONTENT_TYPE_LABELS: Record<string, string> = {
@@ -123,7 +127,8 @@ function FiltersPanel({
   onClear: () => void
 }) {
   const active = filters.setCode || filters.treatment || filters.condition ||
-    filters.autographed || filters.color || filters.cardType
+    filters.autographed || filters.color || filters.cardType ||
+    filters.isReserved || filters.hasPhyrexianMana || filters.hasHybridMana
 
   return (
     <div className="space-y-2">
@@ -216,6 +221,25 @@ function FiltersPanel({
             {t}
           </ToggleChip>
         ))}
+        <span className="text-xs text-muted-foreground ml-3">|</span>
+        <ToggleChip
+          active={filters.isReserved}
+          onClick={() => onChange({ ...filters, isReserved: !filters.isReserved })}
+        >
+          Reserved List
+        </ToggleChip>
+        <ToggleChip
+          active={filters.hasPhyrexianMana}
+          onClick={() => onChange({ ...filters, hasPhyrexianMana: !filters.hasPhyrexianMana })}
+        >
+          Phi Mana
+        </ToggleChip>
+        <ToggleChip
+          active={filters.hasHybridMana}
+          onClick={() => onChange({ ...filters, hasHybridMana: !filters.hasHybridMana })}
+        >
+          Hybrid Mana
+        </ToggleChip>
       </div>
     </div>
   )
@@ -377,6 +401,8 @@ export function MetricsPage() {
   const [metrics, setMetrics] = useState<MetricsResult | null>(null)
   const [completion, setCompletion] = useState<SetCompletion[]>([])
   const [loading, setLoading] = useState(true)
+  const [exportFormat, setExportFormat] = useState('cos')
+  const [exporting, setExporting] = useState(false)
 
   // Load reference data once on mount
   useEffect(() => {
@@ -410,6 +436,9 @@ export function MetricsPage() {
       if (filters.treatment) mParams.set('filter.treatment', filters.treatment)
       if (filters.cardType) mParams.set('filter.cardType', filters.cardType)
       if (filters.autographed) mParams.set('filter.autographed', filters.autographed)
+      if (filters.isReserved) mParams.set('filter.isReserved', 'true')
+      if (filters.hasPhyrexianMana) mParams.set('filter.hasPhyrexianMana', 'true')
+      if (filters.hasHybridMana) mParams.set('filter.hasHybridMana', 'true')
 
       // Set completion is per-user only; skip when admin is in aggregate view
       const showCompletion = !isAdmin || selectedUserId !== ALL_USERS_KEY
@@ -444,6 +473,36 @@ export function MetricsPage() {
     setFilters(f => ({ ...f, setCode: code }))
   }
 
+  async function handleExport() {
+    setExporting(true)
+    try {
+      const params = new URLSearchParams({ format: exportFormat })
+      if (filters.setCode) params.set('filter.setCode', filters.setCode)
+      if (filters.color) params.set('filter.color', filters.color)
+      if (filters.condition) params.set('filter.condition', filters.condition)
+      if (filters.treatment) params.set('filter.treatment', filters.treatment)
+      if (filters.cardType) params.set('filter.cardType', filters.cardType)
+      if (filters.autographed) params.set('filter.autographed', filters.autographed)
+      if (filters.isReserved) params.set('filter.isReserved', 'true')
+      if (filters.hasPhyrexianMana) params.set('filter.hasPhyrexianMana', 'true')
+      if (filters.hasHybridMana) params.set('filter.hasHybridMana', 'true')
+      const res = await fetch(`/api/collection/export?${params}`, { credentials: 'include' })
+      if (!res.ok) return
+      const blob = await res.blob()
+      const cd = res.headers.get('content-disposition') ?? ''
+      const match = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(cd)
+      const fileName = match ? match[1].replace(/['"]/g, '') : `collection-export.csv`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const hasFilters = Object.values(filters).some(Boolean)
 
   const isEmpty = metrics &&
@@ -456,19 +515,36 @@ export function MetricsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-semibold">Metrics</h1>
-        {isAdmin && (
-          <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-            <SelectTrigger className="h-8 w-52 text-xs"><SelectValue /></SelectTrigger>
+        <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && (
+            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <SelectTrigger className="h-8 w-52 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_USERS_KEY}>All Users</SelectItem>
+                {adminUsers.map(u => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.displayName || u.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Select value={exportFormat} onValueChange={setExportFormat}>
+            <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_USERS_KEY}>All Users</SelectItem>
-              {adminUsers.map(u => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.displayName || u.username}
-                </SelectItem>
-              ))}
+              <SelectItem value="cos">COS</SelectItem>
+              <SelectItem value="moxfield">Moxfield</SelectItem>
+              <SelectItem value="deckbox">Deckbox</SelectItem>
+              <SelectItem value="tcgplayer">TCGPlayer</SelectItem>
+              <SelectItem value="dragonshield">Dragon Shield</SelectItem>
+              <SelectItem value="manabox">Manabox</SelectItem>
             </SelectContent>
           </Select>
-        )}
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { void handleExport() }} disabled={exporting}>
+            <Download className="h-3.5 w-3.5" />
+            {exporting ? 'Exporting...' : hasFilters ? 'Export Filtered' : 'Export'}
+          </Button>
+        </div>
       </div>
 
       <FiltersPanel

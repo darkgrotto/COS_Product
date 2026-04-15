@@ -50,7 +50,7 @@ export const COLORS = [
 
 export const CARD_TYPES = [
   'Creature', 'Instant', 'Sorcery', 'Enchantment',
-  'Artifact', 'Land', 'Planeswalker', 'Battle',
+  'Artifact', 'Land', 'Planeswalker', 'Battle', 'Kindred', 'Legendary',
 ]
 
 export function today() {

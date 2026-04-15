@@ -9,6 +9,8 @@ public class CollectionFilter
     public string? Treatment { get; set; }
     public bool? Autographed { get; set; }
     public bool? IsReserved { get; set; }
+    public bool? HasPhyrexianMana { get; set; }
+    public bool? HasHybridMana { get; set; }
     public bool? Serialized { get; set; }
     public bool? Slabbed { get; set; }
     public bool? SealedProduct { get; set; }

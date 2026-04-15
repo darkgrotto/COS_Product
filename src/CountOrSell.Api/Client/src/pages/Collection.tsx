@@ -77,6 +77,8 @@ interface Filters {
   color: string
   cardType: string
   isReserved: boolean
+  hasPhyrexianMana: boolean
+  hasHybridMana: boolean
 }
 
 // Regular first, Foil second, then alphabetical by display name.
@@ -107,11 +109,12 @@ const COLORS = [
 
 const CARD_TYPES = [
   'Creature', 'Instant', 'Sorcery', 'Enchantment',
-  'Artifact', 'Land', 'Planeswalker', 'Battle',
+  'Artifact', 'Land', 'Planeswalker', 'Battle', 'Kindred', 'Legendary',
 ]
 
 const BLANK_FILTERS: Filters = {
-  setCode: '', treatment: '', condition: '', autographed: '', color: '', cardType: '', isReserved: false,
+  setCode: '', treatment: '', condition: '', autographed: '', color: '', cardType: '',
+  isReserved: false, hasPhyrexianMana: false, hasHybridMana: false,
 }
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -741,7 +744,8 @@ function FiltersPanel({
   onClear: () => void
 }) {
   const active = filters.setCode || filters.treatment || filters.condition ||
-    filters.autographed || filters.color || filters.cardType || filters.isReserved
+    filters.autographed || filters.color || filters.cardType || filters.isReserved ||
+    filters.hasPhyrexianMana || filters.hasHybridMana
 
   return (
     <div className="space-y-2">
@@ -841,6 +845,18 @@ function FiltersPanel({
           onClick={() => onChange({ ...filters, isReserved: !filters.isReserved })}
         >
           Reserved List
+        </ToggleChip>
+        <ToggleChip
+          active={filters.hasPhyrexianMana}
+          onClick={() => onChange({ ...filters, hasPhyrexianMana: !filters.hasPhyrexianMana })}
+        >
+          Phi Mana
+        </ToggleChip>
+        <ToggleChip
+          active={filters.hasHybridMana}
+          onClick={() => onChange({ ...filters, hasHybridMana: !filters.hasHybridMana })}
+        >
+          Hybrid Mana
         </ToggleChip>
       </div>
     </div>
@@ -1352,6 +1368,8 @@ export function CollectionPage() {
     if (filters.color) params.set('filter.color', filters.color)
     if (filters.cardType) params.set('filter.cardType', filters.cardType)
     if (filters.isReserved) params.set('filter.isReserved', 'true')
+    if (filters.hasPhyrexianMana) params.set('filter.hasPhyrexianMana', 'true')
+    if (filters.hasHybridMana) params.set('filter.hasHybridMana', 'true')
     const res = await fetch(`/api/collection?${params}`)
     if (res.ok) setEntries(await res.json())
   }
@@ -1452,7 +1470,8 @@ export function CollectionPage() {
   const totalPl = totalValue - totalCost
   const hasValues = entries.some(e => e.marketValue != null)
   const hasActiveFilters = !!(filters.setCode || filters.treatment || filters.condition ||
-    filters.autographed || filters.color || filters.cardType || filters.isReserved)
+    filters.autographed || filters.color || filters.cardType || filters.isReserved ||
+    filters.hasPhyrexianMana || filters.hasHybridMana)
 
   return (
     <div>
