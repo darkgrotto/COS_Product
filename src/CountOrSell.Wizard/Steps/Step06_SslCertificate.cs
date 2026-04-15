@@ -1,5 +1,7 @@
 using CountOrSell.Wizard.Models;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 namespace CountOrSell.Wizard.Steps;
 
@@ -35,7 +37,8 @@ public static class Step06_SslCertificate
             return Task.CompletedTask;
         }
 
-        bool generated = TryGenerateWithOpenSsl(config.Hostname, certPath, keyPath);
+        bool generated = TryGenerateWithDotNet(config.Hostname, certPath, keyPath)
+                      || TryGenerateWithOpenSsl(config.Hostname, certPath, keyPath);
 
         if (generated)
         {
@@ -45,7 +48,7 @@ public static class Step06_SslCertificate
         }
         else
         {
-            Console.WriteLine("Could not auto-generate certificate (openssl not found).");
+            Console.WriteLine("Could not auto-generate certificate.");
             Console.WriteLine("Please place your certificate files at:");
             Console.WriteLine($"  {certPath}");
             Console.WriteLine($"  {keyPath}");
@@ -56,6 +59,35 @@ public static class Step06_SslCertificate
 
         Console.WriteLine();
         return Task.CompletedTask;
+    }
+
+    private static bool TryGenerateWithDotNet(string hostname, string certPath, string keyPath)
+    {
+        try
+        {
+            using var rsa = RSA.Create(4096);
+            var subject = new X500DistinguishedName($"CN={hostname}");
+            var request = new CertificateRequest(subject, rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+
+            var sanBuilder = new SubjectAlternativeNameBuilder();
+            sanBuilder.AddDnsName(hostname);
+            request.CertificateExtensions.Add(sanBuilder.Build());
+            request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+            request.CertificateExtensions.Add(new X509KeyUsageExtension(
+                X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, false));
+
+            var notBefore = DateTimeOffset.UtcNow;
+            using var cert = request.CreateSelfSigned(notBefore, notBefore.AddDays(365));
+
+            File.WriteAllText(certPath, cert.ExportCertificatePem());
+            File.WriteAllText(keyPath, rsa.ExportPkcs8PrivateKeyPem());
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool TryGenerateWithOpenSsl(string hostname, string certPath, string keyPath)

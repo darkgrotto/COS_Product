@@ -108,11 +108,6 @@ The wizard collects all configuration needed for deployment and executes with mi
 16. Deployment execution: cloud deployments provision Terraform state storage then run terraform init and apply; Docker deployments run docker compose up -d
 17. Random daily update check time generation
 
-### Wizard Constraints
-- OAuth is configured post-setup, not during wizard
-- Self-enrollment is not prompted - off by default, changed post-setup by admin
-- Update source is always countorsell.com - not configurable
-
 ---
 
 ## Authentication and Roles
@@ -387,8 +382,6 @@ Both: identical schema migration and pre-update backup behavior; admin notified 
 
 Update notifications: admin gets in-app notification (default) and optional email. General users see current version, latest released version, and update pending status in About view only.
 
-Restore validation: block with clear error if attempting to restore a backup with a newer schema version than the current deployment; error message includes instructions to update the deployment first.
-
 ---
 
 ## Backup and Restore
@@ -409,7 +402,7 @@ Two distinct types, separately identified and tracked, stored in the same destin
 - Supported: Azure Blob Storage, AWS S3, GCP Storage, local file export (always available)
 
 ### Restore Scenarios
-All three scenarios use identical restore logic: same instance recovery, migration to new instance or deployment type, first-run wizard restoration. After restore, canonical data update required if instance is behind current versions.
+All restore scenarios (same instance recovery, new instance migration, first-run wizard restoration) use identical restore logic. After restore, canonical data update required if instance is behind current versions.
 
 Partial restore: not implemented in initial release; do not prevent architecturally.
 
@@ -445,16 +438,13 @@ DEMO_EXPIRES_AT=         # ISO 8601 datetime for countdown clock (optional)
 - Visitor tracking uses per-session UUID stored in ASP.NET Core session (key: "visitor_id")
 
 **Locked endpoints (return 403, message: "This action is not available in demo mode."):**
-- POST /api/collection/refresh-price/{cardIdentifier}
-- GET /api/wishlist/export/tcgplayer
-- POST /api/backup/trigger
-- POST /api/restore, POST /api/restore/{backupId}
-- POST /api/backup/destinations, DELETE /api/backup/destinations/{id}
-- PATCH /api/settings/instance
-- PATCH /api/settings/oauth/{provider}, DELETE /api/settings/oauth/{provider}
-- PATCH /api/settings/self-enrollment
-- POST /api/updates/check, POST /api/updates/schema/{id}/approve
-- POST /api/users/{id}/remove
+- `POST /api/collection/refresh-price/{cardIdentifier}`, `GET /api/wishlist/export/tcgplayer`
+- `POST /api/backup/trigger`, `POST /api/restore`, `POST /api/restore/{backupId}`
+- `POST /api/backup/destinations`, `DELETE /api/backup/destinations/{id}`
+- `PATCH /api/settings/instance`, `PATCH /api/settings/self-enrollment`
+- `PATCH /api/settings/oauth/{provider}`, `DELETE /api/settings/oauth/{provider}`
+- `POST /api/updates/check`, `POST /api/updates/schema/{id}/approve`
+- `POST /api/users/{id}/remove`
 
 **Allowed in demo mode:** All read operations unrestricted. Users can add, modify, and remove their own collection and wishlist entries (affecting shared demo data) - intentionally permitted for full product exploration.
 
@@ -518,11 +508,6 @@ GCP_SERVICE_NAME=
 
 ## Deployment
 
-- Platform: Azure App Service, AWS App Runner, GCP Cloud Run, or Docker Compose
-- Database: PostgreSQL (all deployment types)
-- CI/CD: GitHub Actions; pipeline definition: /.github/workflows/
-- IaC: Terraform with provider-native state storage
-
 ### Docker Image
 - Registry: ghcr.io/darkgrotto/countorsell
 - Tags: `:latest` (most recent stable), `:X.Y.Z` (specific version), `:X.Y` (latest patch for minor), `:X` (latest minor for major), `:dev` (built from every push to main, unstable, not for production)
@@ -554,12 +539,7 @@ docker compose -f docker/test/docker-compose.test.yml up --abort-on-container-ex
 - [ ] pricing.json per-set file in update packages - format confirmed, but Product currently does not apply per-treatment pricing from packages; all market values currently come as a single CurrentMarketValue per card. Decide whether per-treatment pricing should be stored and surfaced.
 
 ## Decision Log
-Decisions are recorded here when they resolve open questions or override defaults. Implementation details are in the sections above.
+Non-obvious facts not fully captured in body sections above.
 
-- 2026-03-08 - Standard hyphens only; em-dashes cause errors. PostgreSQL only, no SQLite. Docker Compose only, no single-container fallback. countorsell.com is the only valid update source. No Admin Backend access for Product users. Treatments never hardcoded. Card condition as enum; autographed as separate boolean. Two-tier role model; built-in admin cannot be removed/disabled/demoted/converted. Self-enrollment off by default. OAuth post-setup only (Google, Microsoft, GitHub). Account removal triggers export; export failure blocks removal. Content updates automatic; schema updates require admin approval with mandatory pre-update backup. Daily update check at random wizard-generated time. Docker app updates via update.sh, no Docker socket from containers. Backup excludes canonical data; includes schema version; 4 retained per type independently; restore blocks if backup schema version newer than deployment. Grading agencies BGS/PSA/SGC/CGC/CCC/ISA canonical; CCC is landing-page-only; admins can add local agencies; collision requires admin acknowledgment. Set completion raw count + percentage, user toggle for regular-only. Historical values: acquisition price and current market value only. Collection overview is default landing page; user can change. Card type filtering top-level MTG types only, subtypes deferred. Wishlist per user, separate from collection. iOS/Android/React Native dropped. Linode removed, don't prevent adding later. GitHub Actions CI/CD; Terraform IaC with provider-native state.
-- 2026-03-18 - Docker Compose reverse proxy: Nginx (resolved). Sealed product taxonomy reference tables added (sealed_product_categories, sealed_product_sub_types); received via update packages, versioned independently; slugs are PKs (no integer IDs); taxonomy replacement on update nulls orphaned inventory references; taxonomy filters suppressed when tables are empty; current vs. legacy product type distinction not modeled.
-- 2026-03-19 - Docker images published to ghcr.io/darkgrotto/countorsell; linux/amd64 and linux/arm64; :dev from main push; release builds from manual vX.Y.Z tag push. Card identifier pattern extended with optional trailing letter (e.g. "pala001a") for letter-suffixed collector numbers; cards differing only by trailing letter are distinct. Demo mode is runtime-only (DEMO_MODE=true env var); not a DB flag or user setting; demo sets fixed; expiry via DEMO_EXPIRES_AT; visitor tracking via per-session UUID; locked endpoints return 403; instance name overridden to "CountOrSell Demo"; seed script at docker/scripts/demo-seed.sql.
-- 2026-03-31 - Trailing letter "x" permanently reserved as synthetic mapping for Scryfall dagger (†) collector numbers (e.g. DRK/77† -> drk077x). "x" will never appear as a real collector number letter.
-- 2026-04-14 - COS_Backend added synthetic letter mappings for two additional Scryfall special character suffixes: "y" reserved for phi (Φ) (e.g. SLD/633Φ -> sld633y), "z" reserved for star (★). Real collector number letters are restricted to ASCII letters only, excluding x/y/z. Card treatments are now actively reconciled from Scryfall finishes on each sync (fix for previously empty treatments arrays). CMC column precision relaxed to unbounded numeric to handle extreme values (e.g. Gleemax CMC 1000000).
-- 2026-04-05 - Update package format confirmed from COS_Backend analysis. Website manifest at www.countorsell.com/updates/manifest.json uses packages array with package_id, package_type (full or delta), download_url, manifest_url, base_full_version, generated_at. No separate schema packages - schema migration runs on startup only. Per-package manifest has per-file checksums in format sha256:<hex_lowercase>. ZIP uses metadata/ prefix for all data files. Images are in ZIP at images/ paths (NOT fetched separately). No app-version.json endpoint on countorsell.com currently. Card colors published as array of symbols. Treatment key is normalized_name field. Set total cards is card_count field. Set code is set_code field.
-- 2026-04-08 - COS_Backend deep review. Sealed product package format corrected: backend ships category_slug and sub_type_slug as two separate nullable fields (NOT a single product_type field); SealedProductDto and ContentUpdateApplicator updated accordingly. Confirmed: grading agencies are NOT in update packages - canonical agencies are Product-seeded only; slabs content_version key always 0.0.0/record_count 0 in manifests (placeholder). Confirmed: cards.json includes rarity (Scryfall values: common/uncommon/rare/mythic/special), image_path (nullable, only present if image in package), and treatments array (normalized_name strings). set.json confirmed to include set_type (Scryfall values: core/expansion/masters/alchemy/promo/box/duel-deck/token/memorabilia/vanguard/funny/starter/commander/planechase/archenemy/scheme/masterpiece/digital and others). Per-package manifest content_versions keys: cards, sets, sealed_products, treatments, taxonomy, prices, images, slabs. pricing.json confirmed as per-set file {card_id, treatment, price_usd, captured_at} - Product does not yet apply per-treatment pricing from packages. Backend retains 3 full versions; deltas are cumulative from base_full_version.
+- 2026-03-18 - Taxonomy slugs are PKs (no integer IDs). On taxonomy replacement in an update, orphaned sealed product inventory references are nulled.
+- 2026-04-14 - CMC column uses unbounded numeric precision to handle extreme values (e.g. Gleemax CMC 1000000).
