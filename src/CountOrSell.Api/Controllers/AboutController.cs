@@ -47,7 +47,7 @@ public class AboutController : ControllerBase
 
         return Ok(new
         {
-            currentVersion = ProductVersion.Current,
+            currentVersion = ProductVersion.Display,
             latestReleasedVersion = latestAppVersion ?? ProductVersion.Current,
             updatePending = isPending,
             lastContentUpdate = currentContentVersion,

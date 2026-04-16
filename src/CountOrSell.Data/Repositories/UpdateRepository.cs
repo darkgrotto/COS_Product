@@ -1,3 +1,5 @@
+using System.Text.Json;
+using CountOrSell.Domain.Dtos;
 using CountOrSell.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -110,5 +112,12 @@ public class UpdateRepository : IUpdateRepository
             setting.Value = value;
         }
         await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<Dictionary<string, ContentVersionEntry>?> GetComponentVersionsAsync(CancellationToken ct)
+    {
+        var setting = await _db.AppSettings.FindAsync(new object[] { "content_component_versions" }, ct);
+        if (string.IsNullOrEmpty(setting?.Value)) return null;
+        return JsonSerializer.Deserialize<Dictionary<string, ContentVersionEntry>>(setting.Value);
     }
 }

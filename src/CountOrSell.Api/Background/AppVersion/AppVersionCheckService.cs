@@ -52,7 +52,7 @@ public class AppVersionCheckService : BackgroundService
                 if (latestVersion != ProductVersion.Current)
                 {
                     await notificationService.NotifyAsync(
-                        $"Application version {latestVersion} is available. Current version: {ProductVersion.Current}.",
+                        $"Application version {latestVersion} is available. Current version: {ProductVersion.Display}.",
                         "update", ct);
                 }
             }

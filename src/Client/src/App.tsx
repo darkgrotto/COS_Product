@@ -8,6 +8,7 @@ import { SetCompletion } from './Collection/SetCompletion';
 import { SerializedList } from './Serialized/SerializedList';
 import { SlabList } from './Slabs/SlabList';
 import { SealedInventoryList } from './SealedProduct/SealedInventoryList';
+import { SealedProductBrowse } from './SealedProduct/SealedProductBrowse';
 import { WishlistView } from './Wishlist/WishlistView';
 import { MetricsDashboard } from './Metrics/MetricsDashboard';
 import { GradingAgencyManager } from './Admin/GradingAgencyManager';
@@ -52,7 +53,8 @@ export function App() {
         <NavLink to="/collection/reserved-list">Reserved List</NavLink>
         <NavLink to="/serialized">Serialized</NavLink>
         <NavLink to="/slabs">Slabs</NavLink>
-        <NavLink to="/sealed">Sealed Product</NavLink>
+        <NavLink to="/sealed/browse">Sealed Catalog</NavLink>
+        <NavLink to="/sealed">Sealed Inventory</NavLink>
         <NavLink to="/wishlist">Wishlist</NavLink>
         <NavLink to="/metrics">Metrics</NavLink>
         <NavLink to="/admin/users">Users</NavLink>
@@ -73,6 +75,7 @@ export function App() {
           <Route path="/serialized" element={<SerializedList />} />
           <Route path="/slabs" element={<SlabList />} />
           <Route path="/sealed" element={<SealedInventoryList />} />
+          <Route path="/sealed/browse" element={<SealedProductBrowse />} />
           <Route path="/wishlist" element={<WishlistView />} />
           <Route path="/metrics" element={<MetricsDashboard />} />
           <Route path="/admin/users" element={<UserManagement />} />

@@ -130,6 +130,20 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 ContentVersion = contentVersion,
                 AppliedAt = DateTime.UtcNow
             });
+
+            // Store per-component versions for UI display
+            var versionsJson = JsonSerializer.Serialize(packageManifest.ContentVersions);
+            var versionsSetting = await _db.AppSettings.FindAsync(
+                new object[] { "content_component_versions" }, ct);
+            if (versionsSetting != null)
+                versionsSetting.Value = versionsJson;
+            else
+                _db.AppSettings.Add(new AppSetting
+                {
+                    Key = "content_component_versions",
+                    Value = versionsJson
+                });
+
             await _db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }

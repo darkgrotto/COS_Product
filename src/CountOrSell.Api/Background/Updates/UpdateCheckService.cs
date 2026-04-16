@@ -71,8 +71,8 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                 return result;
             }
 
-            // Prefer the most recent package - last entry in the list
-            var packageRef = manifest.Packages[^1];
+            // Select the most recent package by generated_at timestamp
+            var packageRef = manifest.Packages.MaxBy(p => p.GeneratedAt) ?? manifest.Packages[^1];
 
             // Fetch per-package manifest to get checksums and content versions
             var packageManifest = await manifestClient.FetchPackageManifestAsync(packageRef.ManifestUrl, ct);

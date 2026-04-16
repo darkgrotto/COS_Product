@@ -35,6 +35,37 @@ public class SealedProductsController : ControllerBase
         });
     }
 
+    [HttpGet]
+    public async Task<IActionResult> Browse(
+        [FromQuery] string? setCode,
+        [FromQuery] string? categorySlug,
+        [FromQuery] string? subTypeSlug,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 50;
+
+        var (items, total) = await _products.BrowseAsync(setCode, categorySlug, subTypeSlug, page, pageSize, ct);
+        return Ok(new
+        {
+            items = items.Select(p => new
+            {
+                p.Identifier,
+                p.Name,
+                SetCode = string.IsNullOrEmpty(p.SetCode) ? (string?)null : p.SetCode.ToUpperInvariant(),
+                p.CategorySlug,
+                p.SubTypeSlug,
+                p.CurrentMarketValue,
+                ImageUrl = $"/api/images/sealed/{p.Identifier}.jpg"
+            }),
+            total,
+            page,
+            pageSize
+        });
+    }
+
     [HttpGet("search")]
     public async Task<IActionResult> Search([FromQuery] string q, CancellationToken ct)
     {

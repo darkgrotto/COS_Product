@@ -12,8 +12,13 @@ namespace CountOrSell.Api.Controllers;
 public class SettingsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IConfiguration _config;
 
-    public SettingsController(AppDbContext db) => _db = db;
+    public SettingsController(AppDbContext db, IConfiguration config)
+    {
+        _db = db;
+        _config = config;
+    }
 
     [HttpGet("backup")]
     public async Task<IActionResult> GetBackupSettings(CancellationToken ct)
@@ -58,6 +63,8 @@ public class SettingsController : ControllerBase
     public async Task<IActionResult> GetInstanceSettings(CancellationToken ct)
     {
         var instanceName = await GetSettingAsync("instance_name", "", ct);
+        if (string.IsNullOrEmpty(instanceName))
+            instanceName = _config["INSTANCE_NAME"] ?? "";
         return Ok(new { instanceName });
     }
 

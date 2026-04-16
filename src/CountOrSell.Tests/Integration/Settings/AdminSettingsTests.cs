@@ -2,6 +2,7 @@ using CountOrSell.Api.Controllers;
 using CountOrSell.Data;
 using CountOrSell.Tests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace CountOrSell.Tests.Integration.Settings;
@@ -17,7 +18,7 @@ public class AdminSettingsTests : IClassFixture<PostgreSqlFixture>
     }
 
     private static SettingsController BuildController(AppDbContext db) =>
-        new(db);
+        new(db, new ConfigurationBuilder().Build());
 
     // --- Instance name ---
 

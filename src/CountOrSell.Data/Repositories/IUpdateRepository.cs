@@ -1,3 +1,4 @@
+using CountOrSell.Domain.Dtos;
 using CountOrSell.Domain.Models;
 
 namespace CountOrSell.Data.Repositories;
@@ -16,4 +17,5 @@ public interface IUpdateRepository
     Task SetLatestApplicationVersionAsync(string version, CancellationToken ct);
     Task<DateTime?> GetLastUpdateCheckedAtAsync(CancellationToken ct);
     Task SetLastUpdateCheckedAtAsync(DateTime checkedAt, CancellationToken ct);
+    Task<Dictionary<string, ContentVersionEntry>?> GetComponentVersionsAsync(CancellationToken ct);
 }

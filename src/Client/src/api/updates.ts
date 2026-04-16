@@ -1,7 +1,13 @@
 import { api } from './client';
 
+export interface ComponentVersion {
+  version: string;
+  recordCount: number | null;
+}
+
 export interface UpdateStatus {
   currentContentVersion: string | null;
+  componentVersions: Record<string, ComponentVersion> | null;
   pendingSchemaUpdate: {
     id: number;
     schemaVersion: string;
@@ -29,8 +35,11 @@ export const updatesApi = {
   getNotifications: (): Promise<AdminNotification[]> =>
     api.get<AdminNotification[]>('/api/updates/notifications'),
 
-  triggerCheck: (): Promise<void> =>
-    api.post<void>('/api/updates/check'),
+  triggerCheck: (): Promise<{ packagesAvailable: boolean; message: string }> =>
+    api.post<{ packagesAvailable: boolean; message: string }>('/api/updates/check'),
+
+  forceRedownload: (): Promise<{ packagesAvailable: boolean; message: string }> =>
+    api.post<{ packagesAvailable: boolean; message: string }>('/api/updates/redownload'),
 
   approveSchemaUpdate: (id: number): Promise<void> =>
     api.post<void>(`/api/updates/schema/${id}/approve`),

@@ -2,6 +2,16 @@ import { useEffect, useState } from 'react';
 import { updatesApi, UpdateStatus, AdminNotification } from '../api/updates';
 import { DemoLock } from '../components/DemoLock';
 
+const COMPONENT_LABELS: Record<string, string> = {
+  cards: 'Cards',
+  sets: 'Sets',
+  sealed_products: 'Sealed Products',
+  treatments: 'Treatments',
+  taxonomy: 'Taxonomy',
+  prices: 'Prices',
+  images: 'Images',
+};
+
 export function UpdatesManager() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
@@ -9,6 +19,8 @@ export function UpdatesManager() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<string | null>(null);
+  const [redownloading, setRedownloading] = useState(false);
+  const [redownloadResult, setRedownloadResult] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
 
@@ -34,13 +46,28 @@ export function UpdatesManager() {
     setChecking(true);
     setCheckResult(null);
     try {
-      await updatesApi.triggerCheck();
+      const result = await updatesApi.triggerCheck();
       await reload();
-      setCheckResult('Check complete.');
+      setCheckResult(result.message);
     } catch {
       setCheckResult('Check failed.');
     } finally {
       setChecking(false);
+    }
+  };
+
+  const triggerRedownload = async () => {
+    if (!window.confirm('Force redownload will re-apply the latest content package even if already up to date. Continue?')) return;
+    setRedownloading(true);
+    setRedownloadResult(null);
+    try {
+      const result = await updatesApi.forceRedownload();
+      await reload();
+      setRedownloadResult(result.message);
+    } catch {
+      setRedownloadResult('Redownload failed.');
+    } finally {
+      setRedownloading(false);
     }
   };
 
@@ -90,12 +117,42 @@ export function UpdatesManager() {
               : 'Unknown'}
           </dd>
         </dl>
+        {status?.componentVersions && Object.keys(status.componentVersions).length > 0 && (
+          <details>
+            <summary>Component versions</summary>
+            <table aria-label="Component versions">
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Version</th>
+                  <th>Records</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(status.componentVersions)
+                  .filter(([key]) => key !== 'slabs')
+                  .map(([key, entry]) => (
+                    <tr key={key}>
+                      <td>{COMPONENT_LABELS[key] ?? key}</td>
+                      <td>{entry.version}</td>
+                      <td>{entry.recordCount !== null ? entry.recordCount : '--'}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </details>
+        )}
         <DemoLock>
-          <button type="button" onClick={triggerCheck} disabled={checking}>
+          <button type="button" onClick={triggerCheck} disabled={checking || redownloading}>
             {checking ? 'Checking...' : 'Check for updates now'}
+          </button>
+          {' '}
+          <button type="button" onClick={triggerRedownload} disabled={checking || redownloading}>
+            {redownloading ? 'Redownloading...' : 'Force redownload'}
           </button>
         </DemoLock>
         {checkResult && <div role="status">{checkResult}</div>}
+        {redownloadResult && <div role="status">{redownloadResult}</div>}
       </section>
 
       {status?.pendingSchemaUpdate && (

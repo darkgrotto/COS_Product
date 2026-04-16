@@ -38,10 +38,15 @@ public class UpdatesController : ControllerBase
         var pendingSchema = await _updateRepo.GetPendingSchemaUpdateAsync(ct);
         var latestAppVersion = await _updateRepo.GetLatestApplicationVersionAsync(ct);
         var appUpdatePending = latestAppVersion != null && latestAppVersion != ProductVersion.Current;
+        var componentVersions = await _updateRepo.GetComponentVersionsAsync(ct);
 
         return Ok(new
         {
             currentContentVersion = contentVersion,
+            componentVersions = componentVersions == null ? null :
+                componentVersions.ToDictionary(
+                    kv => kv.Key,
+                    kv => new { version = kv.Value.Version, recordCount = kv.Value.RecordCount }),
             pendingSchemaUpdate = pendingSchema == null ? null : new
             {
                 pendingSchema.Id,

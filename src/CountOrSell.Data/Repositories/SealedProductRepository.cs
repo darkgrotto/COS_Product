@@ -27,4 +27,29 @@ public class SealedProductRepository : ISealedProductRepository
             .Take(20)
             .ToListAsync(ct);
     }
+
+    public async Task<(List<SealedProduct> Items, int TotalCount)> BrowseAsync(
+        string? setCode, string? categorySlug, string? subTypeSlug,
+        int page, int pageSize, CancellationToken ct = default)
+    {
+        var query = _db.SealedProducts.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(setCode))
+            query = query.Where(p => p.SetCode == setCode.ToLowerInvariant());
+
+        if (!string.IsNullOrWhiteSpace(categorySlug))
+            query = query.Where(p => p.CategorySlug == categorySlug);
+
+        if (!string.IsNullOrWhiteSpace(subTypeSlug))
+            query = query.Where(p => p.SubTypeSlug == subTypeSlug);
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderBy(p => p.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return (items, total);
+    }
 }
