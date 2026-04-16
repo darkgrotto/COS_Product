@@ -18,7 +18,9 @@ import {
   Star,
   PanelTop,
   ArrowUpAZ,
-  Shield,
+  RefreshCw,
+  Settings,
+  FolderOpen,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranding } from '@/contexts/BrandingContext'
@@ -55,8 +57,10 @@ const generalUserNav: NavItem[] = [
 ]
 
 const adminNav: NavItem[] = [
-  { to: '/browse', label: 'Browse', icon: BookOpen },
-  { to: '/admin', label: 'Admin', icon: Shield },
+  { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin/content', label: 'Content Browser', icon: FolderOpen },
+  { to: '/admin/operations', label: 'Operations', icon: RefreshCw },
+  { to: '/admin/administration', label: 'Administration', icon: Settings },
   { to: '/about', label: 'About', icon: Info },
 ]
 
@@ -65,7 +69,7 @@ function NavItem({ item }: { item: NavItem }) {
   return (
     <NavLink
       to={item.to}
-      end={item.to !== '/admin'}
+      end={false}
       className={({ isActive }) =>
         cn(
           'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',

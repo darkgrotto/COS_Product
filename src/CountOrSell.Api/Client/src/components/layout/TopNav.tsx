@@ -8,8 +8,6 @@ import {
   Package,
   Heart,
   BarChart2,
-  Users,
-  HardDrive,
   Settings,
   RefreshCw,
   Info,
@@ -22,6 +20,7 @@ import {
   Star,
   PanelLeft,
   ArrowUpAZ,
+  FolderOpen,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranding } from '@/contexts/BrandingContext'
@@ -58,11 +57,10 @@ const generalUserNav: NavItem[] = [
 ]
 
 const adminNav: NavItem[] = [
-  { to: '/browse', label: 'Browse', icon: BookOpen },
-  { to: '/admin/users', label: 'Users', icon: Users },
-  { to: '/admin/updates', label: 'Updates', icon: RefreshCw },
-  { to: '/admin/backups', label: 'Backups', icon: HardDrive },
-  { to: '/admin/settings', label: 'Settings', icon: Settings },
+  { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin/content', label: 'Content Browser', icon: FolderOpen },
+  { to: '/admin/operations', label: 'Operations', icon: RefreshCw },
+  { to: '/admin/administration', label: 'Administration', icon: Settings },
   { to: '/about', label: 'About', icon: Info },
 ]
 
@@ -71,6 +69,7 @@ function TopNavLink({ item }: { item: NavItem }) {
   return (
     <NavLink
       to={item.to}
+      end={false}
       className={({ isActive }) =>
         cn(
           'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
