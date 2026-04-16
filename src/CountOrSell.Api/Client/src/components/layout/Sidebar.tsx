@@ -8,10 +8,6 @@ import {
   Package,
   Heart,
   BarChart2,
-  Users,
-  HardDrive,
-  Settings,
-  RefreshCw,
   Info,
   LogOut,
   KeyRound,
@@ -22,6 +18,7 @@ import {
   Star,
   PanelTop,
   ArrowUpAZ,
+  Shield,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranding } from '@/contexts/BrandingContext'
@@ -59,10 +56,8 @@ const generalUserNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { to: '/browse', label: 'Browse', icon: BookOpen },
-  { to: '/admin/users', label: 'Users', icon: Users },
-  { to: '/admin/updates', label: 'Updates', icon: RefreshCw },
-  { to: '/admin/backups', label: 'Backups', icon: HardDrive },
-  { to: '/admin/settings', label: 'Settings', icon: Settings },
+  { to: '/admin', label: 'Admin', icon: Shield },
+  { to: '/about', label: 'About', icon: Info },
 ]
 
 function NavItem({ item }: { item: NavItem }) {
@@ -70,6 +65,7 @@ function NavItem({ item }: { item: NavItem }) {
   return (
     <NavLink
       to={item.to}
+      end={item.to !== '/admin'}
       className={({ isActive }) =>
         cn(
           'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
@@ -109,9 +105,12 @@ export function Sidebar() {
             <NavItem key={item.to} item={item} />
           ))}
 
-          <Separator className="my-2" />
-
-          <NavItem item={{ to: '/about', label: 'About', icon: Info }} />
+          {!isAdmin && (
+            <>
+              <Separator className="my-2" />
+              <NavItem item={{ to: '/about', label: 'About', icon: Info }} />
+            </>
+          )}
         </nav>
 
         <div className="p-3 border-t">

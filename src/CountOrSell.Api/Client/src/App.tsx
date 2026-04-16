@@ -22,6 +22,16 @@ import { UpdatesPage } from '@/pages/admin/Updates'
 import { UsersPage } from '@/pages/admin/Users'
 import { BackupsPage } from '@/pages/admin/Backups'
 import { SettingsPage } from '@/pages/admin/Settings'
+import { AdminLayout } from '@/pages/admin/AdminLayout'
+import { AdminDashboard } from '@/pages/admin/AdminDashboard'
+import { ContentBrowser } from '@/pages/admin/ContentBrowser'
+import { AdminContentCards } from '@/pages/admin/AdminContentCards'
+import { AdminContentUsers } from '@/pages/admin/AdminContentUsers'
+import { OperationsHub } from '@/pages/admin/OperationsHub'
+import { NotificationsPanel } from '@/pages/admin/NotificationsPanel'
+import { LogViewer } from '@/pages/admin/LogViewer'
+import { AdministrationHub } from '@/pages/admin/AdministrationHub'
+import { LogForwarding } from '@/pages/admin/LogForwarding'
 
 function App() {
   return (
@@ -52,10 +62,29 @@ function App() {
 
                 {/* Admin-only routes */}
                 <Route element={<AdminRoute />}>
-                  <Route path="/admin/users" element={<UsersPage />} />
-                  <Route path="/admin/updates" element={<UpdatesPage />} />
-                  <Route path="/admin/backups" element={<BackupsPage />} />
-                  <Route path="/admin/settings" element={<SettingsPage />} />
+                  <Route path="/admin" element={<AdminLayout />}>
+                    <Route path="dashboard" element={<AdminDashboard />} />
+                    <Route path="content" element={<ContentBrowser />}>
+                      <Route path="cards" element={<AdminContentCards />} />
+                      <Route path="users" element={<AdminContentUsers />} />
+                    </Route>
+                    <Route path="operations" element={<OperationsHub />}>
+                      <Route path="updates" element={<UpdatesPage />} />
+                      <Route path="notifications" element={<NotificationsPanel />} />
+                      <Route path="logs" element={<LogViewer />} />
+                    </Route>
+                    <Route path="administration" element={<AdministrationHub />}>
+                      <Route path="users" element={<UsersPage />} />
+                      <Route path="backup" element={<BackupsPage />} />
+                      <Route path="config" element={<SettingsPage />} />
+                      <Route path="log-forwarding" element={<LogForwarding />} />
+                    </Route>
+                  </Route>
+                  {/* Legacy redirects */}
+                  <Route path="/admin/users" element={<Navigate to="/admin/administration/users" replace />} />
+                  <Route path="/admin/updates" element={<Navigate to="/admin/operations/updates" replace />} />
+                  <Route path="/admin/backups" element={<Navigate to="/admin/administration/backup" replace />} />
+                  <Route path="/admin/settings" element={<Navigate to="/admin/administration/config" replace />} />
                 </Route>
               </Route>
             </Route>
