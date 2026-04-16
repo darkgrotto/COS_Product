@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using CountOrSell.Api.Filters;
 using CountOrSell.Data;
 using CountOrSell.Domain.Models;
+using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,12 +15,18 @@ public class SettingsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
+    private readonly IAuditLogger _audit;
 
-    public SettingsController(AppDbContext db, IConfiguration config)
+    public SettingsController(AppDbContext db, IConfiguration config, IAuditLogger audit)
     {
         _db = db;
         _config = config;
+        _audit = audit;
     }
+
+    private string ActorName => User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
+    private string ActorDisplayName => User.FindFirstValue("display_name") ?? ActorName;
+    private string? ClientIp => HttpContext.Connection.RemoteIpAddress?.ToString();
 
     [HttpGet("backup")]
     public async Task<IActionResult> GetBackupSettings(CancellationToken ct)
@@ -79,6 +87,7 @@ public class SettingsController : ControllerBase
 
         await UpsertSettingAsync("instance_name", request.InstanceName.Trim(), ct);
         await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync(ActorName, ActorDisplayName, "settings.instance", "instance_name", "success", ClientIp);
         return Ok();
     }
 
@@ -129,6 +138,8 @@ public class SettingsController : ControllerBase
     {
         await UpsertSettingAsync("self_enrollment_enabled", request.Enabled ? "true" : "false", ct);
         await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync(ActorName, ActorDisplayName, "settings.self-enrollment",
+            request.Enabled ? "enabled" : "disabled", "success", ClientIp);
         return Ok();
     }
 

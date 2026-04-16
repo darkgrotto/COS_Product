@@ -4,6 +4,7 @@ using CountOrSell.Api.Filters;
 using CountOrSell.Api.Services;
 using CountOrSell.Api.Services.Deployment;
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,18 +19,25 @@ public class UpdatesController : ControllerBase
     private readonly IUpdateCheckTrigger _updateTrigger;
     private readonly SchemaUpdateCoordinator _schemaCoordinator;
     private readonly ICloudDeploymentService _deploymentService;
+    private readonly IAuditLogger _audit;
 
     public UpdatesController(
         IUpdateRepository updateRepo,
         IUpdateCheckTrigger updateTrigger,
         SchemaUpdateCoordinator schemaCoordinator,
-        ICloudDeploymentService deploymentService)
+        ICloudDeploymentService deploymentService,
+        IAuditLogger audit)
     {
         _updateRepo = updateRepo;
         _updateTrigger = updateTrigger;
         _schemaCoordinator = schemaCoordinator;
         _deploymentService = deploymentService;
+        _audit = audit;
     }
+
+    private string ActorName => User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
+    private string ActorDisplayName => User.FindFirstValue("display_name") ?? ActorName;
+    private string? ClientIp => HttpContext.Connection.RemoteIpAddress?.ToString();
 
     [HttpGet("status")]
     public async Task<IActionResult> GetStatus(CancellationToken ct)
@@ -76,6 +84,9 @@ public class UpdatesController : ControllerBase
     public async Task<IActionResult> TriggerCheck(CancellationToken ct)
     {
         var result = await _updateTrigger.TriggerAsync(ct);
+        await _audit.LogAsync(ActorName, ActorDisplayName, "update.check", null,
+            result.PackagesAvailable ? "packages available" : "no packages available",
+            ClientIp);
         return Ok(new { result.PackagesAvailable, result.Message });
     }
 
@@ -96,12 +107,18 @@ public class UpdatesController : ControllerBase
 
         var success = await _schemaCoordinator.ExecuteSchemaUpdateAsync(pending, ct);
         if (!success)
+        {
+            await _audit.LogAsync(ActorName, ActorDisplayName, "schema.approve",
+                $"schema {pending.SchemaVersion}", "failed", ClientIp);
             return UnprocessableEntity(new
             {
                 error = "Schema update could not be applied. " +
                         "Check admin notifications for details."
             });
+        }
 
+        await _audit.LogAsync(ActorName, ActorDisplayName, "schema.approve",
+            $"schema {pending.SchemaVersion}", "success", ClientIp);
         return Ok();
     }
 
@@ -145,6 +162,8 @@ public class UpdatesController : ControllerBase
     public async Task<IActionResult> ForceRedownload(CancellationToken ct)
     {
         var result = await _updateTrigger.TriggerForceAsync(ct);
+        await _audit.LogAsync(ActorName, ActorDisplayName, "update.redownload", null,
+            result.PackagesAvailable ? "success" : "no packages", ClientIp);
         return Ok(new { result.PackagesAvailable, result.Message });
     }
 }

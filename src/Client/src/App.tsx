@@ -35,6 +35,7 @@ import { DemoProvider } from './context/DemoContext';
 import { DemoBanner } from './components/DemoBanner';
 import { FlavorButton } from './components/FlavorButton';
 import { CardDetail } from './Cards/CardDetail';
+import { AppFooter } from './components/AppFooter';
 
 function DefaultPage() {
   const [defaultPage, setDefaultPage] = useState<string | null | undefined>(undefined);
@@ -71,7 +72,7 @@ export function App() {
         <NavLink to="/about">About</NavLink>
         <FlavorButton />
       </nav>
-      <main>
+      <main style={{ paddingBottom: '2.5rem' }}>
         <Routes>
           <Route path="/" element={<DefaultPage />} />
           <Route path="/collection" element={<CollectionList />} />
@@ -122,6 +123,7 @@ export function App() {
           <Route path="/cards/:identifier" element={<CardDetail />} />
         </Routes>
       </main>
+      <AppFooter />
     </BrowserRouter>
     </TcgPlayerProvider>
     </DemoProvider>

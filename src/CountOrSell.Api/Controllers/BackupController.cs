@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CountOrSell.Api.Filters;
 using CountOrSell.Data;
 using CountOrSell.Domain.Models;
@@ -18,18 +19,25 @@ public class BackupController : ControllerBase
     private readonly IRestoreService _restoreService;
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
+    private readonly IAuditLogger _audit;
 
     public BackupController(
         IBackupService backupService,
         IRestoreService restoreService,
         AppDbContext db,
-        IConfiguration config)
+        IConfiguration config,
+        IAuditLogger audit)
     {
         _backupService = backupService;
         _restoreService = restoreService;
         _db = db;
         _config = config;
+        _audit = audit;
     }
+
+    private string ActorName => User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
+    private string ActorDisplayName => User.FindFirstValue("display_name") ?? ActorName;
+    private string? ClientIp => HttpContext.Connection.RemoteIpAddress?.ToString();
 
     [HttpGet("status")]
     public async Task<IActionResult> GetStatus(CancellationToken ct)
@@ -96,6 +104,7 @@ public class BackupController : ControllerBase
     public async Task<IActionResult> TriggerBackup(CancellationToken ct)
     {
         var record = await _backupService.TakeBackupAsync(BackupType.Scheduled, ct);
+        await _audit.LogAsync(ActorName, ActorDisplayName, "backup.trigger", record.Label, "success", ClientIp);
         return Ok(new { record.Id, record.Label, record.CreatedAt });
     }
 

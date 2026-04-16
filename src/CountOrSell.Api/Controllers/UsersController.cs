@@ -3,6 +3,7 @@ using CountOrSell.Api.Filters;
 using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Dtos.Requests;
+using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,16 +16,22 @@ public class UsersController : ControllerBase
     private readonly IUserService _userService;
     private readonly IUserRepository _users;
     private readonly IAvatarService _avatars;
+    private readonly IAuditLogger _audit;
 
-    public UsersController(IUserService userService, IUserRepository users, IAvatarService avatars)
+    public UsersController(IUserService userService, IUserRepository users, IAvatarService avatars, IAuditLogger audit)
     {
         _userService = userService;
         _users = users;
         _avatars = avatars;
+        _audit = audit;
     }
 
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    private string ActorName => User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
+    private string ActorDisplayName => User.FindFirstValue("display_name") ?? ActorName;
+    private string? ClientIp => HttpContext.Connection.RemoteIpAddress?.ToString();
 
     [HttpGet]
     [Authorize(Roles = "Admin")]
@@ -77,6 +84,8 @@ public class UsersController : ControllerBase
         if (!result.Success)
             return Conflict(new { error = result.Error });
 
+        await _audit.LogAsync(ActorName, ActorDisplayName, "user.create",
+            request.Username.Trim(), "success", ClientIp);
         return Ok();
     }
 
@@ -100,6 +109,7 @@ public class UsersController : ControllerBase
         var result = await _userService.DisableUserAsync(id, ct);
         if (!result.Success)
             return Conflict(new { error = result.Error });
+        await _audit.LogAsync(ActorName, ActorDisplayName, "user.disable", id.ToString(), "success", ClientIp);
         return Ok();
     }
 
@@ -111,6 +121,7 @@ public class UsersController : ControllerBase
         var result = await _userService.RemoveUserAsync(id, ct);
         if (!result.Success)
             return Conflict(new { error = result.Error });
+        await _audit.LogAsync(ActorName, ActorDisplayName, "user.remove", id.ToString(), "success", ClientIp);
         return Ok();
     }
 
@@ -121,6 +132,7 @@ public class UsersController : ControllerBase
         var result = await _userService.DemoteUserAsync(id, ct);
         if (!result.Success)
             return Conflict(new { error = result.Error });
+        await _audit.LogAsync(ActorName, ActorDisplayName, "user.demote", id.ToString(), "success", ClientIp);
         return Ok();
     }
 
@@ -131,6 +143,7 @@ public class UsersController : ControllerBase
         var result = await _userService.PromoteUserAsync(id, ct);
         if (!result.Success)
             return Conflict(new { error = result.Error });
+        await _audit.LogAsync(ActorName, ActorDisplayName, "user.promote", id.ToString(), "success", ClientIp);
         return Ok();
     }
 
@@ -141,6 +154,7 @@ public class UsersController : ControllerBase
         var result = await _userService.ReEnableUserAsync(id, ct);
         if (!result.Success)
             return Conflict(new { error = result.Error });
+        await _audit.LogAsync(ActorName, ActorDisplayName, "user.reenable", id.ToString(), "success", ClientIp);
         return Ok();
     }
 

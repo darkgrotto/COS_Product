@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
     public DbSet<BackupRecord> BackupRecords => Set<BackupRecord>();
     public DbSet<BackupDestinationRecord> BackupDestinationRecords => Set<BackupDestinationRecord>();
     public DbSet<BackupDestinationConfig> BackupDestinationConfigs => Set<BackupDestinationConfig>();
+    public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -63,6 +64,7 @@ public class AppDbContext : DbContext
         ConfigureBackupRecords(modelBuilder);
         ConfigureBackupDestinationRecords(modelBuilder);
         ConfigureBackupDestinationConfigs(modelBuilder);
+        ConfigureAuditLogEntries(modelBuilder);
         SeedGradingAgencies(modelBuilder);
     }
 
@@ -573,6 +575,26 @@ public class AppDbContext : DbContext
             e.Property(c => c.Label).HasColumnName("label").HasMaxLength(200).IsRequired();
             e.Property(c => c.ConfigurationJson).HasColumnName("configuration_json").HasMaxLength(4000).IsRequired();
             e.Property(c => c.IsActive).HasColumnName("is_active").IsRequired();
+        });
+    }
+
+    private static void ConfigureAuditLogEntries(ModelBuilder b)
+    {
+        b.Entity<AuditLogEntry>(e =>
+        {
+            e.ToTable("audit_log_entries");
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Id).HasColumnName("id");
+            e.Property(a => a.Timestamp).HasColumnName("timestamp").IsRequired();
+            e.Property(a => a.Actor).HasColumnName("actor").HasMaxLength(200).IsRequired();
+            e.Property(a => a.ActorDisplayName).HasColumnName("actor_display_name").HasMaxLength(200).IsRequired();
+            e.Property(a => a.ActionType).HasColumnName("action_type").HasMaxLength(100).IsRequired();
+            e.Property(a => a.Target).HasColumnName("target").HasMaxLength(500);
+            e.Property(a => a.Result).HasColumnName("result").HasMaxLength(1000).IsRequired();
+            e.Property(a => a.IpAddress).HasColumnName("ip_address").HasMaxLength(50);
+            e.Property(a => a.SessionId).HasColumnName("session_id").HasMaxLength(200);
+            e.HasIndex(a => a.Timestamp);
+            e.HasIndex(a => a.ActionType);
         });
     }
 

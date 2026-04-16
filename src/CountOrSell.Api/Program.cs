@@ -39,6 +39,9 @@ var connectionString =
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
+    options.UseNpgsql(connectionString), ServiceLifetime.Singleton);
+
 // Health checks
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>();
@@ -63,6 +66,10 @@ builder.Services.AddScoped<IInvitationService, InvitationService>();
 // Card and data repositories
 builder.Services.AddScoped<ICardRepository, CardRepository>();
 builder.Services.AddScoped<IUserExportFileRepository, UserExportFileRepository>();
+
+// Audit log
+builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 // Feature services
 builder.Services.AddScoped<IMetricsService, MetricsService>();
