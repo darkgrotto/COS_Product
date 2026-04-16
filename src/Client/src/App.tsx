@@ -11,13 +11,22 @@ import { SealedInventoryList } from './SealedProduct/SealedInventoryList';
 import { SealedProductBrowse } from './SealedProduct/SealedProductBrowse';
 import { WishlistView } from './Wishlist/WishlistView';
 import { MetricsDashboard } from './Metrics/MetricsDashboard';
-import { GradingAgencyManager } from './Admin/GradingAgencyManager';
+import { AdminLayout } from './Admin/AdminLayout';
+import { AdminDashboard } from './Admin/AdminDashboard';
+import { ContentBrowser } from './Admin/ContentBrowser';
+import { AdminContentCards } from './Admin/AdminContentCards';
+import { AdminContentUsers } from './Admin/AdminContentUsers';
+import { OperationsHub } from './Admin/OperationsHub';
+import { UpdatesManager } from './Admin/UpdatesManager';
+import { NotificationsPanel } from './Admin/NotificationsPanel';
+import { LogViewer } from './Admin/LogViewer';
+import { AdministrationHub } from './Admin/AdministrationHub';
 import { UserManagement } from './Admin/UserManagement';
 import { UserCollectionView } from './Admin/UserCollectionView';
-import { InviteAccept } from './Admin/InviteAccept';
-import { AdminSettings } from './Admin/AdminSettings';
 import { BackupManager } from './Admin/BackupManager';
-import { UpdatesManager } from './Admin/UpdatesManager';
+import { InstanceSettings } from './Admin/InstanceSettings';
+import { LogForwarding } from './Admin/LogForwarding';
+import { InviteAccept } from './Admin/InviteAccept';
 import { AboutView } from './About/AboutView';
 import { UserPreferencesPage } from './UserPreferences/UserPreferencesPage';
 import { usersApi } from './api/users';
@@ -57,11 +66,7 @@ export function App() {
         <NavLink to="/sealed">Sealed Inventory</NavLink>
         <NavLink to="/wishlist">Wishlist</NavLink>
         <NavLink to="/metrics">Metrics</NavLink>
-        <NavLink to="/admin/users">Users</NavLink>
-        <NavLink to="/admin/agencies">Agencies</NavLink>
-        <NavLink to="/admin/settings">Settings</NavLink>
-        <NavLink to="/admin/backup">Backup</NavLink>
-        <NavLink to="/admin/updates">Updates</NavLink>
+        <NavLink to="/admin">Admin</NavLink>
         <NavLink to="/preferences">Preferences</NavLink>
         <NavLink to="/about">About</NavLink>
         <FlavorButton />
@@ -78,12 +83,39 @@ export function App() {
           <Route path="/sealed/browse" element={<SealedProductBrowse />} />
           <Route path="/wishlist" element={<WishlistView />} />
           <Route path="/metrics" element={<MetricsDashboard />} />
-          <Route path="/admin/users" element={<UserManagement />} />
+
+          {/* Admin section - nested routes under AdminLayout */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route path="dashboard" element={<AdminDashboard />} />
+
+            <Route path="content" element={<ContentBrowser />}>
+              <Route path="cards" element={<AdminContentCards />} />
+              <Route path="sealed" element={<SealedProductBrowse />} />
+              <Route path="users" element={<AdminContentUsers />} />
+            </Route>
+
+            <Route path="operations" element={<OperationsHub />}>
+              <Route path="updates" element={<UpdatesManager />} />
+              <Route path="notifications" element={<NotificationsPanel />} />
+              <Route path="logs" element={<LogViewer />} />
+            </Route>
+
+            <Route path="administration" element={<AdministrationHub />}>
+              <Route path="users" element={<UserManagement />} />
+              <Route path="backup" element={<BackupManager />} />
+              <Route path="config" element={<InstanceSettings />} />
+              <Route path="log-forwarding" element={<LogForwarding />} />
+            </Route>
+          </Route>
+
+          {/* Legacy admin routes - redirect to new locations */}
+          <Route path="/admin/users" element={<Navigate to="/admin/administration/users" replace />} />
           <Route path="/admin/users/:userId/collection" element={<UserCollectionView />} />
-          <Route path="/admin/agencies" element={<GradingAgencyManager />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
-          <Route path="/admin/backup" element={<BackupManager />} />
-          <Route path="/admin/updates" element={<UpdatesManager />} />
+          <Route path="/admin/agencies" element={<Navigate to="/admin/administration/config" replace />} />
+          <Route path="/admin/settings" element={<Navigate to="/admin/administration/config" replace />} />
+          <Route path="/admin/backup" element={<Navigate to="/admin/administration/backup" replace />} />
+          <Route path="/admin/updates" element={<Navigate to="/admin/operations/updates" replace />} />
+
           <Route path="/preferences" element={<UserPreferencesPage />} />
           <Route path="/about" element={<AboutView />} />
           <Route path="/invite/:token" element={<InviteAccept />} />

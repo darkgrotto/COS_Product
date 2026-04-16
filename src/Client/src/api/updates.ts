@@ -46,4 +46,7 @@ export const updatesApi = {
 
   markNotificationRead: (id: number): Promise<void> =>
     api.post<void>(`/api/updates/notifications/${id}/read`),
+
+  markAllNotificationsRead: (): Promise<void> =>
+    api.post<void>('/api/updates/notifications/read-all'),
 };

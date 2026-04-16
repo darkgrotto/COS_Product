@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { updatesApi, UpdateStatus, AdminNotification } from '../api/updates';
+import { updatesApi, UpdateStatus } from '../api/updates';
 import { DemoLock } from '../components/DemoLock';
 
 const COMPONENT_LABELS: Record<string, string> = {
@@ -14,7 +14,6 @@ const COMPONENT_LABELS: Record<string, string> = {
 
 export function UpdatesManager() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
-  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -25,12 +24,8 @@ export function UpdatesManager() {
   const [approveError, setApproveError] = useState<string | null>(null);
 
   const reload = async () => {
-    const [s, n] = await Promise.all([
-      updatesApi.getStatus(),
-      updatesApi.getNotifications(),
-    ]);
+    const s = await updatesApi.getStatus();
     setStatus(s);
-    setNotifications(n);
   };
 
   useEffect(() => {
@@ -84,15 +79,6 @@ export function UpdatesManager() {
       setApproveError('Schema update failed. Check notifications for details.');
     } finally {
       setApproving(false);
-    }
-  };
-
-  const markRead = async (id: number) => {
-    try {
-      await updatesApi.markNotificationRead(id);
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-    } catch {
-      // non-critical - leave notification in list
     }
   };
 
@@ -184,28 +170,6 @@ export function UpdatesManager() {
         </section>
       )}
 
-      <section aria-labelledby="notifications-heading">
-        <h3 id="notifications-heading">Unread Notifications</h3>
-        {notifications.length === 0 ? (
-          <p>No unread notifications.</p>
-        ) : (
-          <ul>
-            {notifications.map((n) => (
-              <li key={n.id}>
-                <span>[{n.category}]</span>
-                {' '}
-                <span>{n.message}</span>
-                {' '}
-                <span>{new Date(n.createdAt).toLocaleString()}</span>
-                {' '}
-                <button type="button" onClick={() => markRead(n.id)}>
-                  Dismiss
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }
