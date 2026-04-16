@@ -1,5 +1,9 @@
 const rawCommit = import.meta.env.VITE_GIT_COMMIT as string | undefined
-const commit = rawCommit ? rawCommit.slice(0, 7) : 'dev'
+const rawTag = import.meta.env.VITE_BUILD_TAG as string | undefined
+const hash = rawCommit ? rawCommit.slice(0, 7) : null
+const buildLabel = hash
+  ? rawTag ? `${hash} (${rawTag})` : hash
+  : rawTag ?? 'dev'
 
 export function AppFooter() {
   return (
@@ -17,7 +21,7 @@ export function AppFooter() {
         >
           Licensed under AGPL-3.0
         </a>
-        <span>build {commit}</span>
+        <span>build {buildLabel}</span>
       </span>
     </footer>
   )

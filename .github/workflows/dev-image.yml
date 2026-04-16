@@ -33,3 +33,6 @@ jobs:
           push: true
           provenance: false
           tags: ghcr.io/darkgrotto/countorsell:dev
+          build-args: |
+            VITE_GIT_COMMIT=${{ github.sha }}
+            VITE_BUILD_TAG=dev

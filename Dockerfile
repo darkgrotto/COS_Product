@@ -5,6 +5,10 @@ WORKDIR /client
 COPY src/CountOrSell.Api/Client/package.json ./
 RUN npm install
 COPY src/CountOrSell.Api/Client/ ./
+ARG VITE_GIT_COMMIT
+ARG VITE_BUILD_TAG
+ENV VITE_GIT_COMMIT=$VITE_GIT_COMMIT
+ENV VITE_BUILD_TAG=$VITE_BUILD_TAG
 RUN npm run build
 # vite outDir is '../wwwroot' relative to config, so output lands at /wwwroot
 

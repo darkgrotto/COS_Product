@@ -20,6 +20,7 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_GIT_COMMIT': JSON.stringify(process.env.VITE_GIT_COMMIT ?? getGitCommit()),
+    'import.meta.env.VITE_BUILD_TAG': JSON.stringify(process.env.VITE_BUILD_TAG ?? null),
   },
   server: {
     proxy: {

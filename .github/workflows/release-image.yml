@@ -48,3 +48,6 @@ jobs:
             ghcr.io/darkgrotto/countorsell:${{ steps.version.outputs.major_minor }}
             ghcr.io/darkgrotto/countorsell:${{ steps.version.outputs.major }}
             ghcr.io/darkgrotto/countorsell:latest
+          build-args: |
+            VITE_GIT_COMMIT=${{ github.sha }}
+            VITE_BUILD_TAG=${{ steps.version.outputs.full }}
