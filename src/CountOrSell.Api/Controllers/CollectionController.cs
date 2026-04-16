@@ -294,6 +294,61 @@ public class CollectionController : ControllerBase
         return Ok(new { added = toAdd.Count, skipped = ownedIdentifiers.Count });
     }
 
+    [HttpPost("bulk-add-sets")]
+    public async Task<IActionResult> BulkAddSets([FromBody] BulkAddSetsRequest request, CancellationToken ct)
+    {
+        if (request.SetCodes == null || request.SetCodes.Count == 0)
+            return BadRequest(new { error = "At least one set code is required." });
+
+        if (!TryParseCondition(request.Condition, out var condition))
+            return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        var now = DateTime.UtcNow;
+        var bySet = new List<object>();
+        var totalAdded = 0;
+        var totalSkipped = 0;
+
+        foreach (var rawCode in request.SetCodes.Distinct())
+        {
+            var setCode = rawCode.ToLowerInvariant();
+            var cards = await _cards.GetBySetCodeAsync(setCode, ct);
+            if (cards.Count == 0)
+            {
+                bySet.Add(new { setCode = rawCode.ToUpperInvariant(), added = 0, skipped = 0, notFound = true });
+                continue;
+            }
+
+            var ownedIdentifiers = await _collection.GetOwnedIdentifiersBySetAsync(CurrentUserId, setCode, ct);
+            var toAdd = cards
+                .Where(c => !ownedIdentifiers.Contains(c.Identifier))
+                .Select(c => new CollectionEntry
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = CurrentUserId,
+                    CardIdentifier = c.Identifier,
+                    TreatmentKey = request.Treatment,
+                    Quantity = 1,
+                    Condition = condition,
+                    Autographed = false,
+                    AcquisitionDate = request.AcquisitionDate,
+                    AcquisitionPrice = request.AcquisitionPrice ?? (c.CurrentMarketValue ?? 0),
+                    Notes = null,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                })
+                .ToList();
+
+            if (toAdd.Count > 0)
+                await _collection.BulkCreateAsync(toAdd, ct);
+
+            bySet.Add(new { setCode = rawCode.ToUpperInvariant(), added = toAdd.Count, skipped = ownedIdentifiers.Count, notFound = false });
+            totalAdded += toAdd.Count;
+            totalSkipped += ownedIdentifiers.Count;
+        }
+
+        return Ok(new { totalAdded, totalSkipped, bySet });
+    }
+
     [HttpGet("export")]
     public async Task<IActionResult> Export(
         [FromQuery] string format = "cos",

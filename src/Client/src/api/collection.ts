@@ -107,6 +107,19 @@ export const collectionApi = {
     acquisitionPrice?: number;
   }): Promise<{ added: number; skipped: number }> =>
     api.post<{ added: number; skipped: number }>('/api/collection/bulk-add-set', request),
+
+  bulkAddSets: (request: {
+    setCodes: string[];
+    treatment: string;
+    condition: string;
+    acquisitionDate: string;
+    acquisitionPrice?: number;
+  }): Promise<{
+    totalAdded: number;
+    totalSkipped: number;
+    bySet: { setCode: string; added: number; skipped: number; notFound: boolean }[];
+  }> =>
+    api.post('/api/collection/bulk-add-sets', request),
 };
 
 export { buildFilterQuery };

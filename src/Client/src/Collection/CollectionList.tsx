@@ -7,6 +7,7 @@ import { useReservedList } from '../hooks/useReservedList';
 import { ReservedBadge } from '../components/ReservedBadge';
 import { SetSymbol } from '../components/SetSymbol';
 import { useTcgPlayerConfigured } from '../context/TcgPlayerContext';
+import { BulkAddSetsDialog } from './BulkAddSetsDialog';
 
 interface Props {
   adminUserId?: string;
@@ -44,6 +45,7 @@ export function CollectionList({ adminUserId }: Props) {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
   const reservedSet = useReservedList();
   const tcgConfigured = useTcgPlayerConfigured();
 
@@ -139,7 +141,22 @@ export function CollectionList({ adminUserId }: Props) {
 
   return (
     <div>
+      {showBulkAdd && !adminUserId && (
+        <BulkAddSetsDialog
+          onClose={() => setShowBulkAdd(false)}
+          onComplete={() => {
+            setShowBulkAdd(false);
+            // Reload to reflect newly added cards
+            setFilter((f) => ({ ...f }));
+          }}
+        />
+      )}
       <UniversalFilter filter={filter} onChange={setFilter} />
+      {!adminUserId && (
+        <button type="button" onClick={() => setShowBulkAdd(true)}>
+          Add complete set(s)
+        </button>
+      )}
       {loading ? (
         <p>Loading...</p>
       ) : entries.length === 0 ? (
