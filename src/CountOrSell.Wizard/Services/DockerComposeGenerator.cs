@@ -26,6 +26,7 @@ services:
       - BACKUP_RETENTION={config.BackupRetention}
       - BLOB_BACKUP_CONNECTION={config.BackupConnectionString}
       - SETUP_TOKEN={config.SetupToken}
+      - ImageStore__BasePath=/app/data/images
     volumes:
       - countorsell_app_data:/app/data
     depends_on:

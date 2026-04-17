@@ -38,8 +38,8 @@ export const updatesApi = {
   triggerCheck: (): Promise<{ packagesAvailable: boolean; message: string }> =>
     api.post<{ packagesAvailable: boolean; message: string }>('/api/updates/check'),
 
-  forceRedownload: (): Promise<{ packagesAvailable: boolean; message: string }> =>
-    api.post<{ packagesAvailable: boolean; message: string }>('/api/updates/redownload'),
+  forceRedownload: (): Promise<{ message: string }> =>
+    api.post<{ message: string }>('/api/updates/redownload'),
 
   approveSchemaUpdate: (id: number): Promise<void> =>
     api.post<void>(`/api/updates/schema/${id}/approve`),

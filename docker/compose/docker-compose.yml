@@ -13,6 +13,7 @@ services:
       - BACKUP_SCHEDULE=${BACKUP_SCHEDULE}
       - BACKUP_RETENTION=${BACKUP_RETENTION}
       - BLOB_BACKUP_CONNECTION=${BLOB_BACKUP_CONNECTION}
+      - ImageStore__BasePath=/app/data/images
     volumes:
       - countorsell_app_data:/app/data
     depends_on:

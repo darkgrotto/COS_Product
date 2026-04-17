@@ -7,6 +7,7 @@ using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CountOrSell.Api.Controllers;
 
@@ -20,19 +21,22 @@ public class UpdatesController : ControllerBase
     private readonly SchemaUpdateCoordinator _schemaCoordinator;
     private readonly ICloudDeploymentService _deploymentService;
     private readonly IAuditLogger _audit;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public UpdatesController(
         IUpdateRepository updateRepo,
         IUpdateCheckTrigger updateTrigger,
         SchemaUpdateCoordinator schemaCoordinator,
         ICloudDeploymentService deploymentService,
-        IAuditLogger audit)
+        IAuditLogger audit,
+        IServiceScopeFactory scopeFactory)
     {
         _updateRepo = updateRepo;
         _updateTrigger = updateTrigger;
         _schemaCoordinator = schemaCoordinator;
         _deploymentService = deploymentService;
         _audit = audit;
+        _scopeFactory = scopeFactory;
     }
 
     private string ActorName => User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
@@ -158,12 +162,23 @@ public class UpdatesController : ControllerBase
 
     [HttpPost("redownload")]
     [DemoLocked]
-    public async Task<IActionResult> ForceRedownload(CancellationToken ct)
+    public IActionResult ForceRedownload()
     {
-        var result = await _updateTrigger.TriggerForceAsync(ct);
-        await _audit.LogAsync(ActorName, ActorDisplayName, "update.redownload", null,
-            result.Message, ClientIp);
-        return Ok(new { result.PackagesAvailable, result.Message });
+        var actorName = ActorName;
+        var actorDisplayName = ActorDisplayName;
+        var clientIp = ClientIp;
+
+        // Run in background so the HTTP request is not held open for the full download/apply.
+        _ = Task.Run(async () =>
+        {
+            var result = await _updateTrigger.TriggerForceAsync(CancellationToken.None);
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var audit = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
+            await audit.LogAsync(actorName, actorDisplayName, "update.redownload", null,
+                result.Message, clientIp);
+        });
+
+        return Accepted(new { message = "Redownload started in background." });
     }
 }
 

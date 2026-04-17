@@ -57,13 +57,16 @@ export function UpdatesManager() {
     setRedownloadResult(null);
     try {
       const result = await updatesApi.forceRedownload();
-      await reload();
-      setRedownloadResult(result.message);
+      setRedownloadResult(result.message + ' Status will refresh in ~25 seconds.');
     } catch {
-      setRedownloadResult('Redownload failed.');
-    } finally {
+      setRedownloadResult('Failed to start redownload.');
       setRedownloading(false);
+      return;
     }
+    // Wait for the background operation to complete before refreshing status.
+    await new Promise(r => setTimeout(r, 25000));
+    try { await reload(); } catch { /* ignore */ }
+    setRedownloading(false);
   };
 
   const approveSchema = async (id: number) => {
