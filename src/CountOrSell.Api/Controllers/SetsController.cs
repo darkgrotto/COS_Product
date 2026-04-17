@@ -59,6 +59,7 @@ public class SetsController : ControllerBase
         {
             Identifier = c.Identifier.ToUpperInvariant(),
             c.Name,
+            c.ManaCost,
             c.Color,
             c.CardType,
             c.Rarity,
