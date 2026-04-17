@@ -455,15 +455,6 @@ function CardsTable({
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative shrink-0">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            className="pl-7 h-7 text-xs w-44"
-            placeholder="Filter cards..."
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-          />
-        </div>
         {availableColors.length > 0 && (
           <div className="flex gap-1 flex-wrap">
             {availableColors.map(col => (
@@ -501,11 +492,20 @@ function CardsTable({
           </div>
         )}
         {cards && (
-          <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
             {visible.length}{visible.length !== cards.length ? `/${cards.length}` : ''}{' '}
             card{cards.length !== 1 ? 's' : ''}
           </span>
         )}
+        <div className="relative shrink-0">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            className="pl-7 h-7 text-xs w-44"
+            placeholder="Filter..."
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Table */}
@@ -517,16 +517,16 @@ function CardsTable({
             <TableHeader>
               <TableRow>
                 <TableHead
-                  className="cursor-pointer select-none text-right w-12 whitespace-nowrap"
-                  onClick={() => handleSort('collectorNumber')}
-                >
-                  # <SortIcon active={sortField === 'collectorNumber'} dir={sortDir} />
-                </TableHead>
-                <TableHead
                   className="cursor-pointer select-none whitespace-nowrap"
                   onClick={() => handleSort('identifier')}
                 >
                   ID <SortIcon active={sortField === 'identifier'} dir={sortDir} />
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none text-right w-12 whitespace-nowrap"
+                  onClick={() => handleSort('collectorNumber')}
+                >
+                  # <SortIcon active={sortField === 'collectorNumber'} dir={sortDir} />
                 </TableHead>
                 <TableHead
                   className="cursor-pointer select-none"
@@ -563,10 +563,10 @@ function CardsTable({
                     className="cursor-pointer hover:bg-accent"
                     onClick={() => onSelectCard(card)}
                   >
+                    <TableCell className="font-mono text-xs">{card.identifier}</TableCell>
                     <TableCell className="text-right font-mono text-xs text-muted-foreground tabular-nums">
                       {card.identifier.slice(setCodeLen)}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{card.identifier}</TableCell>
                     <TableCell className="font-medium">
                       {card.name}
                       {card.isReserved && (
@@ -609,8 +609,8 @@ function SetsTable({ onSelectSet }: { onSelectSet: (s: SetSummary) => void }) {
   const [filter, setFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
   const [standardOnly, setStandardOnly] = useState(false)
-  const [sortField, setSortField] = useState<SetSortField>('name')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [sortField, setSortField] = useState<SetSortField>('releaseDate')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   useEffect(() => {
     fetch('/api/sets', { credentials: 'include' })
@@ -641,7 +641,9 @@ function SetsTable({ onSelectSet }: { onSelectSet: (s: SetSummary) => void }) {
   if (standardOnly) visible = visible.filter(s => s.setType != null && STANDARD_SET_TYPES.includes(s.setType))
   if (typeFilter) visible = visible.filter(s => s.setType === typeFilter)
   if (filter) visible = visible.filter(s =>
-    s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
+    s.code.toLowerCase().includes(q) ||
+    s.name.toLowerCase().includes(q) ||
+    (s.setType?.toLowerCase().includes(q) ?? false)
   )
 
   // Sort
@@ -659,15 +661,6 @@ function SetsTable({ onSelectSet }: { onSelectSet: (s: SetSummary) => void }) {
     <div className="space-y-3">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative shrink-0">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            className="pl-7 h-7 text-xs w-44"
-            placeholder="Search sets..."
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-          />
-        </div>
         <FilterChip
           label="All"
           active={!standardOnly && !typeFilter}
@@ -687,11 +680,20 @@ function SetsTable({ onSelectSet }: { onSelectSet: (s: SetSummary) => void }) {
           />
         ))}
         {sets && (
-          <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
             {visible.length}{visible.length !== sets.length ? `/${sets.length}` : ''}{' '}
             set{sets.length !== 1 ? 's' : ''}
           </span>
         )}
+        <div className="relative shrink-0">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            className="pl-7 h-7 text-xs w-44"
+            placeholder="Filter..."
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Table */}
@@ -702,7 +704,6 @@ function SetsTable({ onSelectSet }: { onSelectSet: (s: SetSummary) => void }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-9" />
                 <TableHead
                   className="cursor-pointer select-none whitespace-nowrap"
                   onClick={() => handleSort('code')}
@@ -738,7 +739,7 @@ function SetsTable({ onSelectSet }: { onSelectSet: (s: SetSummary) => void }) {
             <TableBody>
               {visible.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
                     No sets found.
                   </TableCell>
                 </TableRow>
@@ -749,16 +750,16 @@ function SetsTable({ onSelectSet }: { onSelectSet: (s: SetSummary) => void }) {
                     className="cursor-pointer hover:bg-accent"
                     onClick={() => onSelectSet(set)}
                   >
-                    <TableCell className="text-center text-lg leading-none">
-                      <SetSymbol setCode={set.code} />
-                    </TableCell>
                     <TableCell className="font-mono font-medium">{set.code}</TableCell>
-                    <TableCell className="font-medium">{set.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <SetSymbol setCode={set.code} className="mr-2 text-base opacity-80 align-middle" />
+                      {set.name}
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {set.setType ? fmtSetType(set.setType) : '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {set.releaseDate ? new Date(set.releaseDate).getFullYear() : '-'}
+                      {set.releaseDate ? set.releaseDate.slice(0, 10) : '-'}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{set.totalCards}</TableCell>
                   </TableRow>
