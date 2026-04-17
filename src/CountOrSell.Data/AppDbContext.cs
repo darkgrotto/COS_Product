@@ -237,7 +237,7 @@ public class AppDbContext : DbContext
             e.Property(c => c.SetCode).HasColumnName("set_code").HasMaxLength(4).IsRequired();
             e.Property(c => c.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
             e.Property(c => c.ManaCost).HasColumnName("mana_cost").HasMaxLength(100);
-            e.Property(c => c.Cmc).HasColumnName("cmc").HasPrecision(6, 2);
+            e.Property(c => c.Cmc).HasColumnName("cmc").HasColumnType("numeric");
             e.Property(c => c.Color).HasColumnName("color").HasMaxLength(20);
             e.Property(c => c.ColorIdentity).HasColumnName("color_identity").HasMaxLength(20);
             e.Property(c => c.Keywords).HasColumnName("keywords").HasMaxLength(500);
