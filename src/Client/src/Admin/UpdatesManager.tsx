@@ -104,29 +104,26 @@ export function UpdatesManager() {
           </dd>
         </dl>
         {status?.componentVersions && Object.keys(status.componentVersions).length > 0 && (
-          <details>
-            <summary>Component versions</summary>
-            <table aria-label="Component versions">
-              <thead>
-                <tr>
-                  <th>Component</th>
-                  <th>Version</th>
-                  <th>Records</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(status.componentVersions)
-                  .filter(([key]) => key !== 'slabs')
-                  .map(([key, entry]) => (
-                    <tr key={key}>
-                      <td>{COMPONENT_LABELS[key] ?? key}</td>
-                      <td>{entry.version}</td>
-                      <td>{entry.recordCount !== null ? entry.recordCount : '--'}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </details>
+          <table aria-label="Component versions">
+            <thead>
+              <tr>
+                <th>Component</th>
+                <th>Version</th>
+                <th>Records</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(status.componentVersions)
+                .filter(([key]) => key !== 'slabs')
+                .map(([key, entry]) => (
+                  <tr key={key}>
+                    <td>{COMPONENT_LABELS[key] ?? key}</td>
+                    <td>{entry.version}</td>
+                    <td>{entry.recordCount !== null ? entry.recordCount : '--'}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
         )}
         <DemoLock>
           <button type="button" onClick={triggerCheck} disabled={checking || redownloading}>

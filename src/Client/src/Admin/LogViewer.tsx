@@ -15,6 +15,42 @@ function formatTimestamp(ts: string): string {
   });
 }
 
+function DetailPanel({ entry, onClose }: { entry: AuditLogEntry; onClose: () => void }) {
+  return (
+    <div role="region" aria-label="Audit log entry detail" style={{ border: '1px solid', padding: '1rem', marginTop: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <strong>Entry Detail</strong>
+        <button type="button" onClick={onClose} aria-label="Close detail panel">Close</button>
+      </div>
+      <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '0.25rem 1rem' }}>
+        <dt>ID</dt>
+        <dd><code style={{ wordBreak: 'break-all' }}>{entry.id}</code></dd>
+
+        <dt>Timestamp</dt>
+        <dd>{formatTimestamp(entry.timestamp)}</dd>
+
+        <dt>Actor</dt>
+        <dd>{entry.actorDisplayName} <span style={{ opacity: 0.7 }}>({entry.actor})</span></dd>
+
+        <dt>Action</dt>
+        <dd><code>{entry.actionType}</code></dd>
+
+        <dt>Target</dt>
+        <dd>{entry.target ?? <em>none</em>}</dd>
+
+        <dt>Result</dt>
+        <dd style={{ wordBreak: 'break-word' }}>{entry.result}</dd>
+
+        <dt>IP Address</dt>
+        <dd>{entry.ipAddress ?? <em>none</em>}</dd>
+
+        <dt>Session ID</dt>
+        <dd>{entry.sessionId ? <code>{entry.sessionId}</code> : <em>none</em>}</dd>
+      </dl>
+    </div>
+  );
+}
+
 export function LogViewer() {
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [actionTypes, setActionTypes] = useState<string[]>([]);
@@ -22,10 +58,12 @@ export function LogViewer() {
   const [actionTypeFilter, setActionTypeFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<AuditLogEntry | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSelected(null);
     try {
       const data = await auditApi.getLogs(limit, actionTypeFilter || undefined);
       setEntries(data);
@@ -94,7 +132,12 @@ export function LogViewer() {
             </thead>
             <tbody>
               {entries.map(e => (
-                <tr key={e.id}>
+                <tr
+                  key={e.id}
+                  onClick={() => setSelected(prev => prev?.id === e.id ? null : e)}
+                  style={{ cursor: 'pointer', background: selected?.id === e.id ? 'var(--color-bg-subtle, #f0f0f0)' : undefined }}
+                  aria-selected={selected?.id === e.id}
+                >
                   <td style={{ whiteSpace: 'nowrap' }}>{formatTimestamp(e.timestamp)}</td>
                   <td title={e.actor}>{e.actorDisplayName}</td>
                   <td><code>{e.actionType}</code></td>
@@ -106,6 +149,10 @@ export function LogViewer() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {selected && (
+        <DetailPanel entry={selected} onClose={() => setSelected(null)} />
       )}
     </div>
   );

@@ -7,6 +7,7 @@ export interface AuditLogEntry {
   target: string | null;
   result: string;
   ipAddress: string | null;
+  sessionId: string | null;
 }
 
 export const auditApi = {

@@ -1,7 +1,7 @@
 import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
 
 const TABS = [
-  { to: '/admin/content/cards', label: 'Cards & Sets' },
+  { to: '/admin/content/cards', label: 'Sets & Cards' },
   { to: '/admin/content/sealed', label: 'Sealed Products' },
   { to: '/admin/content/users', label: 'User Collections' },
 ];

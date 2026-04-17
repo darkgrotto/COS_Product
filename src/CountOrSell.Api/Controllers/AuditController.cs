@@ -35,7 +35,8 @@ public class AuditController : ControllerBase
             e.ActionType,
             e.Target,
             e.Result,
-            e.IpAddress
+            e.IpAddress,
+            e.SessionId
         }));
     }
 

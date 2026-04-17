@@ -85,8 +85,7 @@ public class UpdatesController : ControllerBase
     {
         var result = await _updateTrigger.TriggerAsync(ct);
         await _audit.LogAsync(ActorName, ActorDisplayName, "update.check", null,
-            result.PackagesAvailable ? "packages available" : "no packages available",
-            ClientIp);
+            result.Message, ClientIp);
         return Ok(new { result.PackagesAvailable, result.Message });
     }
 
@@ -163,7 +162,7 @@ public class UpdatesController : ControllerBase
     {
         var result = await _updateTrigger.TriggerForceAsync(ct);
         await _audit.LogAsync(ActorName, ActorDisplayName, "update.redownload", null,
-            result.PackagesAvailable ? "success" : "no packages", ClientIp);
+            result.Message, ClientIp);
         return Ok(new { result.PackagesAvailable, result.Message });
     }
 }
