@@ -108,8 +108,10 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             // Download the package ZIP
             var packageStream = await downloader.DownloadPackageAsync(packageRef.DownloadUrl, ct);
 
-            // Apply the content update - the applicator verifies per-file checksums internally
-            await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, ct);
+            // Apply the content update. Use CancellationToken.None so that an HTTP request
+            // timeout cancelling ct cannot interrupt the transaction mid-apply; the DB
+            // operations must complete atomically regardless of the caller's lifetime.
+            await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, CancellationToken.None);
 
             var appliedDate = packageManifest.GeneratedAt.ToUniversalTime()
                 .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
@@ -124,11 +126,17 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
         }
         finally
         {
-            // Record the check time after the check completes, regardless of outcome.
-            if (updateRepo != null)
+            // Record the check time using a fresh scope - the original scope may be disposed
+            // by this point if the try block exited via an exception.
+            try
             {
-                try { await updateRepo.SetLastUpdateCheckedAtAsync(DateTime.UtcNow, ct); }
-                catch (Exception ex) { _logger.LogWarning(ex, "Failed to record last update check time"); }
+                await using var finalScope = _scopeFactory.CreateAsyncScope();
+                var finalRepo = finalScope.ServiceProvider.GetRequiredService<IUpdateRepository>();
+                await finalRepo.SetLastUpdateCheckedAtAsync(DateTime.UtcNow, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to record last update check time");
             }
         }
     }

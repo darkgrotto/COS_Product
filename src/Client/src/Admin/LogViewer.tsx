@@ -113,6 +113,10 @@ export function LogViewer() {
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
+      {selected && (
+        <DetailPanel entry={selected} onClose={() => setSelected(null)} />
+      )}
+
       {entries.length === 0 && !loading && !error && (
         <p>No audit log entries found.</p>
       )}
@@ -149,10 +153,6 @@ export function LogViewer() {
             </tbody>
           </table>
         </div>
-      )}
-
-      {selected && (
-        <DetailPanel entry={selected} onClose={() => setSelected(null)} />
       )}
     </div>
   );

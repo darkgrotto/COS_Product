@@ -149,7 +149,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         }
         catch
         {
-            await transaction.RollbackAsync(ct);
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
 
