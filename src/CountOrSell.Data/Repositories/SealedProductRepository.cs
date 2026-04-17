@@ -17,6 +17,9 @@ public class SealedProductRepository : ISealedProductRepository
             .Where(p => identifiers.Contains(p.Identifier))
             .ToDictionaryAsync(p => p.Identifier, ct);
 
+    public Task<List<SealedProduct>> GetAllAsync(CancellationToken ct = default) =>
+        _db.SealedProducts.OrderBy(p => p.Name).ToListAsync(ct);
+
     public Task<List<SealedProduct>> SearchAsync(string query, CancellationToken ct = default)
     {
         var q = query.Trim();

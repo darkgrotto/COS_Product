@@ -16,6 +16,25 @@ public class SealedProductsController : ControllerBase
         _products = products;
     }
 
+    // Returns all sealed products without pagination for admin browsing.
+    [HttpGet("all")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetAll(CancellationToken ct)
+    {
+        var all = await _products.GetAllAsync(ct);
+        return Ok(all.Select(p => new
+        {
+            p.Identifier,
+            p.Name,
+            SetCode = string.IsNullOrEmpty(p.SetCode) ? (string?)null : p.SetCode.ToUpperInvariant(),
+            p.CategorySlug,
+            p.SubTypeSlug,
+            p.CurrentMarketValue,
+            p.UpdatedAt,
+            HasImage = p.ImagePath != null,
+        }));
+    }
+
     [HttpGet("{identifier}")]
     public async Task<IActionResult> GetByIdentifier(string identifier, CancellationToken ct)
     {

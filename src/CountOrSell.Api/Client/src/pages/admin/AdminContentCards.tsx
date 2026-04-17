@@ -455,6 +455,15 @@ function CardsTable({
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative shrink-0">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            className="pl-7 h-7 text-xs w-44"
+            placeholder="Filter cards..."
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+          />
+        </div>
         {availableColors.length > 0 && (
           <div className="flex gap-1 flex-wrap">
             {availableColors.map(col => (
@@ -491,23 +500,12 @@ function CardsTable({
             ))}
           </div>
         )}
-        <div className="ml-auto flex items-center gap-2">
-          {cards && (
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {visible.length}{visible.length !== cards.length ? `/${cards.length}` : ''}{' '}
-              card{cards.length !== 1 ? 's' : ''}
-            </span>
-          )}
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              className="pl-7 h-7 text-xs w-44"
-              placeholder="Filter..."
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-            />
-          </div>
-        </div>
+        {cards && (
+          <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+            {visible.length}{visible.length !== cards.length ? `/${cards.length}` : ''}{' '}
+            card{cards.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {/* Table */}
@@ -661,6 +659,15 @@ function SetsTable({ onSelectSet }: { onSelectSet: (s: SetSummary) => void }) {
     <div className="space-y-3">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative shrink-0">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            className="pl-7 h-7 text-xs w-44"
+            placeholder="Search sets..."
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+          />
+        </div>
         <FilterChip
           label="All"
           active={!standardOnly && !typeFilter}
@@ -679,23 +686,12 @@ function SetsTable({ onSelectSet }: { onSelectSet: (s: SetSummary) => void }) {
             onClick={() => { setTypeFilter(typeFilter === t ? null : t); setStandardOnly(false) }}
           />
         ))}
-        <div className="ml-auto flex items-center gap-2">
-          {sets && (
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {visible.length}{visible.length !== sets.length ? `/${sets.length}` : ''}{' '}
-              set{sets.length !== 1 ? 's' : ''}
-            </span>
-          )}
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              className="pl-7 h-7 text-xs w-44"
-              placeholder="Filter..."
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-            />
-          </div>
-        </div>
+        {sets && (
+          <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+            {visible.length}{visible.length !== sets.length ? `/${sets.length}` : ''}{' '}
+            set{sets.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {/* Table */}

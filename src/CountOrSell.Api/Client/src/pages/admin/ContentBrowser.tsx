@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 
 const tabs = [
   { to: '/admin/content/cards', label: 'Cards & Sets' },
+  { to: '/admin/content/sealed', label: 'Sealed Products' },
   { to: '/admin/content/users', label: 'User Collections' },
 ]
 

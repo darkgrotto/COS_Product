@@ -26,6 +26,7 @@ import { AdminLayout } from '@/pages/admin/AdminLayout'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { ContentBrowser } from '@/pages/admin/ContentBrowser'
 import { AdminContentCards } from '@/pages/admin/AdminContentCards'
+import { AdminContentSealed } from '@/pages/admin/AdminContentSealed'
 import { AdminContentUsers } from '@/pages/admin/AdminContentUsers'
 import { OperationsHub } from '@/pages/admin/OperationsHub'
 import { NotificationsPanel } from '@/pages/admin/NotificationsPanel'
@@ -66,6 +67,7 @@ function App() {
                     <Route path="dashboard" element={<AdminDashboard />} />
                     <Route path="content" element={<ContentBrowser />}>
                       <Route path="cards" element={<AdminContentCards />} />
+                      <Route path="sealed" element={<AdminContentSealed />} />
                       <Route path="users" element={<AdminContentUsers />} />
                     </Route>
                     <Route path="operations" element={<OperationsHub />}>
