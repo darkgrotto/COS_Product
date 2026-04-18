@@ -349,6 +349,14 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         await _db.SaveChangesAsync(ct);
     }
 
+    public async Task ApplyImagesOnlyAsync(
+        Stream packageStream, PackageManifest packageManifest, CancellationToken ct)
+    {
+        if (packageStream.CanSeek) packageStream.Position = 0;
+        using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
+        await SaveImagesAsync(archive, packageManifest.Checksums, ct);
+    }
+
     private async Task SaveImagesAsync(
         ZipArchive archive, Dictionary<string, string> checksums, CancellationToken ct)
     {

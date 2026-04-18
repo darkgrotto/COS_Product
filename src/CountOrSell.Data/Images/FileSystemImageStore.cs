@@ -38,4 +38,11 @@ public class FileSystemImageStore : IImageStore
         if (File.Exists(fullPath)) File.Delete(fullPath);
         return Task.CompletedTask;
     }
+
+    public Task<bool> HasImagesAsync(CancellationToken ct)
+    {
+        if (!Directory.Exists(_basePath)) return Task.FromResult(false);
+        var hasAny = Directory.EnumerateFiles(_basePath, "*.jpg", SearchOption.AllDirectories).Any();
+        return Task.FromResult(hasAny);
+    }
 }

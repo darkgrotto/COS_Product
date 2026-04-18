@@ -1,3 +1,4 @@
+using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,15 +9,18 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 {
     private readonly IConfiguration _config;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IImageStore _imageStore;
     private readonly ILogger<UpdateCheckService> _logger;
 
     public UpdateCheckService(
         IConfiguration config,
         IServiceScopeFactory scopeFactory,
+        IImageStore imageStore,
         ILogger<UpdateCheckService> logger)
     {
         _config = config;
         _scopeFactory = scopeFactory;
+        _imageStore = imageStore;
         _logger = logger;
     }
 
@@ -112,6 +116,30 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             // timeout cancelling ct cannot interrupt the transaction mid-apply; the DB
             // operations must complete atomically regardless of the caller's lifetime.
             await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, CancellationToken.None);
+
+            // Delta packages only contain images that changed since the base full package.
+            // If the applied package has no images AND the image store is empty (e.g. fresh
+            // install or wiped volume), fall back to the most recent full package for images.
+            var packageHasImages = packageManifest.Checksums.Keys
+                .Any(k => k.StartsWith("images/", StringComparison.OrdinalIgnoreCase));
+            if (!packageHasImages && !await _imageStore.HasImagesAsync(CancellationToken.None))
+            {
+                var fullRef = manifest.Packages
+                    .Where(p => string.Equals(p.PackageType, "full", StringComparison.OrdinalIgnoreCase))
+                    .MaxBy(p => p.GeneratedAt);
+                if (fullRef != null)
+                {
+                    _logger.LogInformation(
+                        "Applied package has no images and image store is empty; fetching images from full package {PackageId}",
+                        fullRef.PackageId);
+                    var fullManifest = await manifestClient.FetchPackageManifestAsync(fullRef.ManifestUrl, CancellationToken.None);
+                    if (fullManifest != null)
+                    {
+                        var fullStream = await downloader.DownloadPackageAsync(fullRef.DownloadUrl, CancellationToken.None);
+                        await applicator.ApplyImagesOnlyAsync(fullStream, fullManifest, CancellationToken.None);
+                    }
+                }
+            }
 
             var appliedDate = packageManifest.GeneratedAt.ToUniversalTime()
                 .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);

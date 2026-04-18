@@ -6,4 +6,5 @@ public interface IImageStore
     Task<byte[]?> GetImageAsync(string relativePath, CancellationToken ct);
     Task<bool> ExistsAsync(string relativePath, CancellationToken ct);
     Task DeleteImageAsync(string relativePath, CancellationToken ct);
+    Task<bool> HasImagesAsync(CancellationToken ct);
 }
