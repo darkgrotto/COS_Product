@@ -14,5 +14,5 @@ public class PricingEntryDto
     public decimal? PriceUsd { get; set; }
 
     [JsonPropertyName("captured_at")]
-    public DateTime CapturedAt { get; set; }
+    public DateTimeOffset CapturedAt { get; set; }
 }

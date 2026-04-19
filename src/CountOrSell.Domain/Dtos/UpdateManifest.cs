@@ -10,7 +10,7 @@ public class UpdateManifest
     public string SchemaVersion { get; set; } = string.Empty;
 
     [JsonPropertyName("generated_at")]
-    public DateTime GeneratedAt { get; set; }
+    public DateTimeOffset GeneratedAt { get; set; }
 
     [JsonPropertyName("minimum_product_version")]
     public string MinimumProductVersion { get; set; } = string.Empty;
@@ -51,7 +51,7 @@ public class UpdatePackageRef
     public string? BaseFullVersion { get; set; }
 
     [JsonPropertyName("generated_at")]
-    public DateTime GeneratedAt { get; set; }
+    public DateTimeOffset GeneratedAt { get; set; }
 }
 
 // Per-package manifest fetched from manifest_url or extracted from the ZIP as manifest.json.
@@ -62,7 +62,7 @@ public class PackageManifest
     public string PackageType { get; set; } = string.Empty;
 
     [JsonPropertyName("generated_at")]
-    public DateTime GeneratedAt { get; set; }
+    public DateTimeOffset GeneratedAt { get; set; }
 
     [JsonPropertyName("base_full_version")]
     public string? BaseFullVersion { get; set; }

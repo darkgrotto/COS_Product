@@ -61,7 +61,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
 
         // Store the package generated_at timestamp as the content version key so that
         // updates to any content type (not just cards) are detected on future checks.
-        var contentVersion = packageManifest.GeneratedAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+        var contentVersion = packageManifest.GeneratedAt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
         // Read and verify metadata files
         var treatments = ReadAndVerifyJson<List<TreatmentDto>>(
@@ -303,7 +303,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             if (existingMap.TryGetValue(key, out var entity))
             {
                 entity.PriceUsd = dto.PriceUsd;
-                entity.CapturedAt = dto.CapturedAt;
+                entity.CapturedAt = dto.CapturedAt.UtcDateTime;
             }
             else
             {
@@ -312,7 +312,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                     CardIdentifier = dto.CardIdentifier,
                     TreatmentKey = dto.TreatmentKey,
                     PriceUsd = dto.PriceUsd,
-                    CapturedAt = dto.CapturedAt
+                    CapturedAt = dto.CapturedAt.UtcDateTime
                 });
             }
         }

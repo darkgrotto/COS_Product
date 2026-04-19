@@ -114,11 +114,11 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                 return result;
             }
 
-            var packageKey = packageManifest.GeneratedAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+            var packageKey = packageManifest.GeneratedAt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
             var currentContentVersion = await updateRepo.GetCurrentContentVersionAsync(ct);
             if (!force && currentContentVersion == packageKey)
             {
-                var displayDate = packageManifest.GeneratedAt.ToUniversalTime()
+                var displayDate = packageManifest.GeneratedAt.UtcDateTime
                     .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
                 _logger.LogInformation("Content already up to date (package from {PackageDate})", displayDate);
                 result = new UpdateCheckResult(false, $"Content is already up to date (last updated {displayDate}).");
@@ -157,7 +157,7 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                 }
             }
 
-            var appliedDate = packageManifest.GeneratedAt.ToUniversalTime()
+            var appliedDate = packageManifest.GeneratedAt.UtcDateTime
                 .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
             result = new UpdateCheckResult(true, $"Content updated (package from {appliedDate}).");
             return result;
