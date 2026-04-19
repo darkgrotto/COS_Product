@@ -163,6 +163,16 @@ public class UpdatesController : ControllerBase
     [HttpPost("redownload")]
     [DemoLocked]
     public IActionResult ForceRedownload()
+        => StartBackgroundRedownload(_updateTrigger.TriggerForceAsync, "update.redownload");
+
+    [HttpPost("redownload-full")]
+    [DemoLocked]
+    public IActionResult ForceRedownloadFull()
+        => StartBackgroundRedownload(_updateTrigger.TriggerForceFullAsync, "update.redownload.full");
+
+    private IActionResult StartBackgroundRedownload(
+        Func<CancellationToken, Task<UpdateCheckResult>> trigger,
+        string actionType)
     {
         var actorName = ActorName;
         var actorDisplayName = ActorDisplayName;
@@ -171,10 +181,10 @@ public class UpdatesController : ControllerBase
         // Run in background so the HTTP request is not held open for the full download/apply.
         _ = Task.Run(async () =>
         {
-            var result = await _updateTrigger.TriggerForceAsync(CancellationToken.None);
+            var result = await trigger(CancellationToken.None);
             await using var scope = _scopeFactory.CreateAsyncScope();
             var audit = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
-            await audit.LogAsync(actorName, actorDisplayName, "update.redownload", null,
+            await audit.LogAsync(actorName, actorDisplayName, actionType, null,
                 result.Message, clientIp);
         });
 

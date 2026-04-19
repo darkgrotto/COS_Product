@@ -20,6 +20,8 @@ export function UpdatesManager() {
   const [checkResult, setCheckResult] = useState<string | null>(null);
   const [redownloading, setRedownloading] = useState(false);
   const [redownloadResult, setRedownloadResult] = useState<string | null>(null);
+  const [redownloadingFull, setRedownloadingFull] = useState(false);
+  const [redownloadFullResult, setRedownloadFullResult] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
 
@@ -52,7 +54,7 @@ export function UpdatesManager() {
   };
 
   const triggerRedownload = async () => {
-    if (!window.confirm('Force redownload will re-apply the latest content package even if already up to date. Continue?')) return;
+    if (!window.confirm('Re-apply the latest content package (delta or full) even if already up to date. Continue?')) return;
     setRedownloading(true);
     setRedownloadResult(null);
     try {
@@ -63,10 +65,26 @@ export function UpdatesManager() {
       setRedownloading(false);
       return;
     }
-    // Wait for the background operation to complete before refreshing status.
     await new Promise(r => setTimeout(r, 25000));
     try { await reload(); } catch { /* ignore */ }
     setRedownloading(false);
+  };
+
+  const triggerRedownloadFull = async () => {
+    if (!window.confirm('Download and apply the latest full content package including all images. This may take longer. Continue?')) return;
+    setRedownloadingFull(true);
+    setRedownloadFullResult(null);
+    try {
+      const result = await updatesApi.forceRedownloadFull();
+      setRedownloadFullResult(result.message + ' Status will refresh in ~30 seconds.');
+    } catch {
+      setRedownloadFullResult('Failed to start full redownload.');
+      setRedownloadingFull(false);
+      return;
+    }
+    await new Promise(r => setTimeout(r, 30000));
+    try { await reload(); } catch { /* ignore */ }
+    setRedownloadingFull(false);
   };
 
   const approveSchema = async (id: number) => {
@@ -129,16 +147,21 @@ export function UpdatesManager() {
           </table>
         )}
         <DemoLock>
-          <button type="button" onClick={triggerCheck} disabled={checking || redownloading}>
+          <button type="button" onClick={triggerCheck} disabled={checking || redownloading || redownloadingFull}>
             {checking ? 'Checking...' : 'Check for updates now'}
           </button>
           {' '}
-          <button type="button" onClick={triggerRedownload} disabled={checking || redownloading}>
-            {redownloading ? 'Redownloading...' : 'Force redownload'}
+          <button type="button" onClick={triggerRedownload} disabled={checking || redownloading || redownloadingFull}>
+            {redownloading ? 'Redownloading...' : 'Force redownload (latest)'}
+          </button>
+          {' '}
+          <button type="button" onClick={triggerRedownloadFull} disabled={checking || redownloading || redownloadingFull}>
+            {redownloadingFull ? 'Redownloading...' : 'Force redownload (full)'}
           </button>
         </DemoLock>
         {checkResult && <div role="status">{checkResult}</div>}
         {redownloadResult && <div role="status">{redownloadResult}</div>}
+        {redownloadFullResult && <div role="status">{redownloadFullResult}</div>}
       </section>
 
       {status?.pendingSchemaUpdate && (

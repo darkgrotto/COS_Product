@@ -41,6 +41,9 @@ export const updatesApi = {
   forceRedownload: (): Promise<{ message: string }> =>
     api.post<{ message: string }>('/api/updates/redownload'),
 
+  forceRedownloadFull: (): Promise<{ message: string }> =>
+    api.post<{ message: string }>('/api/updates/redownload-full'),
+
   approveSchemaUpdate: (id: number): Promise<void> =>
     api.post<void>(`/api/updates/schema/${id}/approve`),
 

@@ -6,6 +6,7 @@ using CountOrSell.Api.Background;
 using CountOrSell.Api.Services;
 using CountOrSell.Api.Services.Deployment;
 using CountOrSell.Api.Services.Destinations;
+using CountOrSell.Api.Services.LogForwarding;
 using CountOrSell.Data;
 using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
@@ -110,6 +111,11 @@ switch (cloudProvider.ToLowerInvariant())
         break;
 }
 
+// Log forwarding
+builder.Services.AddSingleton<LogForwardingConfigHolder>();
+builder.Services.AddSingleton<HttpLogForwardingProvider>();
+builder.Services.AddHttpClient("LogForwarding");
+
 // Backup and restore services
 builder.Services.AddScoped<IProcessRunner, ProcessRunner>();
 builder.Services.AddScoped<ISchemaVersionService, SchemaVersionService>();
@@ -184,6 +190,33 @@ if (!string.IsNullOrWhiteSpace(ghClientId) && !string.IsNullOrWhiteSpace(ghClien
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+// Load persisted log forwarding config and register the logger provider.
+// Wrapped in try/catch so a missing or empty DB (first run) doesn't block startup.
+try
+{
+    using var startupScope = app.Services.CreateScope();
+    var startupDb = startupScope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var configHolder = app.Services.GetRequiredService<LogForwardingConfigHolder>();
+    var settings = startupDb.AppSettings
+        .Where(s => s.Key.StartsWith("log_forwarding."))
+        .ToDictionary(s => s.Key, s => s.Value);
+    settings.TryGetValue("log_forwarding.enabled", out var lfEnabled);
+    settings.TryGetValue("log_forwarding.url", out var lfUrl);
+    settings.TryGetValue("log_forwarding.auth_header", out var lfAuth);
+    settings.TryGetValue("log_forwarding.min_level", out var lfLevel);
+    configHolder.Update(new LogForwardingConfig
+    {
+        Enabled = lfEnabled == "true",
+        DestinationUrl = string.IsNullOrEmpty(lfUrl) ? null : lfUrl,
+        AuthHeader = string.IsNullOrEmpty(lfAuth) ? null : lfAuth,
+        MinLevel = string.IsNullOrEmpty(lfLevel) ? "Warning" : lfLevel
+    });
+}
+catch { /* DB not yet available - log forwarding stays disabled until first config save */ }
+
+app.Services.GetRequiredService<ILoggerFactory>()
+    .AddProvider(app.Services.GetRequiredService<HttpLogForwardingProvider>());
 
 app.UseDefaultFiles();
 app.UseStaticFiles();

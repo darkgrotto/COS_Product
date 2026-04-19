@@ -37,17 +37,20 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             {
                 break;
             }
-            await RunUpdateCheckAsync(force: false, stoppingToken);
+            await RunUpdateCheckAsync(force: false, fullPackageOnly: false, stoppingToken);
         }
     }
 
     public async Task<UpdateCheckResult> TriggerAsync(CancellationToken ct)
-        => await RunUpdateCheckAsync(force: false, ct);
+        => await RunUpdateCheckAsync(force: false, fullPackageOnly: false, ct);
 
     public async Task<UpdateCheckResult> TriggerForceAsync(CancellationToken ct)
-        => await RunUpdateCheckAsync(force: true, ct);
+        => await RunUpdateCheckAsync(force: true, fullPackageOnly: false, ct);
 
-    public async Task<UpdateCheckResult> RunUpdateCheckAsync(bool force, CancellationToken ct)
+    public async Task<UpdateCheckResult> TriggerForceFullAsync(CancellationToken ct)
+        => await RunUpdateCheckAsync(force: true, fullPackageOnly: true, ct);
+
+    public async Task<UpdateCheckResult> RunUpdateCheckAsync(bool force, bool fullPackageOnly, CancellationToken ct)
     {
         UpdateCheckResult? result = null;
         IUpdateRepository? updateRepo = null;
@@ -75,8 +78,21 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                 return result;
             }
 
-            // Select the most recent package by generated_at timestamp
-            var packageRef = manifest.Packages.MaxBy(p => p.GeneratedAt) ?? manifest.Packages[^1];
+            // Select the target package - most recent overall, or most recent full if requested
+            var candidates = fullPackageOnly
+                ? manifest.Packages
+                    .Where(p => string.Equals(p.PackageType, "full", StringComparison.OrdinalIgnoreCase))
+                    .ToList()
+                : manifest.Packages;
+
+            if (candidates.Count == 0)
+            {
+                _logger.LogInformation("No full update packages available in manifest");
+                result = new UpdateCheckResult(false, "No full update packages are available at this time.");
+                return result;
+            }
+
+            var packageRef = candidates.MaxBy(p => p.GeneratedAt) ?? candidates[^1];
 
             // Fetch per-package manifest to get checksums and content versions
             var packageManifest = await manifestClient.FetchPackageManifestAsync(packageRef.ManifestUrl, ct);
