@@ -73,6 +73,7 @@ public class CardsController : ControllerBase
             ValidTreatments = card.ValidTreatments != null
                 ? card.ValidTreatments.Split(',')
                 : Array.Empty<string>(),
+            ImageUrl = $"/api/images/cards/{card.SetCode}/{card.Identifier}.jpg",
         });
     }
 

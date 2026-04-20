@@ -317,6 +317,26 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             }
         }
         await _db.SaveChangesAsync(ct);
+
+        // Update Card.CurrentMarketValue for each affected card.
+        // Use the "regular" treatment price; fall back to any non-null price.
+        var pricesByCard = dtos
+            .GroupBy(d => d.CardIdentifier)
+            .ToDictionary(
+                g => g.Key,
+                g => g.FirstOrDefault(d => d.TreatmentKey == "regular")?.PriceUsd
+                     ?? g.FirstOrDefault(d => d.PriceUsd.HasValue)?.PriceUsd);
+
+        var affectedCards = await _db.Cards
+            .Where(c => identifiers.Contains(c.Identifier))
+            .ToListAsync(ct);
+
+        foreach (var card in affectedCards)
+        {
+            if (pricesByCard.TryGetValue(card.Identifier, out var price))
+                card.CurrentMarketValue = price;
+        }
+        await _db.SaveChangesAsync(ct);
     }
 
     private async Task UpsertSealedProductsAsync(List<SealedProductDto> dtos, CancellationToken ct)

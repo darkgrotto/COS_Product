@@ -135,6 +135,7 @@ export function SealedProductBrowse() {
           <table aria-label="Sealed products catalog">
             <thead>
               <tr>
+                <th aria-label="Product image"></th>
                 <th>Name</th>
                 <th>Set</th>
                 <th>Category</th>
@@ -148,6 +149,14 @@ export function SealedProductBrowse() {
                 const sub = cat?.subTypes.find((s) => s.slug === p.subTypeSlug);
                 return (
                   <tr key={p.identifier}>
+                    <td style={{ width: '60px' }}>
+                      <img
+                        src={p.imageUrl}
+                        alt={p.name}
+                        style={{ width: '50px', height: '50px', objectFit: 'contain', display: 'block' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    </td>
                     <td>{p.name}</td>
                     <td>{p.setCode ?? '--'}</td>
                     <td>{cat ? cat.displayName : (p.categorySlug ?? '--')}</td>

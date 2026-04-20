@@ -28,6 +28,15 @@ export function CardDetail() {
     <article>
       <h1>{card.name} <small>({displayIdentifier})</small></h1>
 
+      {card.imageUrl && (
+        <img
+          src={card.imageUrl}
+          alt={card.name}
+          style={{ maxWidth: '250px', display: 'block', marginBottom: '1rem' }}
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+      )}
+
       <dl>
         {card.setCode && (
           <>

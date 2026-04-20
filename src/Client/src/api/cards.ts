@@ -10,6 +10,7 @@ export interface CardSummary {
   flavorText?: string | null;
   currentMarketValue: number | null;
   isReserved: boolean;
+  imageUrl?: string | null;
 }
 
 export interface RandomFlavorResult {
