@@ -6,6 +6,7 @@ using CountOrSell.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using System.Net.Http;
 
 namespace CountOrSell.Tests.Integration.Updates;
 
@@ -27,7 +28,7 @@ public class ContentUpdateTransactionRollbackTest : IClassFixture<PostgreSqlFixt
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, verifier, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
 
         // Build a package with treatments but cards referencing a set that does not exist
         var (packageStream, packageManifest) = PackageBuilder.Build(
@@ -43,7 +44,7 @@ public class ContentUpdateTransactionRollbackTest : IClassFixture<PostgreSqlFixt
 
         // Should throw due to FK violation on cards.set_code -> sets.code
         await Assert.ThrowsAnyAsync<Exception>(() =>
-            applicator.ApplyContentUpdateAsync(packageStream, packageManifest, CancellationToken.None));
+            applicator.ApplyContentUpdateAsync(packageStream, packageManifest, "http://localhost/test/", CancellationToken.None));
 
         // Transaction should have rolled back - the update version must NOT be recorded
         await using var verifyDb = _fixture.CreateContext();
@@ -61,7 +62,7 @@ public class ContentUpdateTransactionRollbackTest : IClassFixture<PostgreSqlFixt
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, verifier, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
 
         var uniqueTreatmentKey = $"rollback-test-{Guid.NewGuid():N}";
         var (packageStream, packageManifest) = PackageBuilder.Build(
@@ -75,13 +76,19 @@ public class ContentUpdateTransactionRollbackTest : IClassFixture<PostgreSqlFixt
             });
 
         await Assert.ThrowsAnyAsync<Exception>(() =>
-            applicator.ApplyContentUpdateAsync(packageStream, packageManifest, CancellationToken.None));
+            applicator.ApplyContentUpdateAsync(packageStream, packageManifest, "http://localhost/test/", CancellationToken.None));
 
         // Verify the treatment was NOT persisted (transaction rolled back)
         await using var verifyDb = _fixture.CreateContext();
         var treatmentExists = await verifyDb.Treatments.AnyAsync(t => t.Key == uniqueTreatmentKey);
         Assert.False(treatmentExists);
     }
+}
+
+// Test double - no-op HttpClientFactory for tests that do not fetch images.
+internal sealed class NoOpHttpClientFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new();
 }
 
 // Test double - no-op image store for tests that do not care about image saving.

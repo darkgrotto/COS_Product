@@ -9,6 +9,7 @@ using CountOrSell.Tests.Integration.Updates;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using System.Net.Http;
 
 namespace CountOrSell.Tests.Integration.SealedProduct;
 
@@ -26,6 +27,7 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
         new(db, new NoOpImageStore(),
             new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance),
             new PackageVerifier(),
+            new NoOpHttpClientFactory(),
             NullLogger<ContentUpdateApplicator>.Instance);
 
     [Fact]
@@ -48,7 +50,7 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
 
         var sets = new List<SetDto> { new() { Code = setCode, Name = "Tax Test Set", TotalCards = 0 } };
         var (pkg, manifest) = PackageBuilder.Build(sets: sets, taxonomy: taxonomy);
-        await applicator.ApplyContentUpdateAsync(pkg, manifest, CancellationToken.None);
+        await applicator.ApplyContentUpdateAsync(pkg, manifest, "http://localhost/test/", CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateContext();
         var taxonomyRepo = new SealedTaxonomyRepository(verifyDb, NullLogger<SealedTaxonomyRepository>.Instance);
@@ -85,7 +87,7 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
                     new() { Slug = catSlugOld, DisplayName = "Old Cat", SortOrder = 1 }
                 }
             });
-        await setupApplicator.ApplyContentUpdateAsync(pkg1, manifest1, CancellationToken.None);
+        await setupApplicator.ApplyContentUpdateAsync(pkg1, manifest1, "http://localhost/test/", CancellationToken.None);
 
         // Create a user with an inventory entry using the old category
         await using var db2 = _fixture.CreateContext();
@@ -132,7 +134,7 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
                     new() { Slug = catSlugNew, DisplayName = "New Cat", SortOrder = 1 }
                 }
             });
-        await applicator2.ApplyContentUpdateAsync(pkg2, manifest2, CancellationToken.None);
+        await applicator2.ApplyContentUpdateAsync(pkg2, manifest2, "http://localhost/test/", CancellationToken.None);
 
         // Verify inventory entry has been nulled
         await using var verifyDb = _fixture.CreateContext();
@@ -180,7 +182,7 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
                     }
                 }
             });
-        await setupApplicator.ApplyContentUpdateAsync(pkg1, manifest1, CancellationToken.None);
+        await setupApplicator.ApplyContentUpdateAsync(pkg1, manifest1, "http://localhost/test/", CancellationToken.None);
 
         // Create inventory entry with the old sub-type
         await using var db2 = _fixture.CreateContext();
@@ -237,7 +239,7 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
                     }
                 }
             });
-        await applicator2.ApplyContentUpdateAsync(pkg2, manifest2, CancellationToken.None);
+        await applicator2.ApplyContentUpdateAsync(pkg2, manifest2, "http://localhost/test/", CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateContext();
         var updatedEntry = await verifyDb.SealedInventoryEntries.FindAsync(entryId);

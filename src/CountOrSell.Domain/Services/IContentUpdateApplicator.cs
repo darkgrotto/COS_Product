@@ -4,6 +4,7 @@ namespace CountOrSell.Domain.Services;
 
 public interface IContentUpdateApplicator
 {
-    Task ApplyContentUpdateAsync(Stream packageStream, PackageManifest packageManifest, CancellationToken ct);
-    Task ApplyImagesOnlyAsync(Stream packageStream, PackageManifest packageManifest, CancellationToken ct);
+    // packageBaseUrl: the directory URL above manifest.json, used to fetch individual image blobs
+    Task ApplyContentUpdateAsync(Stream packageStream, PackageManifest packageManifest, string packageBaseUrl, CancellationToken ct);
+    Task ApplyImagesOnlyAsync(string packageBaseUrl, PackageManifest packageManifest, CancellationToken ct);
 }

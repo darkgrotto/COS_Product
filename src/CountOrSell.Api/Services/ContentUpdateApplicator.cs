@@ -19,19 +19,23 @@ namespace CountOrSell.Api.Services;
 //   metadata/taxonomy.json                      - TaxonomyDto (categories + sub_types)
 //   metadata/sets/{set_code}/set.json           - SetDto (one per set)
 //   metadata/sets/{set_code}/cards.json         - array of CardDto (one per set)
+//   metadata/sets/{set_code}/pricing.json       - array of PricingEntryDto (one per set)
 //   metadata/sealed/{product_id}.json           - SealedProductDto (one per product)
-//   images/sets/{set_code}/{card_id}.jpg        - card images
-//   images/sealed/{product_id}.jpg              - sealed product front image
-//   images/sealed/{product_id}_s.jpg            - sealed product supplemental image
 //
-// Checksums in the per-package manifest use format "sha256:<hex_lowercase>" per file path.
-// Image files are saved outside the DB transaction - image failures are non-fatal.
+// Images are NOT bundled in the ZIP. They are individual blobs accessible at
+//   {packageBaseUrl}/images/sets/{set_code}/{card_id}.jpg
+//   {packageBaseUrl}/images/sealed/{product_id}.jpg
+//   {packageBaseUrl}/images/sealed/{product_id}_s.jpg
+//
+// Image paths are listed as keys in the per-package manifest checksums.
+// Image files are fetched outside the DB transaction - image failures are non-fatal.
 public class ContentUpdateApplicator : IContentUpdateApplicator
 {
     private readonly AppDbContext _db;
     private readonly IImageStore _imageStore;
     private readonly ISealedTaxonomyRepository _taxonomy;
     private readonly IPackageVerifier _verifier;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ContentUpdateApplicator> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -44,17 +48,19 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         IImageStore imageStore,
         ISealedTaxonomyRepository taxonomy,
         IPackageVerifier verifier,
+        IHttpClientFactory httpClientFactory,
         ILogger<ContentUpdateApplicator> logger)
     {
         _db = db;
         _imageStore = imageStore;
         _taxonomy = taxonomy;
         _verifier = verifier;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
     public async Task ApplyContentUpdateAsync(
-        Stream packageStream, PackageManifest packageManifest, CancellationToken ct)
+        Stream packageStream, PackageManifest packageManifest, string packageBaseUrl, CancellationToken ct)
     {
         if (packageStream.CanSeek) packageStream.Position = 0;
         using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
@@ -153,8 +159,8 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             throw;
         }
 
-        // Save images outside the transaction - best effort, non-fatal
-        await SaveImagesAsync(archive, packageManifest.Checksums, ct);
+        // Fetch and save images outside the transaction - best effort, non-fatal
+        await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
     }
 
     private T? ReadAndVerifyJson<T>(
@@ -370,76 +376,83 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
     }
 
     public async Task ApplyImagesOnlyAsync(
-        Stream packageStream, PackageManifest packageManifest, CancellationToken ct)
+        string packageBaseUrl, PackageManifest packageManifest, CancellationToken ct)
     {
-        if (packageStream.CanSeek) packageStream.Position = 0;
-        using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
-        await SaveImagesAsync(archive, packageManifest.Checksums, ct);
+        await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
     }
 
-    private async Task SaveImagesAsync(
-        ZipArchive archive, Dictionary<string, string> checksums, CancellationToken ct)
+    // Fetches image blobs individually from the package base URL and saves them to the image store.
+    // Images are listed as manifest checksum keys (prefix "images/"). Up to 10 concurrent fetches.
+    private async Task FetchAndSaveImagesAsync(
+        string packageBaseUrl, Dictionary<string, string> checksums, CancellationToken ct)
     {
-        var imageEntries = archive.Entries
-            .Where(e => e.FullName.StartsWith("images/", StringComparison.OrdinalIgnoreCase)
-                        && e.Name.Length > 0)
+        var imagePaths = checksums.Keys
+            .Where(k => k.StartsWith("images/", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        _logger.LogInformation("SaveImagesAsync: {Count} image entries found in package", imageEntries.Count);
+        _logger.LogInformation("FetchAndSaveImagesAsync: {Count} image paths in manifest", imagePaths.Count);
 
-        if (imageEntries.Count == 0)
+        if (imagePaths.Count == 0)
         {
-            _logger.LogInformation("SaveImagesAsync: package contains no image entries - skipping image extraction");
+            _logger.LogInformation("FetchAndSaveImagesAsync: no image paths in manifest checksums");
             return;
         }
 
+        var baseUrl = packageBaseUrl.TrimEnd('/') + "/";
+        var http = _httpClientFactory.CreateClient("ImageFetch");
+        var semaphore = new SemaphoreSlim(10, 10);
         int saved = 0, skippedChecksum = 0, failed = 0;
+        var savedLock = new object();
 
-        foreach (var entry in imageEntries)
+        var tasks = imagePaths.Select(async imagePath =>
         {
-            // Strip "images/" prefix and normalize to lowercase for case-insensitive filesystem safety.
-            // ZIP entry paths are spec'd lowercase but normalizing defensively prevents Linux case mismatches.
-            var storePath = entry.FullName.Substring("images/".Length).ToLowerInvariant();
-            if (string.IsNullOrEmpty(storePath))
-            {
-                _logger.LogWarning("Unrecognised image path in package, skipping: {Path}", entry.FullName);
-                continue;
-            }
-
+            await semaphore.WaitAsync(ct);
             try
             {
-                using var stream = entry.Open();
-                using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms, ct);
-                var bytes = ms.ToArray();
+                var storePath = imagePath.Substring("images/".Length).ToLowerInvariant();
+                var imageUrl = baseUrl + imagePath;
 
-                // Checksum key may use the original (non-lowercased) entry path
-                var checksumKey = entry.FullName;
-                if (!checksums.TryGetValue(checksumKey, out var expectedChecksum))
+                byte[] bytes;
+                try
                 {
-                    // Try lowercase key as fallback
-                    checksums.TryGetValue(checksumKey.ToLowerInvariant(), out expectedChecksum);
+                    bytes = await http.GetByteArrayAsync(imageUrl, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to fetch image {Url}", imageUrl);
+                    lock (savedLock) failed++;
+                    return;
                 }
 
-                if (expectedChecksum != null && !_verifier.VerifyFileChecksum(bytes, expectedChecksum))
+                if (checksums.TryGetValue(imagePath, out var expectedChecksum)
+                    && !_verifier.VerifyFileChecksum(bytes, expectedChecksum))
                 {
-                    _logger.LogWarning("Checksum mismatch for image {Path}, skipping", entry.FullName);
-                    skippedChecksum++;
-                    continue;
+                    _logger.LogWarning("Checksum mismatch for image {Path}, skipping", imagePath);
+                    lock (savedLock) skippedChecksum++;
+                    return;
                 }
 
-                await _imageStore.SaveImageAsync(storePath, bytes, ct);
-                saved++;
+                try
+                {
+                    await _imageStore.SaveImageAsync(storePath, bytes, ct);
+                    lock (savedLock) saved++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to save image {Path}", storePath);
+                    lock (savedLock) failed++;
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                _logger.LogError(ex, "Failed to save image {Path}", entry.FullName);
-                failed++;
+                semaphore.Release();
             }
-        }
+        });
+
+        await Task.WhenAll(tasks);
 
         _logger.LogInformation(
-            "SaveImagesAsync complete: {Saved} saved, {SkippedChecksum} skipped (checksum), {Failed} failed",
+            "FetchAndSaveImagesAsync complete: {Saved} saved, {Skipped} skipped (checksum), {Failed} failed",
             saved, skippedChecksum, failed);
     }
 }

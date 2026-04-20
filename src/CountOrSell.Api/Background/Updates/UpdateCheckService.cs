@@ -128,10 +128,16 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             // Download the package ZIP
             var packageStream = await downloader.DownloadPackageAsync(packageRef.DownloadUrl, ct);
 
+            // Derive the base URL for fetching image blobs (directory above manifest.json)
+            var lastSlash = packageRef.ManifestUrl.LastIndexOf('/');
+            var packageBaseUrl = lastSlash >= 0
+                ? packageRef.ManifestUrl[..(lastSlash + 1)]
+                : packageRef.ManifestUrl;
+
             // Apply the content update. Use CancellationToken.None so that an HTTP request
             // timeout cancelling ct cannot interrupt the transaction mid-apply; the DB
             // operations must complete atomically regardless of the caller's lifetime.
-            await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, CancellationToken.None);
+            await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, packageBaseUrl, CancellationToken.None);
 
             // Delta packages only contain images that changed since the base full package.
             // If the applied package has no images AND the image store is empty (e.g. fresh
@@ -151,8 +157,11 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                     var fullManifest = await manifestClient.FetchPackageManifestAsync(fullRef.ManifestUrl, CancellationToken.None);
                     if (fullManifest != null)
                     {
-                        var fullStream = await downloader.DownloadPackageAsync(fullRef.DownloadUrl, CancellationToken.None);
-                        await applicator.ApplyImagesOnlyAsync(fullStream, fullManifest, CancellationToken.None);
+                        var fullLastSlash = fullRef.ManifestUrl.LastIndexOf('/');
+                        var fullBaseUrl = fullLastSlash >= 0
+                            ? fullRef.ManifestUrl[..(fullLastSlash + 1)]
+                            : fullRef.ManifestUrl;
+                        await applicator.ApplyImagesOnlyAsync(fullBaseUrl, fullManifest, CancellationToken.None);
                     }
                 }
             }

@@ -111,6 +111,12 @@ switch (cloudProvider.ToLowerInvariant())
         break;
 }
 
+// Named HTTP client for fetching image blobs from update packages
+builder.Services.AddHttpClient("ImageFetch", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
 // Log forwarding
 builder.Services.AddSingleton<LogForwardingConfigHolder>();
 builder.Services.AddSingleton<HttpLogForwardingProvider>();

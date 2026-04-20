@@ -5,6 +5,7 @@ using CountOrSell.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using CountOrSell.Tests.Integration.Updates;
 
 namespace CountOrSell.Tests.Integration.Updates;
 
@@ -26,7 +27,7 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, verifier, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
 
         var setCode = $"t{Guid.NewGuid():N}".Substring(0, 4);
         var cardId = $"{setCode}001";
@@ -48,7 +49,7 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         var (packageStream, packageManifest) = PackageBuilder.Build(
             treatments: treatments, sets: sets, cards: cards);
 
-        await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, CancellationToken.None);
+        await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, "http://localhost/test/", CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateContext();
 
@@ -75,7 +76,7 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, verifier, NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
 
         var treatmentKey = $"upsert-{Guid.NewGuid():N}".Substring(0, 14);
         var setCode = $"u{Guid.NewGuid():N}".Substring(0, 4);
@@ -92,13 +93,13 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
                 new() { Key = treatmentKey, DisplayName = "Original Name", SortOrder = 1 }
             },
             sets: sets);
-        await applicator.ApplyContentUpdateAsync(package1, manifest1, CancellationToken.None);
+        await applicator.ApplyContentUpdateAsync(package1, manifest1, "http://localhost/test/", CancellationToken.None);
 
         // Second apply - update the treatment display name
         await using var db2 = _fixture.CreateContext();
         var taxonomy2 = new SealedTaxonomyRepository(db2, NullLogger<SealedTaxonomyRepository>.Instance);
         var applicator2 = new ContentUpdateApplicator(
-            db2, imageStore, taxonomy2, verifier, NullLogger<ContentUpdateApplicator>.Instance);
+            db2, imageStore, taxonomy2, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
 
         var (package2, manifest2) = PackageBuilder.Build(
             treatments: new List<TreatmentDto>
@@ -106,7 +107,7 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
                 new() { Key = treatmentKey, DisplayName = "Updated Name", SortOrder = 2 }
             },
             sets: sets);
-        await applicator2.ApplyContentUpdateAsync(package2, manifest2, CancellationToken.None);
+        await applicator2.ApplyContentUpdateAsync(package2, manifest2, "http://localhost/test/", CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateContext();
         var treatment = await verifyDb.Treatments.FindAsync(treatmentKey);
