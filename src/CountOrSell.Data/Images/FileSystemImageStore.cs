@@ -1,14 +1,18 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace CountOrSell.Data.Images;
 
 public class FileSystemImageStore : IImageStore
 {
     private readonly string _basePath;
+    private readonly ILogger<FileSystemImageStore> _logger;
 
-    public FileSystemImageStore(IConfiguration config)
+    public FileSystemImageStore(IConfiguration config, ILogger<FileSystemImageStore> logger)
     {
         _basePath = config["ImageStore:BasePath"] ?? Path.Combine(AppContext.BaseDirectory, "images");
+        _logger = logger;
+        _logger.LogInformation("FileSystemImageStore initialised with basePath: {BasePath}", _basePath);
     }
 
     public async Task SaveImageAsync(string relativePath, byte[] data, CancellationToken ct)
@@ -22,7 +26,11 @@ public class FileSystemImageStore : IImageStore
     public async Task<byte[]?> GetImageAsync(string relativePath, CancellationToken ct)
     {
         var fullPath = Path.Combine(_basePath, relativePath);
-        if (!File.Exists(fullPath)) return null;
+        if (!File.Exists(fullPath))
+        {
+            _logger.LogDebug("Image not found in store: {FullPath}", fullPath);
+            return null;
+        }
         return await File.ReadAllBytesAsync(fullPath, ct);
     }
 

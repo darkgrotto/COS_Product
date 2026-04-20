@@ -380,15 +380,26 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
     private async Task SaveImagesAsync(
         ZipArchive archive, Dictionary<string, string> checksums, CancellationToken ct)
     {
-        foreach (var entry in archive.Entries)
-        {
-            if (!entry.FullName.StartsWith("images/", StringComparison.OrdinalIgnoreCase)) continue;
-            if (entry.Name.Length == 0) continue; // directory entry
+        var imageEntries = archive.Entries
+            .Where(e => e.FullName.StartsWith("images/", StringComparison.OrdinalIgnoreCase)
+                        && e.Name.Length > 0)
+            .ToList();
 
-            // Strip the leading "images/" prefix so the store path mirrors the ZIP hierarchy:
-            //   images/sets/{set_code}/{card_id}.jpg  -> sets/{set_code}/{card_id}.jpg
-            //   images/sealed/{product_id}.jpg        -> sealed/{product_id}.jpg
-            var storePath = entry.FullName.Substring("images/".Length);
+        _logger.LogInformation("SaveImagesAsync: {Count} image entries found in package", imageEntries.Count);
+
+        if (imageEntries.Count == 0)
+        {
+            _logger.LogInformation("SaveImagesAsync: package contains no image entries - skipping image extraction");
+            return;
+        }
+
+        int saved = 0, skippedChecksum = 0, failed = 0;
+
+        foreach (var entry in imageEntries)
+        {
+            // Strip "images/" prefix and normalize to lowercase for case-insensitive filesystem safety.
+            // ZIP entry paths are spec'd lowercase but normalizing defensively prevents Linux case mismatches.
+            var storePath = entry.FullName.Substring("images/".Length).ToLowerInvariant();
             if (string.IsNullOrEmpty(storePath))
             {
                 _logger.LogWarning("Unrecognised image path in package, skipping: {Path}", entry.FullName);
@@ -402,19 +413,33 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 await stream.CopyToAsync(ms, ct);
                 var bytes = ms.ToArray();
 
-                if (checksums.TryGetValue(entry.FullName, out var expectedChecksum)
-                    && !_verifier.VerifyFileChecksum(bytes, expectedChecksum))
+                // Checksum key may use the original (non-lowercased) entry path
+                var checksumKey = entry.FullName;
+                if (!checksums.TryGetValue(checksumKey, out var expectedChecksum))
+                {
+                    // Try lowercase key as fallback
+                    checksums.TryGetValue(checksumKey.ToLowerInvariant(), out expectedChecksum);
+                }
+
+                if (expectedChecksum != null && !_verifier.VerifyFileChecksum(bytes, expectedChecksum))
                 {
                     _logger.LogWarning("Checksum mismatch for image {Path}, skipping", entry.FullName);
+                    skippedChecksum++;
                     continue;
                 }
 
                 await _imageStore.SaveImageAsync(storePath, bytes, ct);
+                saved++;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to save image {Path}", entry.FullName);
+                _logger.LogError(ex, "Failed to save image {Path}", entry.FullName);
+                failed++;
             }
         }
+
+        _logger.LogInformation(
+            "SaveImagesAsync complete: {Saved} saved, {SkippedChecksum} skipped (checksum), {Failed} failed",
+            saved, skippedChecksum, failed);
     }
 }
