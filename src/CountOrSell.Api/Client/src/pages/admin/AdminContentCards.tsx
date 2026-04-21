@@ -125,10 +125,11 @@ function RarityBadge({ rarity }: { rarity: string | null }) {
   return <Badge className={cls}>{capitalise(rarity)}</Badge>
 }
 
-function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function FilterChip({ label, active, onClick, title }: { label: string; active: boolean; onClick: () => void; title?: string }) {
   return (
     <button
       onClick={onClick}
+      title={title}
       className={cn(
         'px-2 py-0.5 text-xs rounded border transition-colors whitespace-nowrap',
         active
@@ -378,6 +379,8 @@ function CardsTable({
   const [colorFilter, setColorFilter] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
   const [rarityFilter, setRarityFilter] = useState<string | null>(null)
+  const [rlFilter, setRlFilter] = useState(false)
+  const [phiFilter, setPhiFilter] = useState(false)
   const [sortField, setSortField] = useState<CardSortField>('collectorNumber')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -420,6 +423,8 @@ function CardsTable({
     : []
 
   const availableRarities = RARITIES.filter(r => cards?.some(c => c.rarity === r))
+  const hasReserved = cards?.some(c => c.isReserved) ?? false
+  const hasPhiMana = cards?.some(c => c.manaCost?.includes('/P}') ?? false) ?? false
 
   // Apply filters
   const q = filter.toLowerCase()
@@ -432,6 +437,8 @@ function CardsTable({
   }
   if (typeFilter) visible = visible.filter(c => deriveCardType(c.cardType) === typeFilter)
   if (rarityFilter) visible = visible.filter(c => c.rarity === rarityFilter)
+  if (rlFilter) visible = visible.filter(c => c.isReserved)
+  if (phiFilter) visible = visible.filter(c => c.manaCost?.includes('/P}') ?? false)
   if (filter) visible = visible.filter(c =>
     c.identifier.toLowerCase().includes(q) ||
     c.name.toLowerCase().includes(q) ||
@@ -459,73 +466,95 @@ function CardsTable({
     return sortDir === 'asc' ? cmp : -cmp
   })
 
+  const COLOR_TITLES: Record<string, string> = {
+    W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green', C: 'Colorless',
+  }
+
   return (
     <div className="space-y-3">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1 shrink-0">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Sets
-        </Button>
-        <span className="font-medium">
-          <span className="font-mono">{set.code}</span>
-          {' - '}
-          {set.name}
-        </span>
+      {/* Back button */}
+      <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
+        <ArrowLeft className="h-4 w-4" />
+        Back to Sets
+      </Button>
+
+      {/* Set title */}
+      <div className="flex items-center gap-2">
+        <SetSymbol setCode={set.code.toLowerCase()} className="text-xl" />
+        <h2 className="text-xl font-semibold">{set.name}</h2>
+        <span className="text-xs font-mono text-muted-foreground">{set.code}</span>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        {availableColors.length > 0 && (
-          <div className="flex gap-1 flex-wrap">
-            {availableColors.map(col => (
-              <FilterChip
-                key={col}
-                label={col}
-                active={colorFilter === col}
-                onClick={() => setColorFilter(colorFilter === col ? null : col)}
-              />
-            ))}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {availableColors.map(col => (
+            <FilterChip
+              key={col}
+              label={col}
+              title={COLOR_TITLES[col] ?? col}
+              active={colorFilter === col}
+              onClick={() => setColorFilter(colorFilter === col ? null : col)}
+            />
+          ))}
+          {availableColors.length > 0 && availableTypes.length > 1 && (
+            <span className="text-xs text-muted-foreground mx-0.5">|</span>
+          )}
+          {availableTypes.length > 1 && availableTypes.map(t => (
+            <FilterChip
+              key={t}
+              label={t}
+              active={typeFilter === t}
+              onClick={() => setTypeFilter(typeFilter === t ? null : t)}
+            />
+          ))}
+          {availableTypes.length > 1 && availableRarities.length > 1 && (
+            <span className="text-xs text-muted-foreground mx-0.5">|</span>
+          )}
+          {availableRarities.length > 1 && availableRarities.map(r => (
+            <FilterChip
+              key={r}
+              label={capitalise(r)}
+              active={rarityFilter === r}
+              onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
+            />
+          ))}
+          {(availableColors.length > 0 || availableTypes.length > 1 || availableRarities.length > 1) &&
+            (hasReserved || hasPhiMana) && (
+            <span className="text-xs text-muted-foreground mx-0.5">|</span>
+          )}
+          {hasReserved && (
+            <FilterChip
+              label="Reserved List"
+              active={rlFilter}
+              onClick={() => setRlFilter(v => !v)}
+            />
+          )}
+          {hasPhiMana && (
+            <FilterChip
+              label="Phi Mana"
+              active={phiFilter}
+              onClick={() => setPhiFilter(v => !v)}
+            />
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {cards && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {visible.length}{visible.length !== cards.length ? `/${cards.length}` : ''}{' '}
+              card{cards.length !== 1 ? 's' : ''}
+            </span>
+          )}
+          <div className="relative shrink-0">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              className="pl-7 h-7 text-xs w-44"
+              placeholder="Filter..."
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+            />
           </div>
-        )}
-        {availableTypes.length > 1 && (
-          <div className="flex gap-1 flex-wrap">
-            {availableTypes.map(t => (
-              <FilterChip
-                key={t}
-                label={t}
-                active={typeFilter === t}
-                onClick={() => setTypeFilter(typeFilter === t ? null : t)}
-              />
-            ))}
-          </div>
-        )}
-        {availableRarities.length > 1 && (
-          <div className="flex gap-1 flex-wrap">
-            {availableRarities.map(r => (
-              <FilterChip
-                key={r}
-                label={capitalise(r)}
-                active={rarityFilter === r}
-                onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
-              />
-            ))}
-          </div>
-        )}
-        {cards && (
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {visible.length}{visible.length !== cards.length ? `/${cards.length}` : ''}{' '}
-            card{cards.length !== 1 ? 's' : ''}
-          </span>
-        )}
-        <div className="relative shrink-0">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            className="pl-7 h-7 text-xs w-44"
-            placeholder="Filter..."
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-          />
         </div>
       </div>
 

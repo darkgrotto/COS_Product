@@ -417,21 +417,19 @@ function CardListView({
 
   return (
     <div className="space-y-3">
+      <button
+        type="button"
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        onClick={onBack}
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Sets
+      </button>
+
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          onClick={onBack}
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Sets
-        </button>
-        <span className="text-muted-foreground">/</span>
-        <span className="flex items-center gap-1.5 text-sm font-medium">
-          <SetSymbol setCode={set.code} />
-          {set.name}
-        </span>
-        <span className="text-xs text-muted-foreground ml-1">({set.code.toUpperCase()})</span>
+        <SetSymbol setCode={set.code} className="text-xl shrink-0" />
+        <h2 className="text-xl font-semibold">{set.name}</h2>
+        <span className="text-xs font-mono text-muted-foreground">({set.code.toUpperCase()})</span>
       </div>
 
       <div className="space-y-2">
@@ -445,24 +443,22 @@ function CardListView({
           />
         </div>
 
-        {visibleColors.length > 0 && (
+        {(visibleColors.length > 0 || visibleTypes.length > 0 || visibleRarities.length > 0 ||
+          hasReserved || hasPhiMana || hasHybridMana) && (
           <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-muted-foreground">Color:</span>
             {visibleColors.map(col => (
               <ToggleChip
                 key={col.key}
+                title={col.title}
                 active={colorFilter === col.key}
                 onClick={() => setColorFilter(colorFilter === col.key ? '' : col.key)}
               >
                 {col.label}
               </ToggleChip>
             ))}
-          </div>
-        )}
-
-        {visibleTypes.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-muted-foreground">Type:</span>
+            {visibleColors.length > 0 && visibleTypes.length > 0 && (
+              <span className="text-xs text-muted-foreground mx-1">|</span>
+            )}
             {visibleTypes.map(t => (
               <ToggleChip
                 key={t}
@@ -472,12 +468,9 @@ function CardListView({
                 {t}
               </ToggleChip>
             ))}
-          </div>
-        )}
-
-        {visibleRarities.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-muted-foreground">Rarity:</span>
+            {visibleTypes.length > 0 && visibleRarities.length > 0 && (
+              <span className="text-xs text-muted-foreground mx-1">|</span>
+            )}
             {visibleRarities.map(r => (
               <ToggleChip
                 key={r}
@@ -487,27 +480,10 @@ function CardListView({
                 {r.charAt(0).toUpperCase() + r.slice(1)}
               </ToggleChip>
             ))}
-          </div>
-        )}
-
-        {visibleTreatments.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-muted-foreground">Treatment:</span>
-            {visibleTreatments.map(t => (
-              <ToggleChip
-                key={t.key}
-                active={treatmentFilter === t.key}
-                onClick={() => setTreatmentFilter(treatmentFilter === t.key ? '' : t.key)}
-              >
-                {t.displayName}
-              </ToggleChip>
-            ))}
-          </div>
-        )}
-
-        {(hasReserved || hasPhiMana || hasHybridMana) && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-muted-foreground">Show:</span>
+            {(visibleRarities.length > 0 || visibleTypes.length > 0 || visibleColors.length > 0) &&
+              (hasReserved || hasPhiMana || hasHybridMana) && (
+              <span className="text-xs text-muted-foreground mx-1">|</span>
+            )}
             {hasReserved && (
               <ToggleChip active={rlFilter} onClick={() => setRlFilter(v => !v)}>
                 <span className="inline-flex items-center gap-1">
@@ -525,6 +501,21 @@ function CardListView({
                 Hybrid Mana
               </ToggleChip>
             )}
+          </div>
+        )}
+
+        {visibleTreatments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-muted-foreground">Treatment:</span>
+            {visibleTreatments.map(t => (
+              <ToggleChip
+                key={t.key}
+                active={treatmentFilter === t.key}
+                onClick={() => setTreatmentFilter(treatmentFilter === t.key ? '' : t.key)}
+              >
+                {t.displayName}
+              </ToggleChip>
+            ))}
           </div>
         )}
       </div>
