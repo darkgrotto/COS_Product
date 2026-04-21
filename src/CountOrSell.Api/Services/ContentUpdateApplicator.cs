@@ -357,6 +357,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 Name = d.Name,
                 CategorySlug = d.CategorySlug,
                 SubTypeSlug = d.SubTypeSlug,
+                ImagePath = d.FrontImageBlobName,
                 UpdatedAt = DateTime.UtcNow
             }));
 
@@ -369,6 +370,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.Name = dto.Name;
                 entity.CategorySlug = dto.CategorySlug;
                 entity.SubTypeSlug = dto.SubTypeSlug;
+                entity.ImagePath = dto.FrontImageBlobName;
                 entity.UpdatedAt = DateTime.UtcNow;
             }
         }

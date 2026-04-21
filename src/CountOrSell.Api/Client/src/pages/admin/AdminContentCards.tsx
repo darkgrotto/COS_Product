@@ -53,6 +53,7 @@ interface CardDetailDto {
   updatedAt: string
   isReserved: boolean
   validTreatments: string[]
+  imageUrl: string | null
 }
 
 interface ScryfallRuling {
@@ -191,6 +192,23 @@ function RulingsPanel({ rulingUrl }: { rulingUrl: string }) {
   )
 }
 
+// ---- Card Image ----
+
+function CardImage({ imageUrl, name }: { imageUrl: string | null; name: string }) {
+  const [failed, setFailed] = useState(false)
+
+  if (!imageUrl || failed) return null
+
+  return (
+    <img
+      src={imageUrl}
+      alt={name}
+      className="max-w-[220px] rounded-lg shadow-md block"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 // ---- Card Detail View ----
 
 function CardDetailView({
@@ -245,6 +263,9 @@ function CardDetailView({
             </div>
             <div className="text-sm text-muted-foreground">{detail.cardType}</div>
           </div>
+
+          {/* Card image */}
+          <CardImage imageUrl={detail.imageUrl} name={detail.name} />
 
           {/* Meta grid */}
           <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm max-w-xl">
