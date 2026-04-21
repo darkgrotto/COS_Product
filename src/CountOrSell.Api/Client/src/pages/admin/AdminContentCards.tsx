@@ -621,7 +621,7 @@ function CardsTable({
                     className="cursor-pointer hover:bg-accent"
                     onClick={() => onSelectCard(card)}
                   >
-                    <TableCell className="px-2 py-1">
+                    <TableCell className="px-2 py-1 w-[52px] min-w-[52px]">
                       <img
                         src={`/api/images/cards/${set.code.toLowerCase()}/${card.identifier.toLowerCase()}.jpg`}
                         alt=""

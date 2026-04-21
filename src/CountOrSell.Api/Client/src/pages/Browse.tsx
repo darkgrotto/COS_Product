@@ -596,7 +596,7 @@ function CardListView({
                           aria-label={`Select ${c.name}`}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 w-[52px] min-w-[52px]">
                         <img
                           src={`/api/images/cards/${set.code.toLowerCase()}/${c.identifier.toLowerCase()}.jpg`}
                           alt=""
