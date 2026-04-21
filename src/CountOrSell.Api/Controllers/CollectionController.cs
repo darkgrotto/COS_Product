@@ -192,14 +192,40 @@ public class CollectionController : ControllerBase
     }
 
     [HttpGet("completion")]
-    public async Task<IActionResult> GetAllSetCompletion([FromQuery] Guid? userId, [FromQuery] bool regularOnly = false, CancellationToken ct = default)
+    public async Task<IActionResult> GetAllSetCompletion(
+        [FromQuery] Guid? userId,
+        [FromQuery] bool regularOnly = false,
+        [FromQuery] CollectionFilter? filter = null,
+        CancellationToken ct = default)
     {
         if (userId.HasValue && !IsAdmin)
             return Forbid();
 
         var targetUserId = ResolveUserId(userId);
-        var results = await _metrics.GetAllSetCompletionAsync(targetUserId, regularOnly, ct);
+        var results = await _metrics.GetAllSetCompletionAsync(targetUserId, regularOnly, filter, ct);
         return Ok(results);
+    }
+
+    [HttpGet("top-cards")]
+    public async Task<IActionResult> GetTopCards(
+        [FromQuery] Guid? userId,
+        [FromQuery] string metric = "value",
+        [FromQuery] int limit = 25,
+        [FromQuery] int offset = 0,
+        [FromQuery] CollectionFilter? filter = null,
+        CancellationToken ct = default)
+    {
+        if (userId.HasValue && !IsAdmin)
+            return Forbid();
+
+        if (limit < 1 || limit > 100) limit = 25;
+        if (offset < 0) offset = 0;
+        if (metric != "value" && metric != "frequency") metric = "value";
+
+        var targetUserId = ResolveUserId(userId);
+        var effectiveFilter = filter ?? new CollectionFilter();
+        var (results, totalCount) = await _metrics.GetTopCardsAsync(targetUserId, metric, limit, offset, effectiveFilter, ct);
+        return Ok(new { results, totalCount, limit, offset });
     }
 
     [HttpGet("completion/{setCode}")]

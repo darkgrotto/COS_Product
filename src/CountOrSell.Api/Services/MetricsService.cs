@@ -27,7 +27,12 @@ public class MetricsService : IMetricsService
         if (!string.IsNullOrEmpty(filter.SetCode))
             collectionQuery = collectionQuery.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
         if (!string.IsNullOrEmpty(filter.Color))
-            collectionQuery = collectionQuery.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
+        {
+            if (filter.Color == "C")
+                collectionQuery = collectionQuery.Where(x => string.IsNullOrEmpty(x.c.Color));
+            else
+                collectionQuery = collectionQuery.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
+        }
         if (!string.IsNullOrEmpty(filter.CardType))
             collectionQuery = collectionQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
         if (!string.IsNullOrEmpty(filter.Treatment))
@@ -147,7 +152,12 @@ public class MetricsService : IMetricsService
         if (!string.IsNullOrEmpty(filter.SetCode))
             collectionQuery = collectionQuery.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
         if (!string.IsNullOrEmpty(filter.Color))
-            collectionQuery = collectionQuery.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
+        {
+            if (filter.Color == "C")
+                collectionQuery = collectionQuery.Where(x => string.IsNullOrEmpty(x.c.Color));
+            else
+                collectionQuery = collectionQuery.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
+        }
         if (!string.IsNullOrEmpty(filter.CardType))
             collectionQuery = collectionQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
         if (!string.IsNullOrEmpty(filter.Treatment))
@@ -273,22 +283,79 @@ public class MetricsService : IMetricsService
         };
     }
 
-    public async Task<List<SetCompletionResult>> GetAllSetCompletionAsync(Guid userId, bool regularOnly, CancellationToken ct = default)
+    public async Task<List<SetCompletionResult>> GetAllSetCompletionAsync(
+        Guid userId, bool regularOnly, CollectionFilter? filter = null, CancellationToken ct = default)
     {
         var sets = await _db.Sets.ToListAsync(ct);
 
-        var collectionQuery = _db.CollectionEntries.Where(e => e.UserId == userId);
-        if (regularOnly)
-            collectionQuery = collectionQuery.Where(e => e.TreatmentKey == "regular");
-
-        var allIdentifiers = await collectionQuery
-            .Select(e => e.CardIdentifier)
-            .Distinct()
-            .ToListAsync(ct);
-
-        var valueBySet = await _db.CollectionEntries
+        // Owned count query - joins to cards so card-level filters can be applied
+        var ownedQuery = _db.CollectionEntries
             .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
-            .Where(x => x.ce.UserId == userId)
+            .Where(x => x.ce.UserId == userId);
+
+        if (regularOnly)
+            ownedQuery = ownedQuery.Where(x => x.ce.TreatmentKey == "regular");
+
+        if (filter != null)
+        {
+            if (!string.IsNullOrEmpty(filter.SetCode))
+                ownedQuery = ownedQuery.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
+            if (!string.IsNullOrEmpty(filter.Color))
+            {
+                if (filter.Color == "C")
+                    ownedQuery = ownedQuery.Where(x => string.IsNullOrEmpty(x.c.Color));
+                else
+                    ownedQuery = ownedQuery.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
+            }
+            if (!string.IsNullOrEmpty(filter.CardType))
+                ownedQuery = ownedQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
+            if (!string.IsNullOrEmpty(filter.Treatment))
+                ownedQuery = ownedQuery.Where(x => x.ce.TreatmentKey == filter.Treatment);
+            if (!string.IsNullOrEmpty(filter.Condition) && Enum.TryParse<CardCondition>(filter.Condition, true, out var condOwned))
+                ownedQuery = ownedQuery.Where(x => x.ce.Condition == condOwned);
+            if (filter.Autographed.HasValue)
+                ownedQuery = ownedQuery.Where(x => x.ce.Autographed == filter.Autographed.Value);
+        }
+
+        var ownedBySet = await ownedQuery
+            .GroupBy(x => x.c.SetCode)
+            .Select(g => new
+            {
+                SetCode = g.Key,
+                OwnedCount = g.Select(x => x.ce.CardIdentifier).Distinct().Count()
+            })
+            .ToDictionaryAsync(x => x.SetCode, x => x.OwnedCount, ct);
+
+        // Value query - same filters as owned
+        var valueQuery = _db.CollectionEntries
+            .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
+            .Where(x => x.ce.UserId == userId);
+
+        if (regularOnly)
+            valueQuery = valueQuery.Where(x => x.ce.TreatmentKey == "regular");
+
+        if (filter != null)
+        {
+            if (!string.IsNullOrEmpty(filter.SetCode))
+                valueQuery = valueQuery.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
+            if (!string.IsNullOrEmpty(filter.Color))
+            {
+                if (filter.Color == "C")
+                    valueQuery = valueQuery.Where(x => string.IsNullOrEmpty(x.c.Color));
+                else
+                    valueQuery = valueQuery.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
+            }
+            if (!string.IsNullOrEmpty(filter.CardType))
+                valueQuery = valueQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
+            if (!string.IsNullOrEmpty(filter.Treatment))
+                valueQuery = valueQuery.Where(x => x.ce.TreatmentKey == filter.Treatment);
+            if (!string.IsNullOrEmpty(filter.Condition) && Enum.TryParse<CardCondition>(filter.Condition, true, out var condVal))
+                valueQuery = valueQuery.Where(x => x.ce.Condition == condVal);
+            if (filter.Autographed.HasValue)
+                valueQuery = valueQuery.Where(x => x.ce.Autographed == filter.Autographed.Value);
+        }
+
+        var valueBySet = await valueQuery
             .GroupBy(x => x.c.SetCode)
             .Select(g => new
             {
@@ -296,27 +363,55 @@ public class MetricsService : IMetricsService
                 TotalValue = g.Sum(x => (x.c.CurrentMarketValue ?? 0) * x.ce.Quantity),
                 TotalProfitLoss = g.Sum(x => ((x.c.CurrentMarketValue ?? 0) - x.ce.AcquisitionPrice) * x.ce.Quantity)
             })
-            .ToListAsync(ct);
+            .ToDictionaryAsync(v => v.SetCode, ct);
 
-        var valueLookup = valueBySet.ToDictionary(v => v.SetCode);
+        // Total cards per set - adjusted when a card-level filter (color/cardType) is active
+        bool hasCardFilter = filter != null &&
+            (!string.IsNullOrEmpty(filter.Color) || !string.IsNullOrEmpty(filter.CardType));
+
+        Dictionary<string, int> totalBySet;
+        if (hasCardFilter)
+        {
+            var cardQuery = _db.Cards.AsQueryable();
+            if (!string.IsNullOrEmpty(filter!.Color))
+            {
+                if (filter.Color == "C")
+                    cardQuery = cardQuery.Where(c => string.IsNullOrEmpty(c.Color));
+                else
+                    cardQuery = cardQuery.Where(c => c.Color != null && c.Color.Contains(filter.Color));
+            }
+            if (!string.IsNullOrEmpty(filter.CardType))
+                cardQuery = cardQuery.Where(c => c.CardType != null && c.CardType.Contains(filter.CardType));
+
+            totalBySet = await cardQuery
+                .GroupBy(c => c.SetCode)
+                .Select(g => new { SetCode = g.Key, Total = g.Count() })
+                .ToDictionaryAsync(x => x.SetCode, x => x.Total, ct);
+        }
+        else
+        {
+            totalBySet = sets.ToDictionary(s => s.Code, s => s.TotalCards);
+        }
 
         var results = new List<SetCompletionResult>(sets.Count);
         foreach (var set in sets)
         {
-            var ownedCount = allIdentifiers.Count(id => id.StartsWith(set.Code));
+            ownedBySet.TryGetValue(set.Code, out var ownedCount);
+            valueBySet.TryGetValue(set.Code, out var val);
+            totalBySet.TryGetValue(set.Code, out var totalCards);
 
-            decimal percentage = set.TotalCards > 0
-                ? Math.Round((decimal)ownedCount / set.TotalCards * 100, 1)
+            if (hasCardFilter && totalCards == 0 && ownedCount == 0) continue;
+
+            decimal percentage = totalCards > 0
+                ? Math.Round((decimal)ownedCount / totalCards * 100, 1)
                 : 0;
-
-            valueLookup.TryGetValue(set.Code, out var val);
 
             results.Add(new SetCompletionResult
             {
                 SetCode = set.Code.ToUpperInvariant(),
                 SetName = set.Name,
                 OwnedCount = ownedCount,
-                TotalCards = set.TotalCards,
+                TotalCards = totalCards,
                 Percentage = percentage,
                 TotalValue = val?.TotalValue,
                 TotalProfitLoss = val?.TotalProfitLoss,
@@ -325,5 +420,63 @@ public class MetricsService : IMetricsService
         }
 
         return results.OrderByDescending(r => r.Percentage).ToList();
+    }
+
+    public async Task<(List<TopCardResult> Results, int TotalCount)> GetTopCardsAsync(
+        Guid userId, string metric, int limit, int offset, CollectionFilter filter, CancellationToken ct = default)
+    {
+        var query = _db.CollectionEntries
+            .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
+            .Where(x => x.ce.UserId == userId);
+
+        if (!string.IsNullOrEmpty(filter.SetCode))
+            query = query.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
+        if (!string.IsNullOrEmpty(filter.Color))
+        {
+            if (filter.Color == "C")
+                query = query.Where(x => string.IsNullOrEmpty(x.c.Color));
+            else
+                query = query.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
+        }
+        if (!string.IsNullOrEmpty(filter.CardType))
+            query = query.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
+        if (!string.IsNullOrEmpty(filter.Treatment))
+            query = query.Where(x => x.ce.TreatmentKey == filter.Treatment);
+        if (!string.IsNullOrEmpty(filter.Condition) && Enum.TryParse<CardCondition>(filter.Condition, true, out var cond))
+            query = query.Where(x => x.ce.Condition == cond);
+        if (filter.Autographed.HasValue)
+            query = query.Where(x => x.ce.Autographed == filter.Autographed.Value);
+
+        var grouped = query
+            .GroupBy(x => new { x.c.Identifier, x.c.Name, SetCode = x.c.SetCode, x.c.CurrentMarketValue })
+            .Select(g => new
+            {
+                CardIdentifier = g.Key.Identifier,
+                CardName = g.Key.Name,
+                SetCode = g.Key.SetCode,
+                MarketValue = g.Key.CurrentMarketValue,
+                TotalQuantity = g.Sum(x => x.ce.Quantity),
+                TotalValue = g.Sum(x => (x.c.CurrentMarketValue ?? 0m) * x.ce.Quantity)
+            });
+
+        var totalCount = await grouped.CountAsync(ct);
+
+        var ordered = metric == "frequency"
+            ? grouped.OrderByDescending(x => x.TotalQuantity).ThenBy(x => x.CardIdentifier)
+            : grouped.OrderByDescending(x => x.TotalValue).ThenBy(x => x.CardIdentifier);
+
+        var rows = await ordered.Skip(offset).Take(limit).ToListAsync(ct);
+
+        var results = rows.Select(x => new TopCardResult
+        {
+            CardIdentifier = x.CardIdentifier.ToUpperInvariant(),
+            CardName = x.CardName,
+            SetCode = x.SetCode.ToUpperInvariant(),
+            TotalQuantity = x.TotalQuantity,
+            TotalValue = x.TotalValue,
+            MarketValue = x.MarketValue
+        }).ToList();
+
+        return (results, totalCount);
     }
 }

@@ -25,7 +25,12 @@ public class CollectionRepository : ICollectionRepository
             query = query.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
 
         if (!string.IsNullOrEmpty(filter.Color))
-            query = query.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
+        {
+            if (filter.Color == "C")
+                query = query.Where(x => string.IsNullOrEmpty(x.c.Color));
+            else
+                query = query.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
+        }
 
         if (!string.IsNullOrEmpty(filter.CardType))
             query = query.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));

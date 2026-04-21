@@ -865,6 +865,8 @@ function FiltersPanel({
 
 // ---- By-set grouped view ----------------------------------------------------
 
+type SetSortKey = 'name' | 'owned' | 'total' | 'pct' | 'value'
+
 function SetGroupedView({
   completion,
   onDrillIn,
@@ -872,7 +874,28 @@ function SetGroupedView({
   completion: SetCompletion[]
   onDrillIn: (setCode: string) => void
 }) {
-  const totalValue = completion.reduce((s, c) => s + (c.totalValue ?? 0), 0)
+  const [sortKey, setSortKey] = useState<SetSortKey>('pct')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function handleSort(key: string) {
+    const k = key as SetSortKey
+    if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(k); setSortDir(k === 'name' ? 'asc' : 'desc') }
+  }
+
+  const sorted = [...completion].sort((a, b) => {
+    let cmp = 0
+    switch (sortKey) {
+      case 'name': cmp = a.setName.localeCompare(b.setName); break
+      case 'owned': cmp = a.ownedCount - b.ownedCount; break
+      case 'total': cmp = a.totalCards - b.totalCards; break
+      case 'pct': cmp = a.percentage - b.percentage; break
+      case 'value': cmp = (a.totalValue ?? -1) - (b.totalValue ?? -1); break
+    }
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+
+  const totalValue = sorted.reduce((s, c) => s + (c.totalValue ?? 0), 0)
 
   return (
     <div className="space-y-2">
@@ -880,15 +903,15 @@ function SetGroupedView({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground">
-              <th className="px-4 py-2 text-left">Set</th>
-              <th className="px-4 py-2 text-right">Owned</th>
-              <th className="px-4 py-2 text-right">Total</th>
-              <th className="px-4 py-2 text-right">Complete</th>
-              <th className="px-4 py-2 text-right">Value</th>
+              <SortTh label="Set" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+              <SortTh label="Owned" sortKey="owned" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+              <SortTh label="Total" sortKey="total" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+              <SortTh label="Complete" sortKey="pct" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+              <SortTh label="Value" sortKey="value" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
             </tr>
           </thead>
           <tbody>
-            {completion.length === 0 ? (
+            {sorted.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                   No cards in your collection yet.
@@ -896,7 +919,7 @@ function SetGroupedView({
               </tr>
             ) : (
               <>
-                {completion.map(s => (
+                {sorted.map(s => (
                   <tr
                     key={s.setCode}
                     className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
@@ -930,7 +953,7 @@ function SetGroupedView({
                 <tr className="border-t bg-muted/20 font-semibold">
                   <td className="px-4 py-2.5">Total</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">
-                    {completion.reduce((s, c) => s + c.ownedCount, 0)}
+                    {sorted.reduce((s, c) => s + c.ownedCount, 0)}
                   </td>
                   <td colSpan={2} />
                   <td className="px-4 py-2.5 text-right tabular-nums">{fmt(totalValue)}</td>
@@ -1352,7 +1375,17 @@ export function CollectionPage() {
   const [addFromDetail, setAddFromDetail] = useState<AddableCard | null>(null)
 
   async function loadCompletion() {
-    const res = await fetch('/api/collection/completion')
+    const params = new URLSearchParams()
+    if (filters.setCode) params.set('filter.setCode', filters.setCode)
+    if (filters.color) params.set('filter.color', filters.color)
+    if (filters.cardType) params.set('filter.cardType', filters.cardType)
+    if (filters.treatment) params.set('filter.treatment', filters.treatment)
+    if (filters.condition) params.set('filter.condition', filters.condition)
+    if (filters.autographed) params.set('filter.autographed', filters.autographed)
+    if (filters.isReserved) params.set('filter.isReserved', 'true')
+    if (filters.hasPhyrexianMana) params.set('filter.hasPhyrexianMana', 'true')
+    if (filters.hasHybridMana) params.set('filter.hasHybridMana', 'true')
+    const res = await fetch(`/api/collection/completion?${params}`)
     if (res.ok) {
       const all: SetCompletion[] = await res.json()
       setCompletion(all.filter(s => s.ownedCount > 0))

@@ -47,6 +47,7 @@ export function ReservedListPage() {
   const [sortKey, setSortKey] = useState<SortKey>(prefs.cardSortDefault === 'identifier' ? 'identifier' : 'name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [ownedOnly, setOwnedOnly] = useState(false)
+  const [unownedOnly, setUnownedOnly] = useState(false)
   const [colorFilter, setColorFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [treatmentFilter, setTreatmentFilter] = useState('')
@@ -107,11 +108,12 @@ export function ReservedListPage() {
   const filtered = useMemo(() => {
     let result = cards
     if (ownedOnly) result = result.filter(c => c.ownedQuantity > 0)
+    if (unownedOnly) result = result.filter(c => c.ownedQuantity === 0)
     if (colorFilter) result = result.filter(c => (c.color ?? '').includes(colorFilter))
     if (typeFilter) result = result.filter(c => (c.cardType ?? '').includes(typeFilter))
     if (treatmentFilter) result = result.filter(c => (c.validTreatments ?? []).includes(treatmentFilter))
     return result
-  }, [cards, ownedOnly, colorFilter, typeFilter, treatmentFilter])
+  }, [cards, ownedOnly, unownedOnly, colorFilter, typeFilter, treatmentFilter])
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -190,7 +192,7 @@ export function ReservedListPage() {
     await loadOwned()
   }
 
-  const hasActiveFilter = ownedOnly || !!colorFilter || !!typeFilter || !!treatmentFilter
+  const hasActiveFilter = ownedOnly || unownedOnly || !!colorFilter || !!typeFilter || !!treatmentFilter
 
   return (
     <div className="space-y-4">
@@ -258,16 +260,19 @@ export function ReservedListPage() {
 
           <div className="flex gap-1.5 items-center">
             <span className="text-xs text-muted-foreground">Show:</span>
-            <ToggleChip active={ownedOnly} onClick={() => setOwnedOnly(v => !v)}>
+            <ToggleChip active={ownedOnly} onClick={() => { setOwnedOnly(v => !v); setUnownedOnly(false) }}>
               <span className="inline-flex items-center gap-1">
                 <Star className="h-3 w-3" /> Owned only
               </span>
+            </ToggleChip>
+            <ToggleChip active={unownedOnly} onClick={() => { setUnownedOnly(v => !v); setOwnedOnly(false) }}>
+              Unowned only
             </ToggleChip>
             {hasActiveFilter && (
               <button
                 type="button"
                 className="text-xs text-muted-foreground hover:text-foreground underline ml-1"
-                onClick={() => { setColorFilter(''); setTypeFilter(''); setTreatmentFilter(''); setOwnedOnly(false) }}
+                onClick={() => { setColorFilter(''); setTypeFilter(''); setTreatmentFilter(''); setOwnedOnly(false); setUnownedOnly(false) }}
               >
                 Clear filters
               </button>
@@ -286,7 +291,7 @@ export function ReservedListPage() {
             Run a content update to populate Reserved List data.
           </p>
         </div>
-      ) : ownedOnly ? (
+      ) : ownedOnly && !unownedOnly ? (
         // Per-treatment owned entries view
         <>
           {selected.size > 0 && (

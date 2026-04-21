@@ -245,6 +245,24 @@ function FiltersPanel({
   )
 }
 
+// ---- Extra types ------------------------------------------------------------
+
+interface TopCardResult {
+  cardIdentifier: string
+  cardName: string
+  setCode: string
+  totalQuantity: number
+  totalValue: number
+  marketValue: number | null
+}
+
+interface TopCardsResponse {
+  results: TopCardResult[]
+  totalCount: number
+  limit: number
+  offset: number
+}
+
 // ---- Set breakdown table ----------------------------------------------------
 
 type SetSortKey = 'name' | 'code' | 'value' | 'pl' | 'completion' | 'release'
@@ -381,6 +399,218 @@ function SetBreakdownSection({
   )
 }
 
+// ---- Cards by decade --------------------------------------------------------
+
+function DecadeSection({ completion }: { completion: SetCompletion[] }) {
+  type DecadeRow = { decade: string; sets: number; owned: number; total: number; pct: number }
+
+  const rows: DecadeRow[] = []
+  const map: Record<string, { sets: number; owned: number; total: number }> = {}
+
+  for (const s of completion) {
+    if (!s.releaseDate) continue
+    const year = parseInt(s.releaseDate.slice(0, 4), 10)
+    const decade = `${Math.floor(year / 10) * 10}s`
+    if (!map[decade]) map[decade] = { sets: 0, owned: 0, total: 0 }
+    map[decade].sets++
+    map[decade].owned += s.ownedCount
+    map[decade].total += s.totalCards
+  }
+
+  for (const [decade, v] of Object.entries(map)) {
+    rows.push({
+      decade,
+      sets: v.sets,
+      owned: v.owned,
+      total: v.total,
+      pct: v.total > 0 ? Math.round((v.owned / v.total) * 1000) / 10 : 0,
+    })
+  }
+  rows.sort((a, b) => b.decade.localeCompare(a.decade))
+
+  if (rows.length === 0) return null
+
+  return (
+    <div>
+      <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
+        By Decade
+      </h2>
+      <div className="rounded-md border overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50 text-muted-foreground">
+              <th className="px-4 py-2 text-left">Decade</th>
+              <th className="px-4 py-2 text-right">Sets</th>
+              <th className="px-4 py-2 text-right">Owned</th>
+              <th className="px-4 py-2 text-right">Total</th>
+              <th className="px-4 py-2 text-right">Completion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.decade} className="border-b last:border-0">
+                <td className="px-4 py-2 font-medium">{r.decade}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{r.sets}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{r.owned}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{r.total}</td>
+                <td className="px-4 py-2 text-right tabular-nums">
+                  <div className="flex items-center justify-end gap-2">
+                    <div className="w-14 bg-muted rounded-full h-1.5 hidden sm:block shrink-0">
+                      <div
+                        className="bg-primary h-1.5 rounded-full"
+                        style={{ width: `${Math.min(100, r.pct)}%` }}
+                      />
+                    </div>
+                    <span>{r.pct}%</span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ---- Top cards section ------------------------------------------------------
+
+const TOP_LIMITS = [25, 50, 100] as const
+
+function TopCardsSection({
+  metric,
+  title,
+  isAdmin,
+  selectedUserId,
+  filters,
+}: {
+  metric: 'value' | 'frequency'
+  title: string
+  isAdmin: boolean
+  selectedUserId: string
+  filters: Filters
+}) {
+  const [limit, setLimit] = useState<25 | 50 | 100>(25)
+  const [offset, setOffset] = useState(0)
+  const [data, setData] = useState<TopCardsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async (lim: number, off: number) => {
+    setLoading(true)
+    try {
+      const p = new URLSearchParams({ metric, limit: String(lim), offset: String(off) })
+      if (isAdmin && selectedUserId !== '__all__') p.set('userId', selectedUserId)
+      if (filters.setCode) p.set('filter.setCode', filters.setCode)
+      if (filters.color) p.set('filter.color', filters.color)
+      if (filters.cardType) p.set('filter.cardType', filters.cardType)
+      if (filters.treatment) p.set('filter.treatment', filters.treatment)
+      if (filters.condition) p.set('filter.condition', filters.condition)
+      if (filters.autographed) p.set('filter.autographed', filters.autographed)
+      if (filters.isReserved) p.set('filter.isReserved', 'true')
+      if (filters.hasPhyrexianMana) p.set('filter.hasPhyrexianMana', 'true')
+      if (filters.hasHybridMana) p.set('filter.hasHybridMana', 'true')
+      const res = await fetch(`/api/collection/top-cards?${p}`, { credentials: 'include' })
+      if (res.ok) setData(await res.json() as TopCardsResponse)
+    } finally {
+      setLoading(false)
+    }
+  }, [metric, isAdmin, selectedUserId, filters])
+
+  useEffect(() => { setOffset(0); void load(limit, 0) }, [load, limit])
+
+  function handlePage(dir: 1 | -1) {
+    const next = Math.max(0, offset + dir * limit)
+    setOffset(next)
+    void load(limit, next)
+  }
+
+  const totalPages = data ? Math.ceil(data.totalCount / limit) : 0
+  const currentPage = data ? Math.floor(offset / limit) + 1 : 1
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">{title}</h2>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Show top</span>
+          {TOP_LIMITS.map(l => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => { setLimit(l); setOffset(0) }}
+              className={`px-2 py-0.5 rounded text-xs border transition-colors ${limit === l ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground py-4">Loading...</p>
+      ) : !data || data.results.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-4">No data available.</p>
+      ) : (
+        <>
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50 text-muted-foreground">
+                  <th className="px-4 py-2 text-left w-8">#</th>
+                  <th className="px-4 py-2 text-left">Card</th>
+                  <th className="px-4 py-2 text-left">Set</th>
+                  <th className="px-4 py-2 text-right">Qty</th>
+                  <th className="px-4 py-2 text-right">Market</th>
+                  <th className="px-4 py-2 text-right">Total Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.results.map((c, i) => (
+                  <tr key={`${c.cardIdentifier}-${i}`} className="border-b last:border-0 hover:bg-muted/20">
+                    <td className="px-4 py-2 text-muted-foreground tabular-nums text-xs">{offset + i + 1}</td>
+                    <td className="px-4 py-2">
+                      <div className="font-medium leading-tight">{c.cardName}</div>
+                      <div className="text-xs text-muted-foreground font-mono">{c.cardIdentifier}</div>
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{c.setCode}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{c.totalQuantity}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{fmt(c.marketValue)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums font-medium">{fmt(c.totalValue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+              <span>Page {currentPage} of {totalPages} ({data.totalCount} total)</span>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  disabled={offset === 0}
+                  onClick={() => handlePage(-1)}
+                  className="px-2 py-1 rounded border text-xs disabled:opacity-40 hover:bg-accent"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={offset + limit >= data.totalCount}
+                  onClick={() => handlePage(1)}
+                  className="px-2 py-1 rounded border text-xs disabled:opacity-40 hover:bg-accent"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ---- Main page --------------------------------------------------------------
 
 const ALL_USERS_KEY = '__all__'
@@ -451,6 +681,15 @@ export function MetricsPage() {
         const cParams = new URLSearchParams()
         if (isAdmin && selectedUserId !== ALL_USERS_KEY) cParams.set('userId', selectedUserId)
         cParams.set('regularOnly', String(prefs.setCompletionRegularOnly))
+        if (filters.setCode) cParams.set('filter.setCode', filters.setCode)
+        if (filters.color) cParams.set('filter.color', filters.color)
+        if (filters.cardType) cParams.set('filter.cardType', filters.cardType)
+        if (filters.treatment) cParams.set('filter.treatment', filters.treatment)
+        if (filters.condition) cParams.set('filter.condition', filters.condition)
+        if (filters.autographed) cParams.set('filter.autographed', filters.autographed)
+        if (filters.isReserved) cParams.set('filter.isReserved', 'true')
+        if (filters.hasPhyrexianMana) cParams.set('filter.hasPhyrexianMana', 'true')
+        if (filters.hasHybridMana) cParams.set('filter.hasHybridMana', 'true')
         fetches.push(fetch(`/api/collection/completion?${cParams}`, { credentials: 'include' }))
       }
 
@@ -635,6 +874,29 @@ export function MetricsPage() {
               onRegularOnlyChange={v => { void handleRegularOnlyChange(v) }}
               onSetClick={handleSetClick}
             />
+          )}
+
+          {completion.length > 0 && (
+            <DecadeSection completion={completion} />
+          )}
+
+          {(!isAdmin || selectedUserId !== ALL_USERS_KEY) && (
+            <>
+              <TopCardsSection
+                metric="value"
+                title="Most Valuable Cards"
+                isAdmin={isAdmin}
+                selectedUserId={selectedUserId}
+                filters={filters}
+              />
+              <TopCardsSection
+                metric="frequency"
+                title="Most Frequent Cards"
+                isAdmin={isAdmin}
+                selectedUserId={selectedUserId}
+                filters={filters}
+              />
+            </>
           )}
         </>
       ) : null}
