@@ -341,7 +341,10 @@ function CardListView({
         if (!c.identifier.toLowerCase().includes(q) && !c.name.toLowerCase().includes(q))
           return false
       }
-      if (colorFilter && !(c.color ?? '').includes(colorFilter)) return false
+      if (colorFilter) {
+        if (colorFilter === 'C') { if (c.color) return false }
+        else if (!(c.color ?? '').includes(colorFilter)) return false
+      }
       if (typeFilter && !(c.cardType ?? '').includes(typeFilter)) return false
       if (rarityFilter && c.rarity !== rarityFilter) return false
       if (treatmentFilter && !(c.validTreatments ?? []).includes(treatmentFilter)) return false
@@ -365,7 +368,7 @@ function CardListView({
       return sortDir === 'asc' ? cmp : -cmp
     })
 
-  const setColors = new Set(cards.flatMap(c => c.color ? c.color.split(',') : []))
+  const setColors = new Set(cards.flatMap(c => c.color ? c.color.split(',') : ['C']))
   const visibleColors = COLORS.filter(col => setColors.has(col.key))
 
   const setTypes = new Set(
@@ -456,7 +459,12 @@ function CardListView({
                 {col.label}
               </ToggleChip>
             ))}
-            {visibleColors.length > 0 && visibleTypes.length > 0 && (
+            {hasHybridMana && (
+              <ToggleChip active={hybridFilter} onClick={() => setHybridFilter(v => !v)}>
+                Hybrid Mana
+              </ToggleChip>
+            )}
+            {(visibleColors.length > 0 || hasHybridMana) && visibleTypes.length > 0 && (
               <span className="text-xs text-muted-foreground mx-1">|</span>
             )}
             {visibleTypes.map(t => (
@@ -480,8 +488,8 @@ function CardListView({
                 {r.charAt(0).toUpperCase() + r.slice(1)}
               </ToggleChip>
             ))}
-            {(visibleRarities.length > 0 || visibleTypes.length > 0 || visibleColors.length > 0) &&
-              (hasReserved || hasPhiMana || hasHybridMana) && (
+            {(visibleColors.length > 0 || hasHybridMana || visibleTypes.length > 0 || visibleRarities.length > 0) &&
+              (hasReserved || hasPhiMana) && (
               <span className="text-xs text-muted-foreground mx-1">|</span>
             )}
             {hasReserved && (
@@ -494,11 +502,6 @@ function CardListView({
             {hasPhiMana && (
               <ToggleChip active={phiFilter} onClick={() => setPhiFilter(v => !v)}>
                 Phi Mana
-              </ToggleChip>
-            )}
-            {hasHybridMana && (
-              <ToggleChip active={hybridFilter} onClick={() => setHybridFilter(v => !v)}>
-                Hybrid Mana
               </ToggleChip>
             )}
           </div>
@@ -558,8 +561,9 @@ function CardListView({
                 <th className="px-3 py-2 w-10"></th>
                 <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="ID" sortKey="identifier" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
-                <SortTh label="Color" sortKey="color" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Type" sortKey="type" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <SortTh label="Color" sortKey="color" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
+                <th className="px-3 py-2 text-left">Mana Cost</th>
                 <SortTh label="Rarity" sortKey="rarity" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
                 <SortTh label="Market" sortKey="market" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
                 <th className="px-3 py-2 text-right"></th>
@@ -568,7 +572,7 @@ function CardListView({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                     No cards match the current filters.
                   </td>
                 </tr>
@@ -614,11 +618,14 @@ function CardListView({
                       <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
                         {c.identifier.toUpperCase()}
                       </td>
+                      <td className="px-3 py-2 text-muted-foreground text-xs max-w-36 truncate">
+                        {c.cardType || '-'}
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground font-mono text-xs">
                         {c.color || '-'}
                       </td>
-                      <td className="px-3 py-2 text-muted-foreground text-xs max-w-36 truncate">
-                        {c.cardType || '-'}
+                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                        {c.manaCost || '-'}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground text-xs capitalize">
                         {c.rarity || '-'}

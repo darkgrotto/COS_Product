@@ -32,6 +32,7 @@ interface CardSummary {
   cardType: string | null
   rarity: string | null
   isReserved: boolean
+  currentMarketValue: number | null
 }
 
 interface CardDetailDto {
@@ -381,6 +382,7 @@ function CardsTable({
   const [rarityFilter, setRarityFilter] = useState<string | null>(null)
   const [rlFilter, setRlFilter] = useState(false)
   const [phiFilter, setPhiFilter] = useState(false)
+  const [hybridFilter, setHybridFilter] = useState(false)
   const [sortField, setSortField] = useState<CardSortField>('collectorNumber')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -425,6 +427,7 @@ function CardsTable({
   const availableRarities = RARITIES.filter(r => cards?.some(c => c.rarity === r))
   const hasReserved = cards?.some(c => c.isReserved) ?? false
   const hasPhiMana = cards?.some(c => c.manaCost?.includes('/P}') ?? false) ?? false
+  const hasHybridMana = cards?.some(c => c.manaCost != null && /\/[WUBRG]\}/.test(c.manaCost)) ?? false
 
   // Apply filters
   const q = filter.toLowerCase()
@@ -439,6 +442,7 @@ function CardsTable({
   if (rarityFilter) visible = visible.filter(c => c.rarity === rarityFilter)
   if (rlFilter) visible = visible.filter(c => c.isReserved)
   if (phiFilter) visible = visible.filter(c => c.manaCost?.includes('/P}') ?? false)
+  if (hybridFilter) visible = visible.filter(c => c.manaCost != null && /\/[WUBRG]\}/.test(c.manaCost))
   if (filter) visible = visible.filter(c =>
     c.identifier.toLowerCase().includes(q) ||
     c.name.toLowerCase().includes(q) ||
@@ -497,7 +501,14 @@ function CardsTable({
               onClick={() => setColorFilter(colorFilter === col ? null : col)}
             />
           ))}
-          {availableColors.length > 0 && availableTypes.length > 1 && (
+          {hasHybridMana && (
+            <FilterChip
+              label="Hybrid Mana"
+              active={hybridFilter}
+              onClick={() => setHybridFilter(v => !v)}
+            />
+          )}
+          {(availableColors.length > 0 || hasHybridMana) && availableTypes.length > 1 && (
             <span className="text-xs text-muted-foreground mx-0.5">|</span>
           )}
           {availableTypes.length > 1 && availableTypes.map(t => (
@@ -519,7 +530,7 @@ function CardsTable({
               onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
             />
           ))}
-          {(availableColors.length > 0 || availableTypes.length > 1 || availableRarities.length > 1) &&
+          {(availableColors.length > 0 || hasHybridMana || availableTypes.length > 1 || availableRarities.length > 1) &&
             (hasReserved || hasPhiMana) && (
             <span className="text-xs text-muted-foreground mx-0.5">|</span>
           )}
@@ -568,22 +579,16 @@ function CardsTable({
               <TableRow>
                 <TableHead className="w-10" />
                 <TableHead
-                  className="cursor-pointer select-none whitespace-nowrap"
-                  onClick={() => handleSort('identifier')}
-                >
-                  ID <SortIcon active={sortField === 'identifier'} dir={sortDir} />
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer select-none text-right w-12 whitespace-nowrap"
-                  onClick={() => handleSort('collectorNumber')}
-                >
-                  # <SortIcon active={sortField === 'collectorNumber'} dir={sortDir} />
-                </TableHead>
-                <TableHead
                   className="cursor-pointer select-none"
                   onClick={() => handleSort('name')}
                 >
                   Name <SortIcon active={sortField === 'name'} dir={sortDir} />
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none whitespace-nowrap"
+                  onClick={() => handleSort('identifier')}
+                >
+                  ID <SortIcon active={sortField === 'identifier'} dir={sortDir} />
                 </TableHead>
                 <TableHead
                   className="cursor-pointer select-none"
@@ -591,6 +596,7 @@ function CardsTable({
                 >
                   Type <SortIcon active={sortField === 'cardType'} dir={sortDir} />
                 </TableHead>
+                <TableHead>Color</TableHead>
                 <TableHead>Mana Cost</TableHead>
                 <TableHead
                   className="cursor-pointer select-none whitespace-nowrap"
@@ -598,12 +604,13 @@ function CardsTable({
                 >
                   Rarity <SortIcon active={sortField === 'rarity'} dir={sortDir} />
                 </TableHead>
+                <TableHead className="text-right">Market</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {visible.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     No cards found.
                   </TableCell>
                 </TableRow>
@@ -623,10 +630,6 @@ function CardsTable({
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                       />
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{card.identifier}</TableCell>
-                    <TableCell className="text-right font-mono text-xs text-muted-foreground tabular-nums">
-                      {card.identifier.slice(setCodeLen)}
-                    </TableCell>
                     <TableCell className="font-medium">
                       {card.name}
                       {card.isReserved && (
@@ -639,14 +642,23 @@ function CardsTable({
                         </Badge>
                       )}
                     </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+                      {card.identifier}
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
                       {card.cardType ?? '-'}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {card.color ?? <span className="text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {card.manaCost ?? <span className="text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell>
                       <RarityBadge rarity={card.rarity} />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm">
+                      {card.currentMarketValue != null ? `$${card.currentMarketValue.toFixed(2)}` : <span className="text-muted-foreground">-</span>}
                     </TableCell>
                   </TableRow>
                 ))
