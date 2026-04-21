@@ -596,7 +596,7 @@ function CardListView({
                         <img
                           src={`/api/images/cards/${set.code.toLowerCase()}/${c.identifier.toLowerCase()}.jpg`}
                           alt=""
-                          className="h-[50px] w-9 rounded object-cover bg-muted"
+                          className="w-9 rounded block"
                           loading="lazy"
                           onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                         />
