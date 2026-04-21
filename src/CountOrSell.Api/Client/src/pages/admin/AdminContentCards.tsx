@@ -171,20 +171,20 @@ function RulingsPanel({ rulingUrl }: { rulingUrl: string }) {
         <p className="text-sm text-muted-foreground">No rulings on record.</p>
       )}
       {rulings && rulings.length > 0 && (
-        <div className="flex flex-col gap-3">
+        <div className="max-h-72 overflow-y-auto rounded-md border flex flex-col divide-y">
           {rulings.map((r, i) => (
             <div
               key={i}
               className={cn(
-                'px-3.5 py-2.5 rounded-md border-l-[3px] bg-muted/30',
+                'px-3 py-2 border-l-[3px] bg-muted/20',
                 r.source === 'wotc' ? 'border-l-primary' : 'border-l-muted-foreground'
               )}
             >
-              <div className="flex gap-3 text-xs text-muted-foreground mb-1.5">
+              <div className="flex gap-3 text-[10px] text-muted-foreground mb-1">
                 <span>{fmtRulingDate(r.published_at)}</span>
                 <span>{r.source === 'wotc' ? 'Wizards of the Coast' : 'Scryfall'}</span>
               </div>
-              <div className="text-sm leading-relaxed">{r.comment}</div>
+              <div className="text-xs leading-relaxed">{r.comment}</div>
             </div>
           ))}
         </div>
@@ -204,7 +204,7 @@ function CardImage({ imageUrl, name }: { imageUrl: string | null; name: string }
     <img
       src={imageUrl}
       alt={name}
-      className="max-w-[220px] rounded-lg shadow-md block"
+      className="w-[223px] rounded-lg shadow-md block"
       onError={() => setFailed(true)}
     />
   )
