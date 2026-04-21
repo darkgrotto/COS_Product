@@ -566,6 +566,7 @@ function CardsTable({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10" />
                 <TableHead
                   className="cursor-pointer select-none whitespace-nowrap"
                   onClick={() => handleSort('identifier')}
@@ -602,7 +603,7 @@ function CardsTable({
             <TableBody>
               {visible.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     No cards found.
                   </TableCell>
                 </TableRow>
@@ -613,6 +614,15 @@ function CardsTable({
                     className="cursor-pointer hover:bg-accent"
                     onClick={() => onSelectCard(card)}
                   >
+                    <TableCell className="px-2 py-1">
+                      <img
+                        src={`/api/images/cards/${set.code.toLowerCase()}/${card.identifier.toLowerCase()}.jpg`}
+                        alt=""
+                        className="h-[50px] w-9 rounded object-cover bg-muted"
+                        loading="lazy"
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                    </TableCell>
                     <TableCell className="font-mono text-xs">{card.identifier}</TableCell>
                     <TableCell className="text-right font-mono text-xs text-muted-foreground tabular-nums">
                       {card.identifier.slice(setCodeLen)}
