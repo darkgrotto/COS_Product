@@ -53,4 +53,53 @@ public class FileSystemImageStore : IImageStore
         var hasAny = Directory.EnumerateFiles(_basePath, "*.jpg", SearchOption.AllDirectories).Any();
         return Task.FromResult(hasAny);
     }
+
+    public Task<int> PurgeSetImagesAsync(string setCode, CancellationToken ct)
+    {
+        var setPath = Path.Combine(_basePath, "sets", setCode.ToLowerInvariant());
+        if (!Directory.Exists(setPath)) return Task.FromResult(0);
+        var files = Directory.GetFiles(setPath, "*.jpg");
+        foreach (var f in files) File.Delete(f);
+        _logger.LogInformation("Purged {Count} images for set {SetCode}", files.Length, setCode.ToUpperInvariant());
+        return Task.FromResult(files.Length);
+    }
+
+    public Task<int> PurgeSealedImagesAsync(CancellationToken ct)
+    {
+        var sealedPath = Path.Combine(_basePath, "sealed");
+        if (!Directory.Exists(sealedPath)) return Task.FromResult(0);
+        var files = Directory.GetFiles(sealedPath, "*.jpg");
+        foreach (var f in files) File.Delete(f);
+        _logger.LogInformation("Purged {Count} sealed product images", files.Length);
+        return Task.FromResult(files.Length);
+    }
+
+    public Task<int> PurgeAllImagesAsync(CancellationToken ct)
+    {
+        if (!Directory.Exists(_basePath)) return Task.FromResult(0);
+        var files = Directory.GetFiles(_basePath, "*.jpg", SearchOption.AllDirectories).ToArray();
+        foreach (var f in files) File.Delete(f);
+        _logger.LogInformation("Purged all {Count} images", files.Length);
+        return Task.FromResult(files.Length);
+    }
+
+    public Task<Dictionary<string, int>> GetImageCountsBySetAsync(CancellationToken ct)
+    {
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var setsPath = Path.Combine(_basePath, "sets");
+        if (!Directory.Exists(setsPath)) return Task.FromResult(result);
+        foreach (var dir in Directory.GetDirectories(setsPath))
+        {
+            var setCode = Path.GetFileName(dir).ToUpperInvariant();
+            result[setCode] = Directory.GetFiles(dir, "*.jpg").Length;
+        }
+        return Task.FromResult(result);
+    }
+
+    public Task<int> GetSealedImageCountAsync(CancellationToken ct)
+    {
+        var sealedPath = Path.Combine(_basePath, "sealed");
+        if (!Directory.Exists(sealedPath)) return Task.FromResult(0);
+        return Task.FromResult(Directory.GetFiles(sealedPath, "*.jpg").Length);
+    }
 }

@@ -383,6 +383,105 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
     }
 
+    public async Task ApplyMetadataOnlyAsync(
+        Stream packageStream, PackageManifest packageManifest, string scope, CancellationToken ct)
+    {
+        if (packageStream.CanSeek) packageStream.Position = 0;
+        using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
+
+        var contentVersion = packageManifest.GeneratedAt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
+        var includeCardsSets = scope == "all" || scope == "cards-sets";
+        var includeSealed = scope == "all" || scope == "sealed";
+
+        var treatments = includeCardsSets
+            ? ReadAndVerifyJson<List<TreatmentDto>>(archive, "metadata/treatments.json", packageManifest.Checksums)
+            : null;
+        var taxonomy = includeSealed
+            ? ReadAndVerifyJson<TaxonomyDto>(archive, "metadata/taxonomy.json", packageManifest.Checksums)
+            : null;
+
+        var allSets = new List<SetDto>();
+        var allCards = new List<CardDto>();
+        var allPricing = new List<PricingEntryDto>();
+        var allSealedProducts = new List<SealedProductDto>();
+
+        foreach (var entry in archive.Entries)
+        {
+            if (entry.Name.Length == 0) continue;
+
+            if (includeCardsSets && entry.FullName.StartsWith("metadata/sets/", StringComparison.OrdinalIgnoreCase))
+            {
+                if (entry.Name.Equals("set.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var set = ReadAndVerifyJson<SetDto>(archive, entry.FullName, packageManifest.Checksums);
+                    if (set != null) allSets.Add(set);
+                }
+                else if (entry.Name.Equals("cards.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var cards = ReadAndVerifyJson<List<CardDto>>(archive, entry.FullName, packageManifest.Checksums);
+                    if (cards != null) allCards.AddRange(cards);
+                }
+                else if (entry.Name.Equals("pricing.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var pricing = ReadAndVerifyJson<List<PricingEntryDto>>(archive, entry.FullName, packageManifest.Checksums);
+                    if (pricing != null) allPricing.AddRange(pricing);
+                }
+            }
+            else if (includeSealed
+                     && entry.FullName.StartsWith("metadata/sealed/", StringComparison.OrdinalIgnoreCase)
+                     && entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                var product = ReadAndVerifyJson<SealedProductDto>(archive, entry.FullName, packageManifest.Checksums);
+                if (product != null) allSealedProducts.Add(product);
+            }
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        try
+        {
+            if (treatments != null) await UpsertTreatmentsAsync(treatments, ct);
+            if (allSets.Count > 0) await UpsertSetsAsync(allSets, ct);
+            if (allCards.Count > 0) await UpsertCardsAsync(allCards, ct);
+            if (allPricing.Count > 0) await UpsertCardPricesAsync(allPricing, ct);
+            if (taxonomy != null) await _taxonomy.ReplaceTaxonomyAsync(FlattenCategories(taxonomy), ct);
+            if (allSealedProducts.Count > 0) await UpsertSealedProductsAsync(allSealedProducts, ct);
+
+            _db.UpdateVersions.Add(new UpdateVersion { ContentVersion = contentVersion, AppliedAt = DateTime.UtcNow });
+
+            var versionsJson = JsonSerializer.Serialize(packageManifest.ContentVersions);
+            var versionsSetting = await _db.AppSettings.FindAsync(new object[] { "content_component_versions" }, ct);
+            if (versionsSetting != null)
+                versionsSetting.Value = versionsJson;
+            else
+                _db.AppSettings.Add(new AppSetting { Key = "content_component_versions", Value = versionsJson });
+
+            await _db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    public async Task ApplyScopedImagesOnlyAsync(
+        string packageBaseUrl, PackageManifest packageManifest, string scope, CancellationToken ct)
+    {
+        var prefix = scope switch
+        {
+            "cards-sets" => "images/sets/",
+            "sealed" => "images/sealed/",
+            _ => "images/"
+        };
+
+        var scopedChecksums = packageManifest.Checksums
+            .Where(kv => kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+        await FetchAndSaveImagesAsync(packageBaseUrl, scopedChecksums, ct);
+    }
+
     // Fetches image blobs individually from the package base URL and saves them to the image store.
     // Images are listed as manifest checksum keys (prefix "images/"). Up to 10 concurrent fetches.
     private async Task FetchAndSaveImagesAsync(

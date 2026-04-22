@@ -170,6 +170,41 @@ public class UpdatesController : ControllerBase
     public IActionResult ForceRedownloadFull()
         => StartBackgroundRedownload(_updateTrigger.TriggerForceFullAsync, "update.redownload.full");
 
+    [HttpPost("redownload-targeted")]
+    [DemoLocked]
+    public IActionResult ForceRedownloadTargeted([FromBody] TargetedRedownloadRequest request)
+    {
+        var contentType = request.ContentType switch
+        {
+            "metadata" => "metadata",
+            "images" => "images",
+            _ => "all"
+        };
+        var scope = request.Scope switch
+        {
+            "cards-sets" => "cards-sets",
+            "sealed" => "sealed",
+            _ => "all"
+        };
+
+        var options = new RedownloadOptions(contentType, scope, request.UseFullPackage);
+        var actorName = ActorName;
+        var actorDisplayName = ActorDisplayName;
+        var clientIp = ClientIp;
+        var actionTarget = $"contentType={contentType},scope={scope},fullPackage={request.UseFullPackage}";
+
+        _ = Task.Run(async () =>
+        {
+            var result = await _updateTrigger.TriggerTargetedRedownloadAsync(options, CancellationToken.None);
+            await using var bgScope = _scopeFactory.CreateAsyncScope();
+            var audit = bgScope.ServiceProvider.GetRequiredService<IAuditLogger>();
+            await audit.LogAsync(actorName, actorDisplayName, "update.redownload.targeted",
+                actionTarget, result.Message, clientIp);
+        });
+
+        return Accepted(new { message = "Targeted redownload started in background." });
+    }
+
     private IActionResult StartBackgroundRedownload(
         Func<CancellationToken, Task<UpdateCheckResult>> trigger,
         string actionType)
@@ -197,4 +232,13 @@ public sealed class DeployRequest
     // Optional image tag to deploy (e.g. "dev", "1.2.3"). Null or omitted means
     // re-deploy the currently configured tag without changing it.
     public string? Tag { get; init; }
+}
+
+public sealed class TargetedRedownloadRequest
+{
+    // "all" | "metadata" | "images"
+    public string ContentType { get; init; } = "all";
+    // "all" | "cards-sets" | "sealed"
+    public string Scope { get; init; } = "all";
+    public bool UseFullPackage { get; init; } = false;
 }

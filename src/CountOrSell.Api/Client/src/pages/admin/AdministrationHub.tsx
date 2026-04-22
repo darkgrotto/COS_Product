@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 const tabs = [
   { to: '/admin/administration/users', label: 'User Management' },
   { to: '/admin/administration/backup', label: 'Backup & Restore' },
+  { to: '/admin/administration/data', label: 'Data Management' },
   { to: '/admin/administration/config', label: 'Instance Settings' },
   { to: '/admin/administration/log-forwarding', label: 'Log Forwarding' },
 ]

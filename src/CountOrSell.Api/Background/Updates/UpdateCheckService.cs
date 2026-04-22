@@ -50,6 +50,9 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
     public async Task<UpdateCheckResult> TriggerForceFullAsync(CancellationToken ct)
         => await RunUpdateCheckAsync(force: true, fullPackageOnly: true, ct);
 
+    public async Task<UpdateCheckResult> TriggerTargetedRedownloadAsync(RedownloadOptions options, CancellationToken ct)
+        => await RunTargetedRedownloadAsync(options, ct);
+
     public async Task<UpdateCheckResult> RunUpdateCheckAsync(bool force, bool fullPackageOnly, CancellationToken ct)
     {
         UpdateCheckResult? result = null;
@@ -191,6 +194,106 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             {
                 _logger.LogWarning(ex, "Failed to record last update check time");
             }
+        }
+    }
+
+    private async Task<UpdateCheckResult> RunTargetedRedownloadAsync(RedownloadOptions options, CancellationToken ct)
+    {
+        try
+        {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var manifestClient = scope.ServiceProvider.GetRequiredService<IUpdateManifestClient>();
+            var downloader = scope.ServiceProvider.GetRequiredService<IPackageDownloader>();
+            var applicator = scope.ServiceProvider.GetRequiredService<IContentUpdateApplicator>();
+
+            var manifest = await manifestClient.FetchManifestAsync(ct);
+            if (manifest == null)
+                return new UpdateCheckResult(false, "Could not reach update server. Check network connectivity.");
+
+            var candidates = options.UseFullPackage
+                ? manifest.Packages
+                    .Where(p => string.Equals(p.PackageType, "full", StringComparison.OrdinalIgnoreCase))
+                    .ToList()
+                : manifest.Packages.ToList();
+
+            if (candidates.Count == 0)
+                return new UpdateCheckResult(false, "No suitable update packages are available at this time.");
+
+            var packageRef = candidates.MaxBy(p => p.GeneratedAt) ?? candidates[^1];
+
+            var packageManifest = await manifestClient.FetchPackageManifestAsync(packageRef.ManifestUrl, ct);
+            if (packageManifest == null)
+                return new UpdateCheckResult(false, "Found a package but could not fetch its manifest.");
+
+            var lastSlash = packageRef.ManifestUrl.LastIndexOf('/');
+            var packageBaseUrl = lastSlash >= 0
+                ? packageRef.ManifestUrl[..(lastSlash + 1)]
+                : packageRef.ManifestUrl;
+
+            var includesImages = options.ContentType == "all" || options.ContentType == "images";
+            var includesMetadata = options.ContentType == "all" || options.ContentType == "metadata";
+
+            // Purge existing images before redownloading so the store reflects exactly what
+            // the package provides. Check for existing images before purging to avoid noise.
+            if (includesImages)
+            {
+                _logger.LogInformation(
+                    "Targeted redownload: purging images (scope={Scope}) before redownload", options.Scope);
+
+                int purged;
+                if (options.Scope == "sealed")
+                {
+                    purged = await _imageStore.PurgeSealedImagesAsync(CancellationToken.None);
+                }
+                else if (options.Scope == "cards-sets")
+                {
+                    var setImageCounts = await _imageStore.GetImageCountsBySetAsync(CancellationToken.None);
+                    purged = 0;
+                    foreach (var setCode in setImageCounts.Keys)
+                        purged += await _imageStore.PurgeSetImagesAsync(setCode, CancellationToken.None);
+                }
+                else
+                {
+                    purged = await _imageStore.PurgeAllImagesAsync(CancellationToken.None);
+                }
+
+                _logger.LogInformation("Targeted redownload: purged {Count} images", purged);
+            }
+
+            // Apply metadata (requires ZIP download)
+            if (includesMetadata)
+            {
+                _logger.LogInformation(
+                    "Targeted redownload: applying metadata (scope={Scope}, package={PackageId})",
+                    options.Scope, packageRef.PackageId);
+                var packageStream = await downloader.DownloadPackageAsync(packageRef.DownloadUrl, ct);
+                await applicator.ApplyMetadataOnlyAsync(packageStream, packageManifest, options.Scope, CancellationToken.None);
+            }
+
+            // Fetch images directly from package base URL (no ZIP needed)
+            if (includesImages)
+            {
+                _logger.LogInformation(
+                    "Targeted redownload: fetching images (scope={Scope}, package={PackageId})",
+                    options.Scope, packageRef.PackageId);
+                await applicator.ApplyScopedImagesOnlyAsync(packageBaseUrl, packageManifest, options.Scope, CancellationToken.None);
+            }
+
+            var appliedDate = packageManifest.GeneratedAt.UtcDateTime
+                .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            var what = options.ContentType == "all" ? "metadata and images"
+                : options.ContentType == "metadata" ? "metadata"
+                : "images";
+            var scopeLabel = options.Scope == "all" ? "all content"
+                : options.Scope == "cards-sets" ? "cards and sets"
+                : "sealed products";
+            return new UpdateCheckResult(true,
+                $"Redownload complete: {what} for {scopeLabel} (package from {appliedDate}).");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Targeted redownload failed");
+            return new UpdateCheckResult(false, "Targeted redownload encountered an error. Check the application logs.");
         }
     }
 

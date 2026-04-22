@@ -33,6 +33,7 @@ import { NotificationsPanel } from '@/pages/admin/NotificationsPanel'
 import { LogViewer } from '@/pages/admin/LogViewer'
 import { AdministrationHub } from '@/pages/admin/AdministrationHub'
 import { LogForwarding } from '@/pages/admin/LogForwarding'
+import { DataManagementPage } from '@/pages/admin/DataManagement'
 
 function App() {
   return (
@@ -78,6 +79,7 @@ function App() {
                     <Route path="administration" element={<AdministrationHub />}>
                       <Route path="users" element={<UsersPage />} />
                       <Route path="backup" element={<BackupsPage />} />
+                      <Route path="data" element={<DataManagementPage />} />
                       <Route path="config" element={<SettingsPage />} />
                       <Route path="log-forwarding" element={<LogForwarding />} />
                     </Route>
