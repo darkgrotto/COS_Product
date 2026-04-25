@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react'
 import { SetSymbol } from '@/components/ui/SetSymbol'
 import { usePreferences } from '@/contexts/PreferencesContext'
 import {
@@ -872,9 +872,13 @@ type SetSortKey = 'name' | 'owned' | 'total' | 'pct' | 'value'
 
 function SetGroupedView({
   completion,
+  regularOnly,
+  onRegularOnlyChange,
   onDrillIn,
 }: {
   completion: SetCompletion[]
+  regularOnly: boolean
+  onRegularOnlyChange: (v: boolean) => void
   onDrillIn: (setCode: string) => void
 }) {
   const [sortKey, setSortKey] = useState<SetSortKey>('pct')
@@ -902,6 +906,25 @@ function SetGroupedView({
 
   return (
     <div className="space-y-2">
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => onRegularOnlyChange(!regularOnly)}
+          title="Count only regular (non-foil) treatments toward set completion"
+        >
+          <span
+            role="switch"
+            aria-checked={regularOnly}
+            className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors ${regularOnly ? 'bg-primary' : 'bg-input'}`}
+          >
+            <span
+              className={`pointer-events-none block h-3 w-3 rounded-full bg-background shadow ring-0 transition-transform ${regularOnly ? 'translate-x-3' : 'translate-x-0'}`}
+            />
+          </span>
+          Regular only
+        </button>
+      </div>
       <div className="rounded-md border overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -974,6 +997,100 @@ function SetGroupedView({
 
 const CONDITION_ORDER: Record<string, number> = { NM: 0, LP: 1, MP: 2, HP: 3, DMG: 4 }
 
+interface CollectionRowProps {
+  entry: CollectionEntry
+  treatmentLabel: string
+  isSelected: boolean
+  onToggleSelect: (id: string) => void
+  onEdit: (e: CollectionEntry) => void
+  onDelete: (e: CollectionEntry) => void
+  onAdjustQty: (e: CollectionEntry, delta: number) => void
+  onDetail: (id: string) => void
+}
+
+const CollectionRow = memo(function CollectionRow({
+  entry, treatmentLabel, isSelected,
+  onToggleSelect, onEdit, onDelete, onAdjustQty, onDetail,
+}: CollectionRowProps) {
+  const pl = entry.marketValue != null
+    ? (entry.marketValue - entry.acquisitionPrice) * entry.quantity
+    : null
+  return (
+    <tr className={`hover:bg-muted/30 ${isSelected ? 'bg-accent/30' : ''}`}>
+      <td className="px-3 py-2">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggleSelect(entry.id)}
+          className="h-4 w-4 rounded border-input"
+          aria-label="Select row"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex items-center gap-2">
+          <img
+            src={`/api/images/cards/${(entry.setCode ?? '').toLowerCase()}/${entry.cardIdentifier.toLowerCase()}.jpg`}
+            alt=""
+            className="h-8 w-6 rounded object-cover shrink-0 bg-muted"
+            loading="lazy"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+          <div>
+            <button
+              type="button"
+              className="font-medium leading-tight hover:underline text-left"
+              onClick={() => onDetail(entry.cardIdentifier)}
+            >
+              {entry.cardName ?? entry.cardIdentifier}
+            </button>
+            {entry.autographed && (
+              <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>
+            )}
+          </div>
+        </div>
+      </td>
+      <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
+        {entry.cardIdentifier.toUpperCase()}
+      </td>
+      <td className="px-3 py-2 text-muted-foreground">{entry.setCode ?? '-'}</td>
+      <td className="px-3 py-2">{treatmentLabel}</td>
+      <td className="px-3 py-2">
+        <div className="flex items-center justify-center gap-1">
+          <button className="rounded p-0.5 hover:bg-accent disabled:opacity-30"
+            onClick={() => onAdjustQty(entry, -1)} disabled={entry.quantity <= 1}
+            aria-label="Decrease quantity">
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          <span className="w-6 text-center tabular-nums">{entry.quantity}</span>
+          <button className="rounded p-0.5 hover:bg-accent"
+            onClick={() => onAdjustQty(entry, 1)} aria-label="Increase quantity">
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </td>
+      <td className="px-3 py-2">{entry.condition}</td>
+      <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.marketValue)}</td>
+      <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.acquisitionPrice)}</td>
+      <td className={`px-3 py-2 text-right tabular-nums ${plColor(pl)}`}>
+        {pl != null ? `${pl >= 0 ? '+' : ''}${fmt(pl)}` : '-'}
+      </td>
+      <td className="px-3 py-2 text-right">
+        <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7"
+            onClick={() => onEdit(entry)}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={() => onDelete(entry)}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  )
+})
+
 function CardsTable({
   entries,
   treatments,
@@ -1000,15 +1117,24 @@ function CardsTable({
   const [sortKey, setSortKey] = useState(defaultSortKey)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
-  function handleSort(key: string) {
-    if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('asc') }
-  }
+  const handleSort = useCallback((key: string) => {
+    setSortKey(prevKey => {
+      if (prevKey === key) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        return prevKey
+      }
+      setSortDir('asc')
+      return key
+    })
+  }, [])
 
-  const treatmentMap = Object.fromEntries(treatments.map(t => [t.key, t.displayName]))
+  const treatmentMap = useMemo(
+    () => Object.fromEntries(treatments.map(t => [t.key, t.displayName])),
+    [treatments],
+  )
   const allSelected = entries.length > 0 && entries.every(e => selected.has(e.id))
 
-  const sorted = [...entries].sort((a, b) => {
+  const sorted = useMemo(() => [...entries].sort((a, b) => {
     let cmp = 0
     switch (sortKey) {
       case 'card': cmp = (a.cardName ?? a.cardIdentifier).localeCompare(b.cardName ?? b.cardIdentifier); break
@@ -1027,7 +1153,7 @@ function CardsTable({
       }
     }
     return sortDir === 'asc' ? cmp : -cmp
-  })
+  }), [entries, sortKey, sortDir, treatmentMap])
 
   if (entries.length === 0) {
     return (
@@ -1064,86 +1190,19 @@ function CardsTable({
           </tr>
         </thead>
         <tbody className="divide-y">
-          {sorted.map(entry => {
-            const pl = entry.marketValue != null
-              ? (entry.marketValue - entry.acquisitionPrice) * entry.quantity
-              : null
-            const isSelected = selected.has(entry.id)
-            return (
-              <tr key={entry.id} className={`hover:bg-muted/30 ${isSelected ? 'bg-accent/30' : ''}`}>
-                <td className="px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => onToggleSelect(entry.id)}
-                    className="h-4 w-4 rounded border-input"
-                    aria-label="Select row"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <img
-                      src={`/api/images/cards/${(entry.setCode ?? '').toLowerCase()}/${entry.cardIdentifier.toLowerCase()}.jpg`}
-                      alt=""
-                      className="h-8 w-6 rounded object-cover shrink-0 bg-muted"
-                      loading="lazy"
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                    />
-                    <div>
-                      <button
-                        type="button"
-                        className="font-medium leading-tight hover:underline text-left"
-                        onClick={() => onDetail(entry.cardIdentifier)}
-                      >
-                        {entry.cardName ?? entry.cardIdentifier}
-                      </button>
-                      {entry.autographed && (
-                        <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
-                  {entry.cardIdentifier.toUpperCase()}
-                </td>
-                <td className="px-3 py-2 text-muted-foreground">{entry.setCode ?? '-'}</td>
-                <td className="px-3 py-2">{treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}</td>
-                <td className="px-3 py-2">
-                  <div className="flex items-center justify-center gap-1">
-                    <button className="rounded p-0.5 hover:bg-accent disabled:opacity-30"
-                      onClick={() => onAdjustQty(entry, -1)} disabled={entry.quantity <= 1}
-                      aria-label="Decrease quantity">
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
-                    <span className="w-6 text-center tabular-nums">{entry.quantity}</span>
-                    <button className="rounded p-0.5 hover:bg-accent"
-                      onClick={() => onAdjustQty(entry, 1)} aria-label="Increase quantity">
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </td>
-                <td className="px-3 py-2">{entry.condition}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.marketValue)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.acquisitionPrice)}</td>
-                <td className={`px-3 py-2 text-right tabular-nums ${plColor(pl)}`}>
-                  {pl != null ? `${pl >= 0 ? '+' : ''}${fmt(pl)}` : '-'}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7"
-                      onClick={() => onEdit(entry)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => onDelete(entry)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            )
-          })}
+          {sorted.map(entry => (
+            <CollectionRow
+              key={entry.id}
+              entry={entry}
+              treatmentLabel={treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}
+              isSelected={selected.has(entry.id)}
+              onToggleSelect={onToggleSelect}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onAdjustQty={onAdjustQty}
+              onDetail={onDetail}
+            />
+          ))}
         </tbody>
       </table>
     </div>
@@ -1358,7 +1417,7 @@ function ImportExportDialog({
 }
 
 export function CollectionPage() {
-  const { prefs } = usePreferences()
+  const { prefs, patchPrefs } = usePreferences()
   const [entries, setEntries] = useState<CollectionEntry[]>([])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -1390,6 +1449,7 @@ export function CollectionPage() {
     if (filters.isReserved) params.set('filter.isReserved', 'true')
     if (filters.hasPhyrexianMana) params.set('filter.hasPhyrexianMana', 'true')
     if (filters.hasHybridMana) params.set('filter.hasHybridMana', 'true')
+    if (prefs.setCompletionRegularOnly) params.set('regularOnly', 'true')
     const res = await fetch(`/api/collection/completion?${params}`)
     if (res.ok) {
       const all: SetCompletion[] = await res.json()
@@ -1434,12 +1494,16 @@ export function CollectionPage() {
     setLoading(true)
     Promise.all([loadCompletion(), loadEntries()])
       .finally(() => setLoading(false))
-  }, [filters, page])
+  }, [filters, page, prefs.setCompletionRegularOnly])
 
   const handleSave = useCallback(() => {
     loadCompletion()
     loadEntries()
-  }, [filters, page])
+  }, [filters, page, prefs.setCompletionRegularOnly])
+
+  const handleRegularOnlyChange = useCallback((v: boolean) => {
+    void patchPrefs({ setCompletionRegularOnly: v }).catch(() => {})
+  }, [patchPrefs])
 
   function handleDrillIn(setCode: string) {
     setFilters(f => ({ ...f, setCode }))
@@ -1452,7 +1516,7 @@ export function CollectionPage() {
     await Promise.all([loadCompletion(), loadEntries()])
   }
 
-  async function adjustQuantity(entry: CollectionEntry, delta: number) {
+  const adjustQuantity = useCallback(async (entry: CollectionEntry, delta: number) => {
     const res = await fetch(`/api/collection/${entry.id}/quantity`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -1462,20 +1526,20 @@ export function CollectionPage() {
       const updated = await res.json()
       setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, quantity: updated.quantity } : e))
     }
-  }
+  }, [])
 
   // Multi-select handlers
-  function toggleSelect(id: string) {
+  const toggleSelect = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
-  }
+  }, [])
 
-  function toggleSelectAll(all: boolean) {
+  const toggleSelectAll = useCallback((all: boolean) => {
     setSelected(all ? new Set(entries.map(e => e.id)) : new Set())
-  }
+  }, [entries])
 
   async function handleBulkDelete() {
     const ids = Array.from(selected)
@@ -1623,7 +1687,12 @@ export function CollectionPage() {
       {loading ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
       ) : viewMode === 'by-set' ? (
-        <SetGroupedView completion={completion} onDrillIn={handleDrillIn} />
+        <SetGroupedView
+          completion={completion}
+          regularOnly={prefs.setCompletionRegularOnly}
+          onRegularOnlyChange={handleRegularOnlyChange}
+          onDrillIn={handleDrillIn}
+        />
       ) : (
         entries.length === 0 && !hasActiveFilters ? (
           <p className="text-sm text-muted-foreground py-8 text-center">
@@ -1679,6 +1748,7 @@ export function CollectionPage() {
         <CardDetailDialog
           identifier={detailId}
           onClose={() => setDetailId(null)}
+          onPriceRefreshed={() => { void loadEntries() }}
           onAdd={() => {
             const e = entries.find(x => x.cardIdentifier === detailId)
             if (e) {

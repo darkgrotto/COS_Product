@@ -481,6 +481,10 @@ export function ReservedListPage() {
         <CardDetailDialog
           identifier={detailCard.identifier}
           onClose={() => setDetailCard(null)}
+          onPriceRefreshed={async () => {
+            const res = await fetch('/api/cards/reserved-list')
+            if (res.ok) setCards(await res.json())
+          }}
           onAdd={() => setAddCard(detailCard)}
         />
       )}

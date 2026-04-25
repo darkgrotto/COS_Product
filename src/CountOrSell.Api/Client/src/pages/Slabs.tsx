@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Plus, Pencil, Trash2, ExternalLink, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -445,20 +445,32 @@ export function SlabsPage() {
   const [conditionPick, setConditionPick] = useState('')
   const [conditionConfirm, setConditionConfirm] = useState(false)
 
-  const treatmentMap = Object.fromEntries(treatments.map(t => [t.key, t.displayName]))
-  const agencyMap = Object.fromEntries(agencies.map(a => [a.code, a]))
+  const treatmentMap = useMemo(
+    () => Object.fromEntries(treatments.map(t => [t.key, t.displayName])),
+    [treatments],
+  )
+  const agencyMap = useMemo(
+    () => Object.fromEntries(agencies.map(a => [a.code, a])),
+    [agencies],
+  )
 
-  function handleSort(key: string) {
-    if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('asc') }
-  }
+  const handleSort = useCallback((key: string) => {
+    setSortKey(prevKey => {
+      if (prevKey === key) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        return prevKey
+      }
+      setSortDir('asc')
+      return key
+    })
+  }, [])
 
-  const sorted = [...entries].sort((a, b) => {
+  const sorted = useMemo(() => [...entries].sort((a, b) => {
     let cmp = 0
     if (sortKey === 'card') cmp = (a.cardName ?? a.cardIdentifier).localeCompare(b.cardName ?? b.cardIdentifier)
     else if (sortKey === 'identifier') cmp = a.cardIdentifier.localeCompare(b.cardIdentifier)
     return sortDir === 'asc' ? cmp : -cmp
-  })
+  }), [entries, sortKey, sortDir])
 
   async function load() {
     const params = new URLSearchParams()
@@ -521,17 +533,17 @@ export function SlabsPage() {
     await load()
   }
 
-  function toggleSelect(id: string) {
+  const toggleSelect = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
-  }
+  }, [])
 
-  function toggleSelectAll(all: boolean) {
+  const toggleSelectAll = useCallback((all: boolean) => {
     setSelected(all ? new Set(entries.map(e => e.id)) : new Set())
-  }
+  }, [entries])
 
   const totalValue = entries.reduce((s, e) => s + (e.marketValue ?? 0), 0)
   const hasValues = entries.some(e => e.marketValue != null)
@@ -716,6 +728,7 @@ export function SlabsPage() {
         <CardDetailDialog
           identifier={detailId}
           onClose={() => setDetailId(null)}
+          onPriceRefreshed={() => { void load() }}
           onAdd={() => {
             const e = entries.find(x => x.cardIdentifier === detailId)
             if (e) setAddFromDetail({ identifier: e.cardIdentifier, name: e.cardName ?? e.cardIdentifier, currentMarketValue: e.marketValue })

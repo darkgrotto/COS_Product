@@ -658,6 +658,7 @@ function CardListView({
         <CardDetailDialog
           identifier={detailCard.identifier}
           onClose={() => setDetailCard(null)}
+          onPriceRefreshed={() => { void loadCards() }}
           onAdd={() => setAddCard(detailCard)}
         />
       )}

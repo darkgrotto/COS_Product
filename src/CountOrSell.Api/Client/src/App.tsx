@@ -3,6 +3,7 @@ import { BrandingProvider } from '@/contexts/BrandingContext'
 import { DemoProvider } from '@/contexts/DemoContext'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { PreferencesProvider } from '@/contexts/PreferencesContext'
+import { ToastProvider } from '@/contexts/ToastContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AdminRoute } from '@/components/AdminRoute'
 import { AppShell } from '@/components/layout/AppShell'
@@ -40,6 +41,7 @@ function App() {
     <DemoProvider>
       <AuthProvider>
         <PreferencesProvider>
+        <ToastProvider>
         <BrowserRouter>
           <Routes>
             {/* Public routes */}
@@ -92,6 +94,7 @@ function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+        </ToastProvider>
         </PreferencesProvider>
       </AuthProvider>
     </DemoProvider>

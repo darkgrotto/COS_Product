@@ -773,17 +773,17 @@ export function SealedProductPage() {
     fetchEntries()
   }
 
-  function toggleSelect(id: string) {
+  const toggleSelect = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
-  }
+  }, [])
 
-  function toggleSelectAll(all: boolean) {
+  const toggleSelectAll = useCallback((all: boolean) => {
     setSelected(all ? new Set(entries.map(e => e.id)) : new Set())
-  }
+  }, [entries])
 
   async function adjustQty(entry: SealedInventoryEntry, delta: number) {
     const newQty = Math.max(1, entry.quantity + delta)
