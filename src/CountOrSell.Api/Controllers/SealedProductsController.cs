@@ -1,4 +1,5 @@
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,10 +11,14 @@ namespace CountOrSell.Api.Controllers;
 public class SealedProductsController : ControllerBase
 {
     private readonly ISealedProductRepository _products;
+    private readonly ISealedTaxonomyRepository _taxonomy;
 
-    public SealedProductsController(ISealedProductRepository products)
+    public SealedProductsController(
+        ISealedProductRepository products,
+        ISealedTaxonomyRepository taxonomy)
     {
         _products = products;
+        _taxonomy = taxonomy;
     }
 
     // Returns all sealed products without pagination for admin browsing.
@@ -22,17 +27,8 @@ public class SealedProductsController : ControllerBase
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
         var all = await _products.GetAllAsync(ct);
-        return Ok(all.Select(p => new
-        {
-            p.Identifier,
-            p.Name,
-            SetCode = string.IsNullOrEmpty(p.SetCode) ? (string?)null : p.SetCode.ToUpperInvariant(),
-            p.CategorySlug,
-            p.SubTypeSlug,
-            p.CurrentMarketValue,
-            p.UpdatedAt,
-            HasImage = p.ImagePath != null,
-        }));
+        var (categoryMap, subTypeMap) = await LoadTaxonomyMapsAsync(ct);
+        return Ok(all.Select(p => MapSummary(p, categoryMap, subTypeMap, includeUpdatedAt: true, includeHasImage: true)));
     }
 
     [HttpGet("{identifier}")]
@@ -40,13 +36,16 @@ public class SealedProductsController : ControllerBase
     {
         var product = await _products.GetByIdentifierAsync(identifier, ct);
         if (product == null) return NotFound();
+        var (categoryMap, subTypeMap) = await LoadTaxonomyMapsAsync(ct);
         return Ok(new
         {
             product.Identifier,
             product.Name,
             SetCode = string.IsNullOrEmpty(product.SetCode) ? (string?)null : product.SetCode.ToUpperInvariant(),
             product.CategorySlug,
+            CategoryDisplayName = LookupDisplay(product.CategorySlug, categoryMap),
             product.SubTypeSlug,
+            SubTypeDisplayName = LookupDisplay(product.SubTypeSlug, subTypeMap),
             product.CurrentMarketValue,
             product.UpdatedAt,
             ImageUrl = $"/api/images/sealed/{product.Identifier}.jpg",
@@ -67,18 +66,10 @@ public class SealedProductsController : ControllerBase
         if (pageSize < 1 || pageSize > 100) pageSize = 50;
 
         var (items, total) = await _products.BrowseAsync(setCode, categorySlug, subTypeSlug, page, pageSize, ct);
+        var (categoryMap, subTypeMap) = await LoadTaxonomyMapsAsync(ct);
         return Ok(new
         {
-            items = items.Select(p => new
-            {
-                p.Identifier,
-                p.Name,
-                SetCode = string.IsNullOrEmpty(p.SetCode) ? (string?)null : p.SetCode.ToUpperInvariant(),
-                p.CategorySlug,
-                p.SubTypeSlug,
-                p.CurrentMarketValue,
-                ImageUrl = $"/api/images/sealed/{p.Identifier}.jpg"
-            }),
+            items = items.Select(p => MapSummary(p, categoryMap, subTypeMap)),
             total,
             page,
             pageSize
@@ -92,15 +83,58 @@ public class SealedProductsController : ControllerBase
             return Ok(Array.Empty<object>());
 
         var results = await _products.SearchAsync(q, ct);
-        return Ok(results.Select(p => new
+        var (categoryMap, subTypeMap) = await LoadTaxonomyMapsAsync(ct);
+        return Ok(results.Select(p => MapSummary(p, categoryMap, subTypeMap)));
+    }
+
+    private async Task<(Dictionary<string, string> Categories, Dictionary<string, string> SubTypes)> LoadTaxonomyMapsAsync(CancellationToken ct)
+    {
+        var categories = await _taxonomy.GetAllCategoriesAsync(ct);
+        var subTypes = await _taxonomy.GetAllSubTypesAsync(ct);
+        return (
+            categories.ToDictionary(c => c.Slug, c => c.DisplayName),
+            subTypes.ToDictionary(s => s.Slug, s => s.DisplayName)
+        );
+    }
+
+    private static string? LookupDisplay(string? slug, Dictionary<string, string> map) =>
+        slug != null && map.TryGetValue(slug, out var name) ? name : null;
+
+    private static object MapSummary(
+        SealedProduct p,
+        Dictionary<string, string> categoryMap,
+        Dictionary<string, string> subTypeMap,
+        bool includeUpdatedAt = false,
+        bool includeHasImage = false)
+    {
+        var setCode = string.IsNullOrEmpty(p.SetCode) ? (string?)null : p.SetCode.ToUpperInvariant();
+        if (includeUpdatedAt && includeHasImage)
+        {
+            return new
+            {
+                p.Identifier,
+                p.Name,
+                SetCode = setCode,
+                p.CategorySlug,
+                CategoryDisplayName = LookupDisplay(p.CategorySlug, categoryMap),
+                p.SubTypeSlug,
+                SubTypeDisplayName = LookupDisplay(p.SubTypeSlug, subTypeMap),
+                p.CurrentMarketValue,
+                p.UpdatedAt,
+                HasImage = p.ImagePath != null,
+            };
+        }
+        return new
         {
             p.Identifier,
             p.Name,
-            SetCode = p.SetCode.ToUpperInvariant(),
+            SetCode = setCode,
             p.CategorySlug,
+            CategoryDisplayName = LookupDisplay(p.CategorySlug, categoryMap),
             p.SubTypeSlug,
+            SubTypeDisplayName = LookupDisplay(p.SubTypeSlug, subTypeMap),
             p.CurrentMarketValue,
             ImageUrl = $"/api/images/sealed/{p.Identifier}.jpg"
-        }));
+        };
     }
 }

@@ -23,6 +23,7 @@ public class CollectionController : ControllerBase
     private readonly IUserRepository _users;
     private readonly ITcgPlayerService _tcgPlayer;
     private readonly ICollectionImportExportService _importExport;
+    private readonly ITreatmentValidator _treatments;
 
     public CollectionController(
         ICollectionRepository collection,
@@ -30,7 +31,8 @@ public class CollectionController : ControllerBase
         IMetricsService metrics,
         IUserRepository users,
         ITcgPlayerService tcgPlayer,
-        ICollectionImportExportService importExport)
+        ICollectionImportExportService importExport,
+        ITreatmentValidator treatments)
     {
         _collection = collection;
         _cards = cards;
@@ -38,6 +40,7 @@ public class CollectionController : ControllerBase
         _users = users;
         _tcgPlayer = tcgPlayer;
         _importExport = importExport;
+        _treatments = treatments;
     }
 
     private Guid CurrentUserId =>
@@ -92,6 +95,8 @@ public class CollectionController : ControllerBase
         var cardId = request.CardIdentifier.ToLowerInvariant();
         if (!CardIdentifierValidator.IsValid(cardId))
             return BadRequest(new { error = $"Invalid card identifier: {request.CardIdentifier.ToUpperInvariant()}. Expected format: set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000)." });
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
         var entry = new CollectionEntry
         {
             Id = Guid.NewGuid(),
@@ -130,6 +135,9 @@ public class CollectionController : ControllerBase
 
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         entry.TreatmentKey = request.Treatment;
         entry.Quantity = request.Quantity;
@@ -268,6 +276,8 @@ public class CollectionController : ControllerBase
             return BadRequest(new { error = "At least one id is required." });
         if (string.IsNullOrEmpty(request.Treatment))
             return BadRequest(new { error = "Treatment is required." });
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
         var updated = await _collection.BulkSetTreatmentAsync(request.Ids, CurrentUserId, request.Treatment, ct);
         return Ok(new { updated });
     }
@@ -286,6 +296,9 @@ public class CollectionController : ControllerBase
     {
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         var setCode = request.SetCode.ToLowerInvariant();
         var cards = await _cards.GetBySetCodeAsync(setCode, ct);
@@ -328,6 +341,9 @@ public class CollectionController : ControllerBase
 
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         var now = DateTime.UtcNow;
         var bySet = new List<object>();

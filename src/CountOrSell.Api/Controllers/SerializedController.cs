@@ -4,6 +4,7 @@ using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos.Requests;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
+using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,11 +17,13 @@ public class SerializedController : ControllerBase
 {
     private readonly ISerializedRepository _serialized;
     private readonly ICardRepository _cards;
+    private readonly ITreatmentValidator _treatments;
 
-    public SerializedController(ISerializedRepository serialized, ICardRepository cards)
+    public SerializedController(ISerializedRepository serialized, ICardRepository cards, ITreatmentValidator treatments)
     {
         _serialized = serialized;
         _cards = cards;
+        _treatments = treatments;
     }
 
     private Guid CurrentUserId =>
@@ -62,6 +65,9 @@ public class SerializedController : ControllerBase
         if (!CardIdentifierValidator.IsValid(cardId))
             return BadRequest(new { error = $"Invalid card identifier: {request.CardIdentifier.ToUpperInvariant()}. Expected format: set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000)." });
 
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
+
         var entry = new SerializedEntry
         {
             Id = Guid.NewGuid(),
@@ -101,6 +107,9 @@ public class SerializedController : ControllerBase
 
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         entry.TreatmentKey = request.Treatment;
         entry.SerialNumber = request.SerialNumber;

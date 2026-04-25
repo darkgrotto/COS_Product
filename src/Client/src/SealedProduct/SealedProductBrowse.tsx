@@ -7,7 +7,9 @@ interface SealedProductSummary {
   name: string;
   setCode: string | null;
   categorySlug: string | null;
+  categoryDisplayName: string | null;
   subTypeSlug: string | null;
+  subTypeDisplayName: string | null;
   currentMarketValue: number | null;
   imageUrl: string;
 }
@@ -144,27 +146,23 @@ export function SealedProductBrowse() {
               </tr>
             </thead>
             <tbody>
-              {result.items.map((p) => {
-                const cat = categories.find((c) => c.slug === p.categorySlug);
-                const sub = cat?.subTypes.find((s) => s.slug === p.subTypeSlug);
-                return (
-                  <tr key={p.identifier}>
-                    <td style={{ width: '60px' }}>
-                      <img
-                        src={p.imageUrl}
-                        alt={p.name}
-                        style={{ width: '50px', height: '50px', objectFit: 'contain', display: 'block' }}
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    </td>
-                    <td>{p.name}</td>
-                    <td>{p.setCode ?? '--'}</td>
-                    <td>{cat ? cat.displayName : (p.categorySlug ?? '--')}</td>
-                    <td>{sub ? sub.displayName : (p.subTypeSlug ?? '--')}</td>
-                    <td>{p.currentMarketValue !== null ? `$${p.currentMarketValue.toFixed(2)}` : '--'}</td>
-                  </tr>
-                );
-              })}
+              {result.items.map((p) => (
+                <tr key={p.identifier}>
+                  <td style={{ width: '60px' }}>
+                    <img
+                      src={p.imageUrl}
+                      alt={p.name}
+                      style={{ width: '50px', height: '50px', objectFit: 'contain', display: 'block' }}
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </td>
+                  <td>{p.name}</td>
+                  <td>{p.setCode ?? '--'}</td>
+                  <td>{p.categoryDisplayName ?? '--'}</td>
+                  <td>{p.subTypeDisplayName ?? '--'}</td>
+                  <td>{p.currentMarketValue !== null ? `$${p.currentMarketValue.toFixed(2)}` : '--'}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
           {totalPages > 1 && (

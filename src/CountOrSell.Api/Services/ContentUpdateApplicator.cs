@@ -36,6 +36,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
     private readonly ISealedTaxonomyRepository _taxonomy;
     private readonly IPackageVerifier _verifier;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ITreatmentValidator _treatmentValidator;
     private readonly ILogger<ContentUpdateApplicator> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -49,6 +50,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         ISealedTaxonomyRepository taxonomy,
         IPackageVerifier verifier,
         IHttpClientFactory httpClientFactory,
+        ITreatmentValidator treatmentValidator,
         ILogger<ContentUpdateApplicator> logger)
     {
         _db = db;
@@ -56,6 +58,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         _taxonomy = taxonomy;
         _verifier = verifier;
         _httpClientFactory = httpClientFactory;
+        _treatmentValidator = treatmentValidator;
         _logger = logger;
     }
 
@@ -158,6 +161,8 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
+
+        if (treatments != null) _treatmentValidator.Invalidate();
 
         // Fetch and save images outside the transaction - best effort, non-fatal
         await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);

@@ -72,6 +72,9 @@ builder.Services.AddScoped<IUserExportFileRepository, UserExportFileRepository>(
 builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
+// Reference-data validators
+builder.Services.AddSingleton<ITreatmentValidator, TreatmentValidator>();
+
 // Feature services
 builder.Services.AddScoped<IMetricsService, MetricsService>();
 builder.Services.AddScoped<IExportService, ExportService>();

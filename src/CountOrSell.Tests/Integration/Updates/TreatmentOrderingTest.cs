@@ -27,7 +27,7 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), new StubTreatmentValidator(), NullLogger<ContentUpdateApplicator>.Instance);
 
         var setCode = $"t{Guid.NewGuid():N}".Substring(0, 4);
         var cardId = $"{setCode}001";
@@ -76,7 +76,7 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), new StubTreatmentValidator(), NullLogger<ContentUpdateApplicator>.Instance);
 
         var treatmentKey = $"upsert-{Guid.NewGuid():N}".Substring(0, 14);
         var setCode = $"u{Guid.NewGuid():N}".Substring(0, 4);
@@ -99,7 +99,7 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         await using var db2 = _fixture.CreateContext();
         var taxonomy2 = new SealedTaxonomyRepository(db2, NullLogger<SealedTaxonomyRepository>.Instance);
         var applicator2 = new ContentUpdateApplicator(
-            db2, imageStore, taxonomy2, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
+            db2, imageStore, taxonomy2, verifier, new NoOpHttpClientFactory(), new StubTreatmentValidator(), NullLogger<ContentUpdateApplicator>.Instance);
 
         var (package2, manifest2) = PackageBuilder.Build(
             treatments: new List<TreatmentDto>
