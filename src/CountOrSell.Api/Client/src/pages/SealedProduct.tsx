@@ -10,6 +10,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { Pagination } from '@/components/Pagination'
+
+const PAGE_SIZE = 100
 
 // ---- Types ------------------------------------------------------------------
 
@@ -627,6 +630,8 @@ function SealedProductDetailDialog({
 
 export function SealedProductPage() {
   const [entries, setEntries] = useState<SealedInventoryEntry[]>([])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   const [categories, setCategories] = useState<TaxonomyCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<Filters>({ categorySlug: '', subTypeSlug: '' })
@@ -648,12 +653,18 @@ export function SealedProductPage() {
       const params = new URLSearchParams()
       if (filters.categorySlug) params.set('categorySlug', filters.categorySlug)
       if (filters.subTypeSlug) params.set('subTypeSlug', filters.subTypeSlug)
+      params.set('page', String(page))
+      params.set('pageSize', String(PAGE_SIZE))
       const res = await fetch(`/api/sealed-inventory?${params}`)
-      if (res.ok) setEntries(await res.json())
+      if (res.ok) {
+        const data = await res.json()
+        setEntries(data.items)
+        setTotal(data.total)
+      }
     } finally {
       setLoading(false)
     }
-  }, [filters])
+  }, [filters, page])
 
   useEffect(() => {
     fetch('/api/sealed-product-taxonomy/categories')
@@ -663,6 +674,8 @@ export function SealedProductPage() {
       )
       .catch(() => {/* taxonomy optional */})
   }, [])
+
+  useEffect(() => { setPage(1) }, [filters])
 
   useEffect(() => { fetchEntries() }, [fetchEntries])
 
@@ -799,10 +812,12 @@ export function SealedProductPage() {
           <h1 className="text-2xl font-semibold">Sealed Product</h1>
           {!loading && (
             <p className="text-sm text-muted-foreground mt-0.5">
+              {total} entr{total !== 1 ? 'ies' : 'y'} ·{' '}
               {totalItems} item{totalItems !== 1 ? 's' : ''} -
               Value: {fmt(totalValue)} -
               P/L:{' '}
               <span className={plColor(totalPL)}>{totalPL >= 0 ? '+' : ''}{fmt(totalPL)}</span>
+              {' '}(this page)
             </p>
           )}
         </div>
@@ -973,6 +988,7 @@ export function SealedProductPage() {
               })}
             </tbody>
           </table>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>
       )}
 

@@ -33,26 +33,31 @@ public class SlabsController : ControllerBase
         User.IsInRole("Admin");
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? userId, [FromQuery] CollectionFilter filter, CancellationToken ct)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] Guid? userId,
+        [FromQuery] CollectionFilter filter,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        CancellationToken ct = default)
     {
         if (userId.HasValue && !IsAdmin)
             return Forbid();
 
-        var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 500) pageSize = 100;
 
-        List<SlabEntry> entries;
-        if (HasFilters(filter))
-            entries = await _slabs.GetByUserFilteredAsync(targetUserId, filter, ct);
-        else
-            entries = await _slabs.GetByUserAsync(targetUserId, ct);
+        var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
+        var (entries, total) = await _slabs.GetByUserPagedAsync(targetUserId, filter, page, pageSize, ct);
 
         var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
         var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);
-        return Ok(entries.Select(e =>
+        var items = entries.Select(e =>
         {
             summaries.TryGetValue(e.CardIdentifier, out var s);
             return MapEntry(e, s.Name, s.MarketValue, s.SetCode);
-        }));
+        });
+
+        return Ok(new { items, total, page, pageSize });
     }
 
     [HttpPost]

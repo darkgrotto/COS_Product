@@ -15,7 +15,33 @@ public class CollectionRepository : ICollectionRepository
     public Task<List<CollectionEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default) =>
         _db.CollectionEntries.Where(e => e.UserId == userId).ToListAsync(ct);
 
-    public Task<List<CollectionEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default)
+    public Task<List<CollectionEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default) =>
+        BuildFilteredQuery(userId, filter).ToListAsync(ct);
+
+    public async Task<(List<CollectionEntry> Items, int Total)> GetByUserPagedAsync(
+        Guid userId, CollectionFilter? filter, int page, int pageSize, CancellationToken ct = default)
+    {
+        var query = filter != null && HasFilters(filter)
+            ? BuildFilteredQuery(userId, filter)
+            : _db.CollectionEntries.Where(e => e.UserId == userId);
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(e => e.CreatedAt)
+            .ThenByDescending(e => e.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+        return (items, total);
+    }
+
+    private static bool HasFilters(CollectionFilter filter) =>
+        !string.IsNullOrEmpty(filter.SetCode) || !string.IsNullOrEmpty(filter.Color) ||
+        !string.IsNullOrEmpty(filter.CardType) || !string.IsNullOrEmpty(filter.Treatment) ||
+        !string.IsNullOrEmpty(filter.Condition) || filter.Autographed.HasValue ||
+        filter.IsReserved.HasValue || filter.HasPhyrexianMana.HasValue || filter.HasHybridMana.HasValue;
+
+    private IQueryable<CollectionEntry> BuildFilteredQuery(Guid userId, CollectionFilter filter)
     {
         var query = _db.CollectionEntries
             .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
@@ -57,7 +83,7 @@ public class CollectionRepository : ICollectionRepository
                  x.c.ManaCost.Contains("/B}") || x.c.ManaCost.Contains("/R}") ||
                  x.c.ManaCost.Contains("/G}")));
 
-        return query.Select(x => x.ce).ToListAsync(ct);
+        return query.Select(x => x.ce);
     }
 
     public Task<List<ReservedCollectionEntry>> GetReservedEntriesForUserAsync(Guid userId, CancellationToken ct = default) =>

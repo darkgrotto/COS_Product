@@ -77,15 +77,9 @@ dotnet test src/CountOrSell.sln --configuration Release
 
 **Build the client:**
 ```
-cd src/Client
+cd src/CountOrSell.Api/Client
 npm install
 npm run build
-```
-
-**Run client tests:**
-```
-cd src/Client
-npm test
 ```
 
 A local PostgreSQL instance is required to run the API locally. Set the `POSTGRES_CONNECTION` environment variable or configure it in `appsettings.Development.json`.

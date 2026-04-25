@@ -38,18 +38,18 @@ public class SealedInventoryController : ControllerBase
         [FromQuery] Guid? userId,
         [FromQuery] string? categorySlug,
         [FromQuery] string? subTypeSlug,
-        CancellationToken ct)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        CancellationToken ct = default)
     {
         if (userId.HasValue && !IsAdmin)
             return Forbid();
 
-        var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 500) pageSize = 100;
 
-        List<SealedInventoryEntry> entries;
-        if (!string.IsNullOrEmpty(categorySlug) || !string.IsNullOrEmpty(subTypeSlug))
-            entries = await _sealedInventory.GetByUserFilteredAsync(targetUserId, categorySlug, subTypeSlug, ct);
-        else
-            entries = await _sealedInventory.GetByUserAsync(targetUserId, ct);
+        var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
+        var (entries, total) = await _sealedInventory.GetByUserPagedAsync(targetUserId, categorySlug, subTypeSlug, page, pageSize, ct);
 
         var identifiers = entries.Select(e => e.ProductIdentifier).Distinct();
         var products = await _sealedProducts.GetByIdentifiersAsync(identifiers, ct);
@@ -60,11 +60,13 @@ public class SealedInventoryController : ControllerBase
         var categoryMap = allCategories.ToDictionary(c => c.Slug, c => c.DisplayName);
         var subTypeMap = allSubTypes.ToDictionary(s => s.Slug, s => s.DisplayName);
 
-        return Ok(entries.Select(e =>
+        var items = entries.Select(e =>
         {
             products.TryGetValue(e.ProductIdentifier, out var product);
             return MapEntry(e, product, categoryMap, subTypeMap);
-        }));
+        });
+
+        return Ok(new { items, total, page, pageSize });
     }
 
     [HttpPost]

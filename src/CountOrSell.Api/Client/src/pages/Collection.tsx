@@ -21,6 +21,9 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { Pagination } from '@/components/Pagination'
+
+const PAGE_SIZE = 100
 
 // ---- Types ------------------------------------------------------------------
 
@@ -1357,6 +1360,8 @@ function ImportExportDialog({
 export function CollectionPage() {
   const { prefs } = usePreferences()
   const [entries, setEntries] = useState<CollectionEntry[]>([])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   const [completion, setCompletion] = useState<SetCompletion[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [sets, setSets] = useState<CardSet[]>([])
@@ -1403,8 +1408,14 @@ export function CollectionPage() {
     if (filters.isReserved) params.set('filter.isReserved', 'true')
     if (filters.hasPhyrexianMana) params.set('filter.hasPhyrexianMana', 'true')
     if (filters.hasHybridMana) params.set('filter.hasHybridMana', 'true')
+    params.set('page', String(page))
+    params.set('pageSize', String(PAGE_SIZE))
     const res = await fetch(`/api/collection?${params}`)
-    if (res.ok) setEntries(await res.json())
+    if (res.ok) {
+      const data = await res.json()
+      setEntries(data.items)
+      setTotal(data.total)
+    }
   }
 
   useEffect(() => {
@@ -1417,16 +1428,18 @@ export function CollectionPage() {
     })
   }, [])
 
+  useEffect(() => { setPage(1) }, [filters])
+
   useEffect(() => {
     setLoading(true)
     Promise.all([loadCompletion(), loadEntries()])
       .finally(() => setLoading(false))
-  }, [filters])
+  }, [filters, page])
 
   const handleSave = useCallback(() => {
     loadCompletion()
     loadEntries()
-  }, [filters])
+  }, [filters, page])
 
   function handleDrillIn(setCode: string) {
     setFilters(f => ({ ...f, setCode }))
@@ -1513,6 +1526,7 @@ export function CollectionPage() {
           <h1 className="text-2xl font-semibold">Collection</h1>
           {!loading && viewMode === 'cards' && (
             <p className="text-sm text-muted-foreground mt-0.5">
+              {total} entr{total !== 1 ? 'ies' : 'y'} \u00b7{' '}
               {totalCards} card{totalCards !== 1 ? 's' : ''}
               {hasValues && ` \u00b7 ${fmt(totalValue)} value`}
               {hasValues && (
@@ -1520,6 +1534,7 @@ export function CollectionPage() {
                   {totalPl >= 0 ? '+' : ''}{fmt(totalPl)} P/L
                 </span>
               )}
+              {' '}(this page)
             </p>
           )}
         </div>
@@ -1615,18 +1630,21 @@ export function CollectionPage() {
             No cards in your collection yet.
           </p>
         ) : (
-          <CardsTable
-            entries={entries}
-            treatments={treatments}
-            selected={selected}
-            onToggleSelect={toggleSelect}
-            onToggleSelectAll={toggleSelectAll}
-            onEdit={setEditEntry}
-            onDelete={setDeleteEntry}
-            onAdjustQty={adjustQuantity}
-            onDetail={setDetailId}
-            defaultSortKey={prefs.cardSortDefault === 'identifier' ? 'identifier' : 'card'}
-          />
+          <>
+            <CardsTable
+              entries={entries}
+              treatments={treatments}
+              selected={selected}
+              onToggleSelect={toggleSelect}
+              onToggleSelectAll={toggleSelectAll}
+              onEdit={setEditEntry}
+              onDelete={setDeleteEntry}
+              onAdjustQty={adjustQuantity}
+              onDetail={setDetailId}
+              defaultSortKey={prefs.cardSortDefault === 'identifier' ? 'identifier' : 'card'}
+            />
+            <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+          </>
         )
       )}
 

@@ -57,24 +57,26 @@ public class CollectionController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? userId, [FromQuery] CollectionFilter? filter, CancellationToken ct)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] Guid? userId,
+        [FromQuery] CollectionFilter? filter,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        CancellationToken ct = default)
     {
         if (userId.HasValue && !IsAdmin)
             return Forbid();
 
-        var targetUserId = ResolveUserId(userId);
-        var effectiveFilter = filter ?? new CollectionFilter();
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 500) pageSize = 100;
 
-        List<CollectionEntry> entries;
-        if (HasFilters(effectiveFilter))
-            entries = await _collection.GetByUserFilteredAsync(targetUserId, effectiveFilter, ct);
-        else
-            entries = await _collection.GetByUserAsync(targetUserId, ct);
+        var targetUserId = ResolveUserId(userId);
+        var (entries, total) = await _collection.GetByUserPagedAsync(targetUserId, filter, page, pageSize, ct);
 
         var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
         var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);
         var treatmentPrices = await _cards.GetPricesByIdentifiersAsync(identifiers, ct);
-        return Ok(entries.Select(e =>
+        var items = entries.Select(e =>
         {
             summaries.TryGetValue(e.CardIdentifier, out var summary);
             decimal? mv = treatmentPrices.TryGetValue(e.CardIdentifier, out var tPrices) &&
@@ -82,7 +84,9 @@ public class CollectionController : ControllerBase
                 ? tp
                 : summary.MarketValue;
             return MapEntry(e, summary.Name, mv, summary.SetCode, summary.OracleRulingUrl);
-        }));
+        });
+
+        return Ok(new { items, total, page, pageSize });
     }
 
     [HttpPost]

@@ -12,7 +12,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { CardDetailDialog, QuickAddDialog, AddableCard, SortTh, SortDir } from '@/components/cards/CardDialogs'
+import { Pagination } from '@/components/Pagination'
 import { usePreferences } from '@/contexts/PreferencesContext'
+
+const PAGE_SIZE = 100
 
 // ---- Types ----------------------------------------------------------------
 
@@ -426,6 +429,8 @@ export function SlabsPage() {
   const [sortKey, setSortKey] = useState(prefs.cardSortDefault === 'identifier' ? 'identifier' : 'card')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [entries, setEntries] = useState<SlabEntry[]>([])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [agencies, setAgencies] = useState<GradingAgency[]>([])
   const [loading, setLoading] = useState(true)
@@ -460,8 +465,14 @@ export function SlabsPage() {
     if (filters.gradingAgency) params.set('filter.gradingAgency', filters.gradingAgency)
     if (filters.condition) params.set('filter.condition', filters.condition)
     if (filters.treatment) params.set('filter.treatment', filters.treatment)
+    params.set('page', String(page))
+    params.set('pageSize', String(PAGE_SIZE))
     const res = await fetch(`/api/slabs?${params}`, { credentials: 'include' })
-    if (res.ok) setEntries(await res.json())
+    if (res.ok) {
+      const data = await res.json()
+      setEntries(data.items)
+      setTotal(data.total)
+    }
   }
 
   useEffect(() => {
@@ -471,12 +482,15 @@ export function SlabsPage() {
     ]).then(([t, a]) => { setTreatments(t); setAgencies(a) })
   }, [])
 
+  // Reset to page 1 when filters change so we don't request a page that no longer exists.
+  useEffect(() => { setPage(1) }, [filters])
+
   useEffect(() => {
     setLoading(true)
     load().finally(() => setLoading(false))
-  }, [filters])
+  }, [filters, page])
 
-  const handleSave = useCallback(() => { load() }, [filters])
+  const handleSave = useCallback(() => { load() }, [filters, page])
 
   async function handleDelete() {
     if (!deleteEntry) return
@@ -529,8 +543,8 @@ export function SlabsPage() {
           <h1 className="text-2xl font-semibold">Slabs</h1>
           {!loading && (
             <p className="text-sm text-muted-foreground mt-0.5">
-              {entries.length} slab{entries.length !== 1 ? 's' : ''}
-              {hasValues && ` \u00b7 ${fmt(totalValue)} value`}
+              {total} slab{total !== 1 ? 's' : ''}
+              {hasValues && ` \u00b7 ${fmt(totalValue)} value (this page)`}
             </p>
           )}
         </div>
@@ -690,6 +704,7 @@ export function SlabsPage() {
               })}
             </tbody>
           </table>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>
       )}
 
