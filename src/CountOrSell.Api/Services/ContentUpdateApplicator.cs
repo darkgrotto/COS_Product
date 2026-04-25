@@ -37,6 +37,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
     private readonly IPackageVerifier _verifier;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ITreatmentValidator _treatmentValidator;
+    private readonly IImageStatsService? _imageStats;
     private readonly ILogger<ContentUpdateApplicator> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -51,7 +52,8 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         IPackageVerifier verifier,
         IHttpClientFactory httpClientFactory,
         ITreatmentValidator treatmentValidator,
-        ILogger<ContentUpdateApplicator> logger)
+        ILogger<ContentUpdateApplicator> logger,
+        IImageStatsService? imageStats = null)
     {
         _db = db;
         _imageStore = imageStore;
@@ -59,6 +61,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         _verifier = verifier;
         _httpClientFactory = httpClientFactory;
         _treatmentValidator = treatmentValidator;
+        _imageStats = imageStats;
         _logger = logger;
     }
 
@@ -461,5 +464,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         _logger.LogInformation(
             "FetchAndSaveImagesAsync complete: {Saved} saved, {Skipped} skipped (checksum), {Failed} failed",
             saved, skippedChecksum, failed);
+
+        if (saved > 0) _imageStats?.Invalidate();
     }
 }

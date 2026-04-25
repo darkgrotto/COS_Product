@@ -74,6 +74,7 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 // Reference-data validators
 builder.Services.AddSingleton<ITreatmentValidator, TreatmentValidator>();
+builder.Services.AddSingleton<IImageStatsService, ImageStatsService>();
 
 // Feature services
 builder.Services.AddScoped<IMetricsService, MetricsService>();

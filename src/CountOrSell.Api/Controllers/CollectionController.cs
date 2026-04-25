@@ -73,7 +73,6 @@ public class CollectionController : ControllerBase
 
         var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
         var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);
-        var oracleUrls = await _cards.GetOracleRulingUrlsByIdentifiersAsync(identifiers, ct);
         var treatmentPrices = await _cards.GetPricesByIdentifiersAsync(identifiers, ct);
         return Ok(entries.Select(e =>
         {
@@ -82,7 +81,7 @@ public class CollectionController : ControllerBase
                           tPrices.TryGetValue(e.TreatmentKey, out var tp)
                 ? tp
                 : summary.MarketValue;
-            return MapEntry(e, summary.Name, mv, summary.SetCode, oracleUrls.GetValueOrDefault(e.CardIdentifier));
+            return MapEntry(e, summary.Name, mv, summary.SetCode, summary.OracleRulingUrl);
         }));
     }
 

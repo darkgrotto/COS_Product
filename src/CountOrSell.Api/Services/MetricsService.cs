@@ -15,14 +15,24 @@ public class MetricsService : IMetricsService
         _db = db;
     }
 
-    public async Task<MetricsResult> GetMetricsAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default)
+    public Task<MetricsResult> GetMetricsAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default) =>
+        BuildMetricsAsync(userId, filter, ct);
+
+    public Task<MetricsResult> GetAggregateMetricsAsync(CollectionFilter filter, CancellationToken ct = default) =>
+        BuildMetricsAsync(userId: null, filter, ct);
+
+    // SUM/COUNT are computed at the database. Each content type runs as a single
+    // GroupBy(_=>1).Select aggregation; FirstOrDefault returns null when no rows
+    // match (empty user, no joinable card), in which case all aggregates default to 0.
+    private async Task<MetricsResult> BuildMetricsAsync(Guid? userId, CollectionFilter filter, CancellationToken ct)
     {
         var result = new MetricsResult();
 
-        // Collection entries value
+        // Cards
         var collectionQuery = _db.CollectionEntries
-            .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
-            .Where(x => x.ce.UserId == userId);
+            .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c });
+        if (userId.HasValue)
+            collectionQuery = collectionQuery.Where(x => x.ce.UserId == userId.Value);
 
         if (!string.IsNullOrEmpty(filter.SetCode))
             collectionQuery = collectionQuery.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
@@ -42,18 +52,19 @@ public class MetricsService : IMetricsService
         if (filter.Autographed.HasValue)
             collectionQuery = collectionQuery.Where(x => x.ce.Autographed == filter.Autographed.Value);
 
-        var collectionEntries = await collectionQuery
-            .Select(x => new
+        var collectionAgg = await collectionQuery
+            .GroupBy(_ => 1)
+            .Select(g => new
             {
-                x.ce.Quantity,
-                x.ce.AcquisitionPrice,
-                MarketValue = x.c.CurrentMarketValue
+                Value = g.Sum(x => (x.c.CurrentMarketValue ?? 0m) * x.ce.Quantity),
+                ProfitLoss = g.Sum(x => ((x.c.CurrentMarketValue ?? 0m) - x.ce.AcquisitionPrice) * x.ce.Quantity),
+                Count = g.Sum(x => x.ce.Quantity)
             })
-            .ToListAsync(ct);
+            .FirstOrDefaultAsync(ct);
 
-        decimal collectionValue = collectionEntries.Sum(e => (e.MarketValue ?? 0) * e.Quantity);
-        decimal collectionPl = collectionEntries.Sum(e => ((e.MarketValue ?? 0) - e.AcquisitionPrice) * e.Quantity);
-        int collectionCount = collectionEntries.Sum(e => e.Quantity);
+        decimal collectionValue = collectionAgg?.Value ?? 0m;
+        decimal collectionPl = collectionAgg?.ProfitLoss ?? 0m;
+        int collectionCount = collectionAgg?.Count ?? 0;
 
         result.ByContentType.Add(new ContentTypeBreakdown
         {
@@ -63,76 +74,92 @@ public class MetricsService : IMetricsService
             Count = collectionCount
         });
 
-        // Serialized entries
-        var serializedEntries = await _db.SerializedEntries
-            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
-            .Where(x => x.se.UserId == userId)
-            .Select(x => new
+        // Serialized
+        var serializedQuery = _db.SerializedEntries
+            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c });
+        if (userId.HasValue)
+            serializedQuery = serializedQuery.Where(x => x.se.UserId == userId.Value);
+
+        var serializedAgg = await serializedQuery
+            .GroupBy(_ => 1)
+            .Select(g => new
             {
-                x.se.AcquisitionPrice,
-                MarketValue = x.c.CurrentMarketValue
+                Value = g.Sum(x => x.c.CurrentMarketValue ?? 0m),
+                ProfitLoss = g.Sum(x => (x.c.CurrentMarketValue ?? 0m) - x.se.AcquisitionPrice),
+                Count = g.Count()
             })
-            .ToListAsync(ct);
+            .FirstOrDefaultAsync(ct);
 
-        decimal serializedValue = serializedEntries.Sum(e => e.MarketValue ?? 0);
-        decimal serializedPl = serializedEntries.Sum(e => (e.MarketValue ?? 0) - e.AcquisitionPrice);
+        decimal serializedValue = serializedAgg?.Value ?? 0m;
+        decimal serializedPl = serializedAgg?.ProfitLoss ?? 0m;
+        int serializedCount = serializedAgg?.Count ?? 0;
 
-        result.SerializedCount = serializedEntries.Count;
+        result.SerializedCount = serializedCount;
         result.ByContentType.Add(new ContentTypeBreakdown
         {
             ContentType = "serialized",
             TotalValue = serializedValue,
             TotalProfitLoss = serializedPl,
-            Count = serializedEntries.Count
+            Count = serializedCount
         });
 
-        // Slab entries
-        var slabEntries = await _db.SlabEntries
-            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
-            .Where(x => x.se.UserId == userId)
-            .Select(x => new
+        // Slabs
+        var slabQuery = _db.SlabEntries
+            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c });
+        if (userId.HasValue)
+            slabQuery = slabQuery.Where(x => x.se.UserId == userId.Value);
+
+        var slabAgg = await slabQuery
+            .GroupBy(_ => 1)
+            .Select(g => new
             {
-                x.se.AcquisitionPrice,
-                MarketValue = x.c.CurrentMarketValue
+                Value = g.Sum(x => x.c.CurrentMarketValue ?? 0m),
+                ProfitLoss = g.Sum(x => (x.c.CurrentMarketValue ?? 0m) - x.se.AcquisitionPrice),
+                Count = g.Count()
             })
-            .ToListAsync(ct);
+            .FirstOrDefaultAsync(ct);
 
-        decimal slabValue = slabEntries.Sum(e => e.MarketValue ?? 0);
-        decimal slabPl = slabEntries.Sum(e => (e.MarketValue ?? 0) - e.AcquisitionPrice);
+        decimal slabValue = slabAgg?.Value ?? 0m;
+        decimal slabPl = slabAgg?.ProfitLoss ?? 0m;
+        int slabCount = slabAgg?.Count ?? 0;
 
-        result.SlabCount = slabEntries.Count;
+        result.SlabCount = slabCount;
         result.ByContentType.Add(new ContentTypeBreakdown
         {
             ContentType = "slabs",
             TotalValue = slabValue,
             TotalProfitLoss = slabPl,
-            Count = slabEntries.Count
+            Count = slabCount
         });
 
-        // Sealed product inventory
-        var sealedEntries = await _db.SealedInventoryEntries
-            .Join(_db.SealedProducts, si => si.ProductIdentifier, sp => sp.Identifier, (si, sp) => new { si, sp })
-            .Where(x => x.si.UserId == userId)
-            .Select(x => new
+        // Sealed
+        var sealedQuery = _db.SealedInventoryEntries
+            .Join(_db.SealedProducts, si => si.ProductIdentifier, sp => sp.Identifier, (si, sp) => new { si, sp });
+        if (userId.HasValue)
+            sealedQuery = sealedQuery.Where(x => x.si.UserId == userId.Value);
+
+        var sealedAgg = await sealedQuery
+            .GroupBy(_ => 1)
+            .Select(g => new
             {
-                x.si.Quantity,
-                x.si.AcquisitionPrice,
-                MarketValue = x.sp.CurrentMarketValue
+                Value = g.Sum(x => (x.sp.CurrentMarketValue ?? 0m) * x.si.Quantity),
+                ProfitLoss = g.Sum(x => ((x.sp.CurrentMarketValue ?? 0m) - x.si.AcquisitionPrice) * x.si.Quantity),
+                Count = g.Sum(x => x.si.Quantity)
             })
-            .ToListAsync(ct);
+            .FirstOrDefaultAsync(ct);
 
-        decimal sealedValue = sealedEntries.Sum(e => (e.MarketValue ?? 0) * e.Quantity);
-        decimal sealedPl = sealedEntries.Sum(e => ((e.MarketValue ?? 0) - e.AcquisitionPrice) * e.Quantity);
+        decimal sealedValue = sealedAgg?.Value ?? 0m;
+        decimal sealedPl = sealedAgg?.ProfitLoss ?? 0m;
+        int sealedCount = sealedAgg?.Count ?? 0;
 
-        result.SealedProductCount = sealedEntries.Sum(e => e.Quantity);
+        result.SealedProductCount = sealedCount;
         result.SealedProductValue = sealedValue;
-
         result.ByContentType.Add(new ContentTypeBreakdown
         {
             ContentType = "sealed",
             TotalValue = sealedValue,
             TotalProfitLoss = sealedPl,
-            Count = result.SealedProductCount
+            Count = sealedCount
         });
 
         result.TotalCardCount = collectionCount;
@@ -142,114 +169,6 @@ public class MetricsService : IMetricsService
         return result;
     }
 
-    public async Task<MetricsResult> GetAggregateMetricsAsync(CollectionFilter filter, CancellationToken ct = default)
-    {
-        var result = new MetricsResult();
-
-        var collectionQuery = _db.CollectionEntries
-            .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c });
-
-        if (!string.IsNullOrEmpty(filter.SetCode))
-            collectionQuery = collectionQuery.Where(x => x.c.SetCode == filter.SetCode.ToLowerInvariant());
-        if (!string.IsNullOrEmpty(filter.Color))
-        {
-            if (filter.Color == "C")
-                collectionQuery = collectionQuery.Where(x => string.IsNullOrEmpty(x.c.Color));
-            else
-                collectionQuery = collectionQuery.Where(x => x.c.Color != null && x.c.Color.Contains(filter.Color));
-        }
-        if (!string.IsNullOrEmpty(filter.CardType))
-            collectionQuery = collectionQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
-        if (!string.IsNullOrEmpty(filter.Treatment))
-            collectionQuery = collectionQuery.Where(x => x.ce.TreatmentKey == filter.Treatment);
-        if (!string.IsNullOrEmpty(filter.Condition) && Enum.TryParse<CardCondition>(filter.Condition, true, out var condFilterAggregate))
-            collectionQuery = collectionQuery.Where(x => x.ce.Condition == condFilterAggregate);
-        if (filter.Autographed.HasValue)
-            collectionQuery = collectionQuery.Where(x => x.ce.Autographed == filter.Autographed.Value);
-
-        var collectionEntries = await collectionQuery
-            .Select(x => new
-            {
-                x.ce.Quantity,
-                x.ce.AcquisitionPrice,
-                MarketValue = x.c.CurrentMarketValue
-            })
-            .ToListAsync(ct);
-
-        decimal collectionValue = collectionEntries.Sum(e => (e.MarketValue ?? 0) * e.Quantity);
-        decimal collectionPl = collectionEntries.Sum(e => ((e.MarketValue ?? 0) - e.AcquisitionPrice) * e.Quantity);
-        int collectionCount = collectionEntries.Sum(e => e.Quantity);
-
-        result.ByContentType.Add(new ContentTypeBreakdown
-        {
-            ContentType = "cards",
-            TotalValue = collectionValue,
-            TotalProfitLoss = collectionPl,
-            Count = collectionCount
-        });
-
-        // Serialized entries aggregate
-        var serializedAgg = await _db.SerializedEntries
-            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
-            .Select(x => new { x.se.AcquisitionPrice, MarketValue = x.c.CurrentMarketValue })
-            .ToListAsync(ct);
-
-        decimal serializedAggValue = serializedAgg.Sum(e => e.MarketValue ?? 0);
-        decimal serializedAggPl = serializedAgg.Sum(e => (e.MarketValue ?? 0) - e.AcquisitionPrice);
-
-        result.SerializedCount = serializedAgg.Count;
-        result.ByContentType.Add(new ContentTypeBreakdown
-        {
-            ContentType = "serialized",
-            TotalValue = serializedAggValue,
-            TotalProfitLoss = serializedAggPl,
-            Count = result.SerializedCount
-        });
-
-        // Slab entries aggregate
-        var slabAgg = await _db.SlabEntries
-            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
-            .Select(x => new { x.se.AcquisitionPrice, MarketValue = x.c.CurrentMarketValue })
-            .ToListAsync(ct);
-
-        decimal slabAggValue = slabAgg.Sum(e => e.MarketValue ?? 0);
-        decimal slabAggPl = slabAgg.Sum(e => (e.MarketValue ?? 0) - e.AcquisitionPrice);
-
-        result.SlabCount = slabAgg.Count;
-        result.ByContentType.Add(new ContentTypeBreakdown
-        {
-            ContentType = "slabs",
-            TotalValue = slabAggValue,
-            TotalProfitLoss = slabAggPl,
-            Count = result.SlabCount
-        });
-
-        // Sealed product inventory aggregate
-        var sealedAgg = await _db.SealedInventoryEntries
-            .Join(_db.SealedProducts, si => si.ProductIdentifier, sp => sp.Identifier, (si, sp) => new { si, sp })
-            .Select(x => new { x.si.Quantity, x.si.AcquisitionPrice, MarketValue = x.sp.CurrentMarketValue })
-            .ToListAsync(ct);
-
-        decimal sealedAggValue = sealedAgg.Sum(e => (e.MarketValue ?? 0) * e.Quantity);
-        decimal sealedAggPl = sealedAgg.Sum(e => ((e.MarketValue ?? 0) - e.AcquisitionPrice) * e.Quantity);
-        int sealedCount = sealedAgg.Sum(e => e.Quantity);
-
-        result.SealedProductCount = sealedCount;
-        result.SealedProductValue = sealedAggValue;
-        result.ByContentType.Add(new ContentTypeBreakdown
-        {
-            ContentType = "sealed",
-            TotalValue = sealedAggValue,
-            TotalProfitLoss = sealedAggPl,
-            Count = sealedCount
-        });
-
-        result.TotalCardCount = collectionCount;
-        result.TotalValue = collectionValue + serializedAggValue + slabAggValue + sealedAggValue;
-        result.TotalProfitLoss = collectionPl + serializedAggPl + slabAggPl + sealedAggPl;
-
-        return result;
-    }
 
     public async Task<SetCompletionResult> GetSetCompletionAsync(Guid userId, string setCode, bool regularOnly, CancellationToken ct = default)
     {
