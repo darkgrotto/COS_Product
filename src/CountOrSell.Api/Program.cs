@@ -1,3 +1,4 @@
+using CountOrSell.Api;
 using CountOrSell.Api.Auth;
 using CountOrSell.Api.Background.AppVersion;
 using CountOrSell.Api.Background.Backup;
@@ -42,6 +43,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(connectionString), ServiceLifetime.Singleton);
+
+// Merge admin-managed settings from the app_settings table into IConfiguration.
+// Inserted at index 0 so env vars and appsettings still override DB values.
+// Auth handlers (Google / Microsoft / Entra / GitHub) read from IConfiguration
+// at startup, so changes saved via the admin UI take effect on next restart.
+builder.Configuration.Sources.Insert(0,
+    new DbAppSettingsConfigurationSource { ConnectionString = connectionString });
 
 // Health checks
 builder.Services.AddHealthChecks()
@@ -183,6 +191,32 @@ if (!string.IsNullOrWhiteSpace(msClientId) && !string.IsNullOrWhiteSpace(msClien
     {
         options.ClientId = msClientId;
         options.ClientSecret = msClientSecret;
+    });
+}
+
+// Microsoft Entra ID (work / school accounts). Distinct from MicrosoftAccount which
+// only covers consumer (Live) accounts. TenantId selects the directory:
+// a specific GUID for single-tenant, "common" for any tenant + personal,
+// "organizations" for any tenant, "consumers" for personal only.
+var entraClientId = builder.Configuration["OAuth:MicrosoftEntra:ClientId"];
+var entraClientSecret = builder.Configuration["OAuth:MicrosoftEntra:ClientSecret"];
+var entraTenantId = builder.Configuration["OAuth:MicrosoftEntra:TenantId"];
+if (!string.IsNullOrWhiteSpace(entraClientId)
+    && !string.IsNullOrWhiteSpace(entraClientSecret)
+    && !string.IsNullOrWhiteSpace(entraTenantId))
+{
+    authBuilder.AddOpenIdConnect("microsoft-entra", "Microsoft (Entra ID)", options =>
+    {
+        options.Authority = $"https://login.microsoftonline.com/{entraTenantId}/v2.0";
+        options.ClientId = entraClientId;
+        options.ClientSecret = entraClientSecret;
+        options.ResponseType = "code";
+        options.SaveTokens = true;
+        options.CallbackPath = "/signin-microsoft-entra";
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
     });
 }
 

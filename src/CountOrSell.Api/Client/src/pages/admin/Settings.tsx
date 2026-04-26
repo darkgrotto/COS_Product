@@ -29,13 +29,16 @@ interface OAuthProvider {
   provider: string
   clientId: string | null
   secretConfigured: boolean
+  tenantId: string | null
+  requiresTenantId: boolean
 }
 
 // ---- Helpers ----------------------------------------------------------------
 
 const PROVIDER_LABELS: Record<string, string> = {
   google: 'Google',
-  microsoft: 'Microsoft',
+  microsoft: 'Microsoft (Live)',
+  'microsoft-entra': 'Microsoft (Entra ID)',
   github: 'GitHub',
 }
 
@@ -54,12 +57,17 @@ function ConfigureOAuthDialog({
 }) {
   const [clientId, setClientId] = useState(existing.clientId ?? '')
   const [clientSecret, setClientSecret] = useState('')
+  const [tenantId, setTenantId] = useState(existing.tenantId ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSave() {
-    if (!clientId.trim() && !clientSecret.trim()) {
-      setError('Enter a Client ID or Client Secret to update.')
+    if (!clientId.trim() && !clientSecret.trim() && !tenantId.trim()) {
+      setError('Enter a value in at least one field to update.')
+      return
+    }
+    if (existing.requiresTenantId && !tenantId.trim() && !existing.tenantId) {
+      setError('Tenant ID is required for this provider.')
       return
     }
     setError('')
@@ -71,6 +79,7 @@ function ConfigureOAuthDialog({
         body: JSON.stringify({
           clientId: clientId.trim() || null,
           clientSecret: clientSecret.trim() || null,
+          tenantId: existing.requiresTenantId ? (tenantId.trim() || null) : null,
         }),
       })
       if (!res.ok) {
@@ -112,6 +121,22 @@ function ConfigureOAuthDialog({
               autoComplete="new-password"
             />
           </div>
+          {existing.requiresTenantId && (
+            <div>
+              <Label>Tenant ID</Label>
+              <Input
+                value={tenantId}
+                onChange={e => setTenantId(e.target.value)}
+                placeholder="GUID, or 'common' / 'organizations' / 'consumers'"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Use a directory GUID for single-tenant, or one of the well-known
+                values to allow accounts from any tenant or personal Microsoft
+                accounts. Restart required for changes to take effect.
+              </p>
+            </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
@@ -341,7 +366,7 @@ export function SettingsPage() {
       if (!res.ok) throw new Error('Failed to clear.')
       flash(`${PROVIDER_LABELS[provider] ?? provider} OAuth credentials cleared.`)
       setOauthProviders(prev => prev.map(p =>
-        p.provider === provider ? { ...p, clientId: null, secretConfigured: false } : p
+        p.provider === provider ? { ...p, clientId: null, secretConfigured: false, tenantId: null } : p
       ))
     } catch {
       flash('Failed to clear OAuth credentials.', true)
@@ -440,6 +465,7 @@ export function SettingsPage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Required for per-card TCGPlayer price refresh. Key is stored securely and never displayed in full.
+                Restart required for changes to take effect.
               </p>
             </div>
           </Section>
@@ -526,7 +552,7 @@ export function SettingsPage() {
                   <div key={p.provider} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{PROVIDER_LABELS[p.provider] ?? p.provider}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {p.clientId ? (
                           <span className="text-xs text-muted-foreground font-mono truncate max-w-48" title={p.clientId}>
                             ID: {p.clientId}
@@ -536,6 +562,11 @@ export function SettingsPage() {
                         )}
                         {p.secretConfigured && (
                           <Badge variant="outline" className="text-xs shrink-0">Secret set</Badge>
+                        )}
+                        {p.requiresTenantId && p.tenantId && (
+                          <span className="text-xs text-muted-foreground font-mono truncate max-w-32" title={p.tenantId}>
+                            Tenant: {p.tenantId}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -547,7 +578,7 @@ export function SettingsPage() {
                     >
                       {p.clientId ? 'Edit' : 'Configure'}
                     </Button>
-                    {(p.clientId || p.secretConfigured) && (
+                    {(p.clientId || p.secretConfigured || p.tenantId) && (
                       <Button
                         size="sm"
                         variant="ghost"
