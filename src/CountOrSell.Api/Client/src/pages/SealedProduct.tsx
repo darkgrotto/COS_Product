@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Pagination } from '@/components/Pagination'
+import { TableSkeleton } from '@/components/Skeleton'
 
 const PAGE_SIZE = 100
 
@@ -868,9 +869,13 @@ export function SealedProductPage() {
       )}
 
       {loading ? (
-        <p className="text-muted-foreground text-sm">Loading...</p>
+        <TableSkeleton rows={8} columns={9} />
       ) : entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No sealed product entries yet.</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          {filters.categorySlug || filters.subTypeSlug
+            ? 'No sealed product matches the current filters.'
+            : 'No sealed product entries yet.'}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">

@@ -22,6 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Pagination } from '@/components/Pagination'
+import { TableSkeleton } from '@/components/Skeleton'
 
 const PAGE_SIZE = 100
 
@@ -137,12 +138,21 @@ function plColor(pl: number | null | undefined) {
 // ---- Toggle chip (for color/type filters) -----------------------------------
 
 function ToggleChip({
-  active, onClick, children,
-}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  active, onClick, children, title, ariaLabel,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+  title?: string
+  ariaLabel?: string
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={title}
+      aria-label={ariaLabel ?? title}
+      aria-pressed={active}
       className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
         active
           ? 'bg-primary text-primary-foreground border-primary'
@@ -827,6 +837,8 @@ function FiltersPanel({
           <ToggleChip
             key={col.key}
             active={filters.color === col.key}
+            title={col.title}
+            ariaLabel={`Filter by ${col.title}`}
             onClick={() => onChange({ ...filters, color: filters.color === col.key ? '' : col.key })}
           >
             {col.key}
@@ -1685,7 +1697,7 @@ export function CollectionPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
+        <TableSkeleton rows={8} columns={viewMode === 'cards' ? 9 : 5} />
       ) : viewMode === 'by-set' ? (
         <SetGroupedView
           completion={completion}

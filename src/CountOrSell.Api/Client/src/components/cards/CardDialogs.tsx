@@ -78,17 +78,20 @@ export function sortTreatments<T extends { key: string; displayName: string }>(t
 // ---- Filter chip ------------------------------------------------------------
 
 export function ToggleChip({
-  active, onClick, children, title,
+  active, onClick, children, title, ariaLabel,
 }: {
   active: boolean
   onClick: () => void
   children: React.ReactNode
   title?: string
+  ariaLabel?: string
 }) {
   return (
     <button
       type="button"
       title={title}
+      aria-label={ariaLabel ?? title}
+      aria-pressed={active}
       onClick={onClick}
       className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
         active

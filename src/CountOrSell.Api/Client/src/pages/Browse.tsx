@@ -453,6 +453,7 @@ function CardListView({
               <ToggleChip
                 key={col.key}
                 title={col.title}
+                ariaLabel={`Filter by ${col.title}`}
                 active={colorFilter === col.key}
                 onClick={() => setColorFilter(colorFilter === col.key ? '' : col.key)}
               >

@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { CardDetailDialog, QuickAddDialog, AddableCard, SortTh, SortDir } from '@/components/cards/CardDialogs'
 import { Pagination } from '@/components/Pagination'
+import { TableSkeleton } from '@/components/Skeleton'
 import { usePreferences } from '@/contexts/PreferencesContext'
 
 const PAGE_SIZE = 100
@@ -555,7 +556,7 @@ export function SerializedPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
+        <TableSkeleton rows={8} columns={11} />
       ) : entries.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">
           {Object.values(filters).some(Boolean) ? 'No cards match the current filters.' : 'No serialized cards yet.'}
