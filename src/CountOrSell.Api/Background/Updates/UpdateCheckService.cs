@@ -60,9 +60,14 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             var manifestClient = scope.ServiceProvider.GetRequiredService<IUpdateManifestClient>();
             var downloader = scope.ServiceProvider.GetRequiredService<IPackageDownloader>();
             var verifier = scope.ServiceProvider.GetRequiredService<IPackageVerifier>();
+            var sigVerifier = scope.ServiceProvider.GetRequiredService<IManifestSignatureVerifier>();
+            var jwks = scope.ServiceProvider.GetRequiredService<IJwksProvider>();
             var applicator = scope.ServiceProvider.GetRequiredService<IContentUpdateApplicator>();
             var notificationService = scope.ServiceProvider.GetRequiredService<IAdminNotificationService>();
             updateRepo = scope.ServiceProvider.GetRequiredService<IUpdateRepository>();
+
+            // Daily refresh of the JWKS - best-effort, lookups will fall back to cache.
+            await jwks.RefreshAsync(ct);
 
             var manifest = await manifestClient.FetchManifestAsync(ct);
             if (manifest == null)
@@ -94,14 +99,30 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             var packageRef = candidates.MaxBy(p => p.GeneratedAt) ?? candidates[^1];
 
-            // Fetch per-package manifest to get checksums and content versions
-            var packageManifest = await manifestClient.FetchPackageManifestAsync(packageRef.ManifestUrl, ct);
-            if (packageManifest == null)
+            // Fetch per-package manifest AND its detached signature.
+            var signed = await manifestClient.FetchSignedPackageManifestAsync(packageRef.ManifestUrl, ct);
+            if (signed == null)
             {
                 _logger.LogWarning("Could not fetch per-package manifest from {Url}", packageRef.ManifestUrl);
-                result = new UpdateCheckResult(false, "Found a package but could not fetch its manifest.");
+                result = new UpdateCheckResult(false,
+                    "Found a package but could not fetch its manifest or signature.");
                 return result;
             }
+
+            // Verify the detached signature BEFORE consuming any field from the manifest.
+            // Refusal here is fatal for this run; nothing in the manifest can be trusted yet.
+            var sigResult = await sigVerifier.VerifyAsync(signed.ManifestBytes, signed.Envelope, ct);
+            if (!sigResult.IsValid)
+            {
+                _logger.LogError(
+                    "Refusing update package {PackageId}: manifest signature verification failed - {Reason}",
+                    packageRef.PackageId, sigResult.Message);
+                result = new UpdateCheckResult(false,
+                    $"Update refused: manifest signature verification failed ({sigResult.Message}).");
+                return result;
+            }
+
+            var packageManifest = signed.Parsed;
 
             // Use the package generated_at timestamp as the version key.
             // This detects updates to any content type (treatments, pricing, taxonomy, sealed
@@ -122,6 +143,21 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                     .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
                 _logger.LogInformation("Content already up to date (package from {PackageDate})", displayDate);
                 result = new UpdateCheckResult(false, $"Content is already up to date (last updated {displayDate}).");
+                return result;
+            }
+
+            // Downgrade detection. A signed-but-older package is a replay attack: the upstream
+            // has been compromised or someone is feeding us a stale-but-valid manifest. Refuse
+            // unless the caller explicitly forced the run (manual redownload covers reinstalls).
+            if (!force
+                && !string.IsNullOrEmpty(currentContentVersion)
+                && string.Compare(packageKey, currentContentVersion, StringComparison.Ordinal) < 0)
+            {
+                _logger.LogError(
+                    "Refusing update package {PackageId}: package timestamp {Package} is older than installed content {Installed}",
+                    packageRef.PackageId, packageKey, currentContentVersion);
+                result = new UpdateCheckResult(false,
+                    "Update refused: candidate package is older than the currently installed content.");
                 return result;
             }
 
@@ -154,14 +190,27 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                     _logger.LogInformation(
                         "Applied package has no images and image store is empty; fetching images from full package {PackageId}",
                         fullRef.PackageId);
-                    var fullManifest = await manifestClient.FetchPackageManifestAsync(fullRef.ManifestUrl, CancellationToken.None);
-                    if (fullManifest != null)
+                    var fullSigned = await manifestClient.FetchSignedPackageManifestAsync(
+                        fullRef.ManifestUrl, CancellationToken.None);
+                    if (fullSigned != null)
                     {
-                        var fullLastSlash = fullRef.ManifestUrl.LastIndexOf('/');
-                        var fullBaseUrl = fullLastSlash >= 0
-                            ? fullRef.ManifestUrl[..(fullLastSlash + 1)]
-                            : fullRef.ManifestUrl;
-                        await applicator.ApplyImagesOnlyAsync(fullBaseUrl, fullManifest, CancellationToken.None);
+                        var fullSigResult = await sigVerifier.VerifyAsync(
+                            fullSigned.ManifestBytes, fullSigned.Envelope, CancellationToken.None);
+                        if (!fullSigResult.IsValid)
+                        {
+                            _logger.LogError(
+                                "Refusing image-only fetch from package {PackageId}: signature verification failed - {Reason}",
+                                fullRef.PackageId, fullSigResult.Message);
+                        }
+                        else
+                        {
+                            var fullLastSlash = fullRef.ManifestUrl.LastIndexOf('/');
+                            var fullBaseUrl = fullLastSlash >= 0
+                                ? fullRef.ManifestUrl[..(fullLastSlash + 1)]
+                                : fullRef.ManifestUrl;
+                            await applicator.ApplyImagesOnlyAsync(
+                                fullBaseUrl, fullSigned.Parsed, CancellationToken.None);
+                        }
                     }
                 }
             }

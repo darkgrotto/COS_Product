@@ -8,6 +8,7 @@ using CountOrSell.Api.Services;
 using CountOrSell.Api.Services.Deployment;
 using CountOrSell.Api.Services.Destinations;
 using CountOrSell.Api.Services.LogForwarding;
+using CountOrSell.Api.Services.Signing;
 using CountOrSell.Data;
 using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
@@ -99,6 +100,12 @@ builder.Services.AddHttpClient<ICardImageFetcher, ScryfallCardImageFetcher>();
 builder.Services.AddHttpClient<IUpdateManifestClient, UpdateManifestClient>();
 builder.Services.AddHttpClient<IPackageDownloader, PackageDownloader>();
 builder.Services.AddScoped<IPackageVerifier, PackageVerifier>();
+
+// Manifest signing: JWKS provider is a singleton (in-memory cache + DB persistence);
+// the verifier is scoped so it picks up the singleton without holding state itself.
+builder.Services.AddHttpClient(name: "Jwks", c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<IJwksProvider, JwksProvider>();
+builder.Services.AddScoped<IManifestSignatureVerifier, ManifestSignatureVerifier>();
 builder.Services.AddScoped<IContentUpdateApplicator, ContentUpdateApplicator>();
 builder.Services.AddScoped<IAdminNotificationService, AdminNotificationService>();
 builder.Services.AddScoped<IEmailNotificationService, EmailNotificationService>();
@@ -150,6 +157,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService
 builder.Services.AddSingleton<IUpdateCheckTrigger>(sp => sp.GetRequiredService<UpdateCheckService>());
 builder.Services.AddHostedService<AppVersionCheckService>();
 builder.Services.AddHostedService<BackupScheduleService>();
+builder.Services.AddHostedService<JwksRefreshService>();
 
 // Cookie authentication (always available)
 var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
