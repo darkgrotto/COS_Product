@@ -270,6 +270,19 @@ catch { /* DB not yet available - log forwarding stays disabled until first conf
 app.Services.GetRequiredService<ILoggerFactory>()
     .AddProvider(app.Services.GetRequiredService<HttpLogForwardingProvider>());
 
+// Surface a clear warning if the canonical public URL is not pinned. Without it,
+// invite emails fall back to the incoming Host header, which is attacker-controllable.
+if (string.IsNullOrWhiteSpace(app.Configuration[PublicBaseUrlResolver.ConfigKey]))
+{
+    app.Services.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("Startup")
+        .LogWarning(
+            "{Key} is not configured. Invite-link generation will fall back to the " +
+            "incoming HTTP Host header, which is vulnerable to host-header injection. " +
+            "Set {Key} to your canonical public origin (e.g. https://app.example.com).",
+            PublicBaseUrlResolver.ConfigKey, PublicBaseUrlResolver.ConfigKey);
+}
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseSession();
