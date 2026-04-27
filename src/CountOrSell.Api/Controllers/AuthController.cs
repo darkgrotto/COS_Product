@@ -3,6 +3,7 @@ using CountOrSell.Api.Auth;
 using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Models.Enums;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -25,6 +26,17 @@ public class AuthController : ControllerBase
         _oauthConfig = oauthConfig;
         _users = users;
         _avatars = avatars;
+    }
+
+    // Issues a CSRF token to the SPA. The browser keeps the matching cookie token
+    // (HttpOnly, SameSite=Strict); the SPA echoes the body value back on every
+    // state-changing request via the X-CSRF-TOKEN header.
+    [HttpGet("csrf")]
+    [AllowAnonymous]
+    public IActionResult Csrf([FromServices] IAntiforgery antiforgery)
+    {
+        var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+        return Ok(new { token = tokens.RequestToken });
     }
 
     [HttpGet("me")]
@@ -56,7 +68,11 @@ public class AuthController : ControllerBase
         });
     }
 
+    // Login is the bootstrap call: there is no session yet, so we cannot require an
+    // anti-forgery token here. Cookie SameSite=Strict still prevents cross-site forced
+    // login from a hostile origin.
     [HttpPost("login")]
+    [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var user = await _localAuth.ValidateCredentialsAsync(request.Username, request.Password, ct);

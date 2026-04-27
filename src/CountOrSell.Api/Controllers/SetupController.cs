@@ -2,6 +2,7 @@ using CountOrSell.Api.Auth;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CountOrSell.Api.Controllers;
@@ -27,7 +28,10 @@ public class SetupController : ControllerBase
     /// value in the request body. Returns 404 when no token is configured, 401 on mismatch,
     /// and 409 if any users already exist.
     /// </summary>
+    // Called by the first-run wizard before any user (or anti-forgery cookie) exists.
+    // Authentication for this endpoint is the SETUP_TOKEN constant-time check below.
     [HttpPost("initialize")]
+    [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Initialize(
         [FromBody] SetupInitializeRequest request,
         CancellationToken ct)

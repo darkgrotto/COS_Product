@@ -14,11 +14,27 @@ using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+// Anti-forgery (CSRF) defense-in-depth. Cookie-based auth already has SameSite=Strict,
+// but tokens close the gap for older clients and any future XSS. The SPA reads the
+// token from GET /api/auth/csrf and echoes it back as X-CSRF-TOKEN on every state-
+// changing request; the global filter validates non-safe HTTP methods.
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.HttpOnly = true;
+});
+
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
+});
 
 // Demo mode
 builder.Services.AddSingleton<IDemoModeService, DemoModeService>();
