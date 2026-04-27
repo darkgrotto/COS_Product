@@ -65,7 +65,9 @@ public class RestoreService : IRestoreService
         var connectionString =
             _config.GetConnectionString("Default")
             ?? Environment.GetEnvironmentVariable("POSTGRES_CONNECTION")
-            ?? "Host=localhost;Database=countorsell;Username=countorsell;Password=countorsell";
+            ?? throw new InvalidOperationException(
+                "Database connection string is not configured. Set POSTGRES_CONNECTION " +
+                "(env var) or ConnectionStrings:Default (configuration).");
 
         var conn = ParseConnectionString(connectionString);
 
@@ -83,11 +85,13 @@ public class RestoreService : IRestoreService
         ParseConnectionString(string connectionString)
     {
         var builder = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
-        return (
-            builder.Host ?? "localhost",
-            builder.Port,
-            builder.Database ?? "countorsell",
-            builder.Username ?? "countorsell",
-            builder.Password ?? "countorsell");
+        if (string.IsNullOrWhiteSpace(builder.Host)
+            || string.IsNullOrWhiteSpace(builder.Database)
+            || string.IsNullOrWhiteSpace(builder.Username)
+            || string.IsNullOrWhiteSpace(builder.Password))
+            throw new InvalidOperationException(
+                "Database connection string is missing one or more required fields " +
+                "(Host, Database, Username, Password).");
+        return (builder.Host, builder.Port, builder.Database, builder.Username, builder.Password);
     }
 }

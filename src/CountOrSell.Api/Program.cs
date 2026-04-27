@@ -32,12 +32,17 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromHours(4);
 });
 
-// Database
+// Database. Resolved once at startup; downstream services read from IConfiguration
+// rather than re-resolving with their own fallback chain.
 var connectionString =
     builder.Configuration.GetConnectionString("Default") is { Length: > 0 } cs
         ? cs
-        : Environment.GetEnvironmentVariable("POSTGRES_CONNECTION")
-          ?? "Host=localhost;Database=countorsell;Username=countorsell;Password=countorsell";
+        : Environment.GetEnvironmentVariable("POSTGRES_CONNECTION");
+
+if (string.IsNullOrWhiteSpace(connectionString))
+    throw new InvalidOperationException(
+        "Database connection string is not configured. Set POSTGRES_CONNECTION " +
+        "(env var) or ConnectionStrings:Default (configuration) before starting the API.");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
