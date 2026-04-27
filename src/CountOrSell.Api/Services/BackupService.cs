@@ -94,7 +94,8 @@ public class BackupService : IBackupService
             try
             {
                 using var stream = new MemoryStream(archiveBytes);
-                await dest.WriteAsync($"{label}.zip", stream, ct);
+                // On-disk name is the immutable record GUID; Label stays in the DB for display.
+                await dest.WriteAsync(BackupFileName.For(record), stream, ct);
                 destRecord.Success = true;
             }
             catch (Exception ex)
@@ -218,16 +219,18 @@ public class BackupService : IBackupService
                 .ToListAsync(ct);
             foreach (var destConfig in destConfigs)
             {
-                try
+                var dest = _destinationFactory.Create(destConfig);
+                // New writes use the GUID name; legacy backups may still be on disk
+                // under the old {Label}.zip convention. Try both.
+                foreach (var name in new[] { BackupFileName.For(old), BackupFileName.LegacyFor(old) })
                 {
-                    var dest = _destinationFactory.Create(destConfig);
-                    await dest.DeleteAsync($"{old.Label}.zip", ct);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex,
-                        "Failed to prune backup {Label} from {Dest}",
-                        old.Label, destConfig.Label);
+                    try { await dest.DeleteAsync(name, ct); }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Failed to prune backup {Name} from {Dest}",
+                            name, destConfig.Label);
+                    }
                 }
             }
         }

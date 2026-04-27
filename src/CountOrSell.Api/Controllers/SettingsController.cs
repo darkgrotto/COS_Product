@@ -76,6 +76,14 @@ public class SettingsController : ControllerBase
         return Ok(new { instanceName });
     }
 
+    // Instance name flows into backup filenames and labels; restrict to filesystem-safe
+    // characters and a sane length so it cannot embed path-traversal sequences. Even
+    // though backup filenames now derive from record GUIDs, this stays as defense in
+    // depth: any future caller that uses InstanceName in a path must not be exploitable.
+    private static readonly System.Text.RegularExpressions.Regex InstanceNameRegex =
+        new(@"^[A-Za-z0-9][A-Za-z0-9 _\-.]{0,63}$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
     [HttpPatch("instance")]
     [DemoLocked]
     public async Task<IActionResult> UpdateInstanceSettings(
@@ -85,7 +93,16 @@ public class SettingsController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.InstanceName))
             return BadRequest(new { error = "Instance name is required." });
 
-        await UpsertSettingAsync("instance_name", request.InstanceName.Trim(), ct);
+        var trimmed = request.InstanceName.Trim();
+        if (!InstanceNameRegex.IsMatch(trimmed) || trimmed.Contains(".."))
+            return BadRequest(new
+            {
+                error = "Instance name must start with a letter or digit and may " +
+                        "contain only letters, digits, spaces, underscores, hyphens, " +
+                        "and dots (max 64 characters; consecutive dots not allowed)."
+            });
+
+        await UpsertSettingAsync("instance_name", trimmed, ct);
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync(ActorName, ActorDisplayName, "settings.instance", "instance_name", "success", ClientIp);
         return Ok();

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CountOrSell.Api.Filters;
+using CountOrSell.Api.Services;
 using CountOrSell.Data;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
@@ -116,12 +117,11 @@ public class BackupController : ControllerBase
         if (!record.IsAvailable) return Gone();
 
         var basePath = Path.Combine(AppContext.BaseDirectory, "backups");
-        var filePath = Path.Combine(basePath, $"{record.Label}.zip");
-        if (!System.IO.File.Exists(filePath))
+        if (!BackupFileName.TryResolvePath(basePath, record, out var filePath))
             return NotFound(new { error = "Backup file not available for download from local storage." });
 
         var stream = System.IO.File.OpenRead(filePath);
-        return File(stream, "application/zip", $"{record.Label}.zip");
+        return File(stream, "application/zip", BackupFileName.For(record));
     }
 
     [HttpPost("destinations")]
@@ -258,12 +258,8 @@ public class RestoreController : ControllerBase
         if (record == null) return NotFound(new { error = "Backup record not found." });
         if (!record.IsAvailable) return Conflict(new { error = "Backup is no longer available." });
 
-        var filePath = Path.Combine(
-            AppContext.BaseDirectory,
-            "backups",
-            $"{record.Label}.zip");
-
-        if (!System.IO.File.Exists(filePath))
+        var basePath = Path.Combine(AppContext.BaseDirectory, "backups");
+        if (!BackupFileName.TryResolvePath(basePath, record, out var filePath))
             return NotFound(new { error = "Backup file not found in local storage." });
 
         using var stream = System.IO.File.OpenRead(filePath);
