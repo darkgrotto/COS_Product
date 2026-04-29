@@ -4,6 +4,7 @@ using CountOrSell.Data.Repositories;
 using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos.Requests;
 using CountOrSell.Domain.Models;
+using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,10 +16,12 @@ namespace CountOrSell.Api.Controllers;
 public class WishlistController : ControllerBase
 {
     private readonly IWishlistRepository _wishlist;
+    private readonly ITreatmentValidator _treatments;
 
-    public WishlistController(IWishlistRepository wishlist)
+    public WishlistController(IWishlistRepository wishlist, ITreatmentValidator treatments)
     {
         _wishlist = wishlist;
+        _treatments = treatments;
     }
 
     private Guid CurrentUserId =>
@@ -54,6 +57,8 @@ public class WishlistController : ControllerBase
             return BadRequest(new { error = $"Invalid card identifier: {request.CardIdentifier.ToUpperInvariant()}. Expected format: set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000)." });
 
         var treatmentKey = string.IsNullOrWhiteSpace(request.TreatmentKey) ? "regular" : request.TreatmentKey.Trim().ToLowerInvariant();
+        if (!await _treatments.IsValidAsync(treatmentKey, ct))
+            return BadRequest(new { error = $"Unknown treatment: {treatmentKey}" });
 
         var entry = new WishlistEntry
         {

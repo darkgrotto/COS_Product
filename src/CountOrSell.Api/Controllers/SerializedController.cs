@@ -4,6 +4,7 @@ using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos.Requests;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
+using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,11 +17,13 @@ public class SerializedController : ControllerBase
 {
     private readonly ISerializedRepository _serialized;
     private readonly ICardRepository _cards;
+    private readonly ITreatmentValidator _treatments;
 
-    public SerializedController(ISerializedRepository serialized, ICardRepository cards)
+    public SerializedController(ISerializedRepository serialized, ICardRepository cards, ITreatmentValidator treatments)
     {
         _serialized = serialized;
         _cards = cards;
+        _treatments = treatments;
     }
 
     private Guid CurrentUserId =>
@@ -30,26 +33,31 @@ public class SerializedController : ControllerBase
         User.IsInRole("Admin");
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? userId, [FromQuery] CollectionFilter filter, CancellationToken ct)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] Guid? userId,
+        [FromQuery] CollectionFilter filter,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        CancellationToken ct = default)
     {
         if (userId.HasValue && !IsAdmin)
             return Forbid();
 
-        var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 500) pageSize = 100;
 
-        List<SerializedEntry> entries;
-        if (HasFilters(filter))
-            entries = await _serialized.GetByUserFilteredAsync(targetUserId, filter, ct);
-        else
-            entries = await _serialized.GetByUserAsync(targetUserId, ct);
+        var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
+        var (entries, total) = await _serialized.GetByUserPagedAsync(targetUserId, filter, page, pageSize, ct);
 
         var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
         var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);
-        return Ok(entries.Select(e =>
+        var items = entries.Select(e =>
         {
             summaries.TryGetValue(e.CardIdentifier, out var s);
             return MapEntry(e, s.Name, s.MarketValue, s.SetCode);
-        }));
+        });
+
+        return Ok(new { items, total, page, pageSize });
     }
 
     [HttpPost]
@@ -61,6 +69,9 @@ public class SerializedController : ControllerBase
         var cardId = request.CardIdentifier.ToLowerInvariant();
         if (!CardIdentifierValidator.IsValid(cardId))
             return BadRequest(new { error = $"Invalid card identifier: {request.CardIdentifier.ToUpperInvariant()}. Expected format: set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000)." });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         var entry = new SerializedEntry
         {
@@ -101,6 +112,9 @@ public class SerializedController : ControllerBase
 
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         entry.TreatmentKey = request.Treatment;
         entry.SerialNumber = request.SerialNumber;

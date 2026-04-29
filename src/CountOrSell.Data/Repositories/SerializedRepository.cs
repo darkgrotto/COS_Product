@@ -15,7 +15,31 @@ public class SerializedRepository : ISerializedRepository
     public Task<List<SerializedEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default) =>
         _db.SerializedEntries.Where(e => e.UserId == userId).ToListAsync(ct);
 
-    public Task<List<SerializedEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default)
+    public Task<List<SerializedEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default) =>
+        BuildFilteredQuery(userId, filter).ToListAsync(ct);
+
+    public async Task<(List<SerializedEntry> Items, int Total)> GetByUserPagedAsync(
+        Guid userId, CollectionFilter? filter, int page, int pageSize, CancellationToken ct = default)
+    {
+        var query = filter != null && HasFilters(filter)
+            ? BuildFilteredQuery(userId, filter)
+            : _db.SerializedEntries.Where(e => e.UserId == userId);
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(e => e.CreatedAt)
+            .ThenByDescending(e => e.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+        return (items, total);
+    }
+
+    private static bool HasFilters(CollectionFilter filter) =>
+        !string.IsNullOrEmpty(filter.SetCode) || !string.IsNullOrEmpty(filter.Treatment) ||
+        !string.IsNullOrEmpty(filter.Condition) || filter.Autographed.HasValue;
+
+    private IQueryable<SerializedEntry> BuildFilteredQuery(Guid userId, CollectionFilter filter)
     {
         var query = _db.SerializedEntries
             .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
@@ -31,7 +55,7 @@ public class SerializedRepository : ISerializedRepository
         if (filter.Autographed.HasValue)
             query = query.Where(x => x.se.Autographed == filter.Autographed.Value);
 
-        return query.Select(x => x.se).ToListAsync(ct);
+        return query.Select(x => x.se);
     }
 
     public async Task<SerializedEntry> CreateAsync(SerializedEntry entry, CancellationToken ct = default)

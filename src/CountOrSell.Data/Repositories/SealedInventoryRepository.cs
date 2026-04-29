@@ -15,17 +15,31 @@ public class SealedInventoryRepository : ISealedInventoryRepository
         _db.SealedInventoryEntries.Where(e => e.UserId == userId).ToListAsync(ct);
 
     public Task<List<SealedInventoryEntry>> GetByUserFilteredAsync(
-        Guid userId, string? categorySlug, string? subTypeSlug, CancellationToken ct = default)
+        Guid userId, string? categorySlug, string? subTypeSlug, CancellationToken ct = default) =>
+        BuildFilteredQuery(userId, categorySlug, subTypeSlug).ToListAsync(ct);
+
+    public async Task<(List<SealedInventoryEntry> Items, int Total)> GetByUserPagedAsync(
+        Guid userId, string? categorySlug, string? subTypeSlug, int page, int pageSize, CancellationToken ct = default)
+    {
+        var query = BuildFilteredQuery(userId, categorySlug, subTypeSlug);
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(e => e.CreatedAt)
+            .ThenByDescending(e => e.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+        return (items, total);
+    }
+
+    private IQueryable<SealedInventoryEntry> BuildFilteredQuery(Guid userId, string? categorySlug, string? subTypeSlug)
     {
         var query = _db.SealedInventoryEntries.Where(e => e.UserId == userId);
-
         if (!string.IsNullOrEmpty(categorySlug))
             query = query.Where(e => e.CategorySlug == categorySlug);
-
         if (!string.IsNullOrEmpty(subTypeSlug))
             query = query.Where(e => e.SubTypeSlug == subTypeSlug);
-
-        return query.ToListAsync(ct);
+        return query;
     }
 
     public async Task<SealedInventoryEntry> CreateAsync(SealedInventoryEntry entry, CancellationToken ct = default)

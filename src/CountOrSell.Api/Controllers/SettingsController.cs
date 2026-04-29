@@ -76,6 +76,14 @@ public class SettingsController : ControllerBase
         return Ok(new { instanceName });
     }
 
+    // Instance name flows into backup filenames and labels; restrict to filesystem-safe
+    // characters and a sane length so it cannot embed path-traversal sequences. Even
+    // though backup filenames now derive from record GUIDs, this stays as defense in
+    // depth: any future caller that uses InstanceName in a path must not be exploitable.
+    private static readonly System.Text.RegularExpressions.Regex InstanceNameRegex =
+        new(@"^[A-Za-z0-9][A-Za-z0-9 _\-.]{0,63}$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
     [HttpPatch("instance")]
     [DemoLocked]
     public async Task<IActionResult> UpdateInstanceSettings(
@@ -85,7 +93,16 @@ public class SettingsController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.InstanceName))
             return BadRequest(new { error = "Instance name is required." });
 
-        await UpsertSettingAsync("instance_name", request.InstanceName.Trim(), ct);
+        var trimmed = request.InstanceName.Trim();
+        if (!InstanceNameRegex.IsMatch(trimmed) || trimmed.Contains(".."))
+            return BadRequest(new
+            {
+                error = "Instance name must start with a letter or digit and may " +
+                        "contain only letters, digits, spaces, underscores, hyphens, " +
+                        "and dots (max 64 characters; consecutive dots not allowed)."
+            });
+
+        await UpsertSettingAsync("instance_name", trimmed, ct);
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync(ActorName, ActorDisplayName, "settings.instance", "instance_name", "success", ClientIp);
         return Ok();
@@ -146,23 +163,21 @@ public class SettingsController : ControllerBase
     [HttpGet("oauth")]
     public async Task<IActionResult> GetOAuthSettings(CancellationToken ct)
     {
-        var providers = new[]
-        {
-            ("google",    "oauth_google_client_id",    "oauth_google_client_secret"),
-            ("microsoft", "oauth_microsoft_client_id", "oauth_microsoft_client_secret"),
-            ("github",    "oauth_github_client_id",    "oauth_github_client_secret"),
-        };
-
         var result = new List<object>();
-        foreach (var (provider, clientIdKey, secretKey) in providers)
+        foreach (var (provider, clientIdKey, secretKey, tenantKey) in OAuthProviderKeys())
         {
             var clientId = await GetSettingAsync(clientIdKey, "", ct);
             var secret   = await GetSettingAsync(secretKey,   "", ct);
+            var tenantId = tenantKey != null ? await GetSettingAsync(tenantKey, "", ct) : "";
             result.Add(new
             {
                 provider,
                 clientId          = string.IsNullOrWhiteSpace(clientId) ? null : clientId,
                 secretConfigured  = !string.IsNullOrWhiteSpace(secret),
+                tenantId          = tenantKey == null
+                    ? null
+                    : string.IsNullOrWhiteSpace(tenantId) ? null : tenantId,
+                requiresTenantId  = tenantKey != null,
             });
         }
         return Ok(result);
@@ -175,22 +190,23 @@ public class SettingsController : ControllerBase
         [FromBody] OAuthProviderRequest request,
         CancellationToken ct)
     {
-        var (clientIdKey, secretKey) = provider.ToLowerInvariant() switch
-        {
-            "google"    => ("oauth_google_client_id",    "oauth_google_client_secret"),
-            "microsoft" => ("oauth_microsoft_client_id", "oauth_microsoft_client_secret"),
-            "github"    => ("oauth_github_client_id",    "oauth_github_client_secret"),
-            _           => (null, null),
-        };
-
-        if (clientIdKey == null)
+        var keys = OAuthProviderKeys()
+            .FirstOrDefault(p => string.Equals(p.Provider, provider, StringComparison.OrdinalIgnoreCase));
+        if (keys.Provider == null)
             return BadRequest(new { error = $"Unknown OAuth provider: {provider}" });
 
         if (!string.IsNullOrWhiteSpace(request.ClientId))
-            await UpsertSettingAsync(clientIdKey, request.ClientId.Trim(), ct);
+            await UpsertSettingAsync(keys.ClientIdKey, request.ClientId.Trim(), ct);
 
         if (!string.IsNullOrWhiteSpace(request.ClientSecret))
-            await UpsertSettingAsync(secretKey!, request.ClientSecret.Trim(), ct);
+            await UpsertSettingAsync(keys.SecretKey, request.ClientSecret.Trim(), ct);
+
+        if (!string.IsNullOrWhiteSpace(request.TenantId))
+        {
+            if (keys.TenantIdKey == null)
+                return BadRequest(new { error = $"Provider '{provider}' does not accept a tenant id." });
+            await UpsertSettingAsync(keys.TenantIdKey, request.TenantId.Trim(), ct);
+        }
 
         await _db.SaveChangesAsync(ct);
         return Ok();
@@ -200,28 +216,30 @@ public class SettingsController : ControllerBase
     [DemoLocked]
     public async Task<IActionResult> ClearOAuthProvider(string provider, CancellationToken ct)
     {
-        var (clientIdKey, secretKey) = provider.ToLowerInvariant() switch
-        {
-            "google"    => ("oauth_google_client_id",    "oauth_google_client_secret"),
-            "microsoft" => ("oauth_microsoft_client_id", "oauth_microsoft_client_secret"),
-            "github"    => ("oauth_github_client_id",    "oauth_github_client_secret"),
-            _           => (null, null),
-        };
-
-        if (clientIdKey == null)
+        var keys = OAuthProviderKeys()
+            .FirstOrDefault(p => string.Equals(p.Provider, provider, StringComparison.OrdinalIgnoreCase));
+        if (keys.Provider == null)
             return BadRequest(new { error = $"Unknown OAuth provider: {provider}" });
 
-        var clientIdSetting = await _db.AppSettings.FindAsync(new object[] { clientIdKey }, ct);
-        if (clientIdSetting != null)
-            _db.AppSettings.Remove(clientIdSetting);
-
-        var secretSetting = await _db.AppSettings.FindAsync(new object[] { secretKey! }, ct);
-        if (secretSetting != null)
-            _db.AppSettings.Remove(secretSetting);
+        foreach (var key in new[] { keys.ClientIdKey, keys.SecretKey, keys.TenantIdKey })
+        {
+            if (key == null) continue;
+            var entity = await _db.AppSettings.FindAsync(new object[] { key }, ct);
+            if (entity != null) _db.AppSettings.Remove(entity);
+        }
 
         await _db.SaveChangesAsync(ct);
         return Ok();
     }
+
+    private static (string Provider, string ClientIdKey, string SecretKey, string? TenantIdKey)[] OAuthProviderKeys() =>
+        new (string, string, string, string?)[]
+        {
+            ("google",          "oauth_google_client_id",            "oauth_google_client_secret",          null),
+            ("microsoft",       "oauth_microsoft_client_id",         "oauth_microsoft_client_secret",       null),
+            ("microsoft-entra", "oauth_microsoft_entra_client_id",   "oauth_microsoft_entra_client_secret", "oauth_microsoft_entra_tenant_id"),
+            ("github",          "oauth_github_client_id",            "oauth_github_client_secret",          null),
+        };
 
     private static string MaskApiKey(string key)
     {
@@ -276,4 +294,5 @@ public class OAuthProviderRequest
 {
     public string? ClientId { get; set; }
     public string? ClientSecret { get; set; }
+    public string? TenantId { get; set; }
 }

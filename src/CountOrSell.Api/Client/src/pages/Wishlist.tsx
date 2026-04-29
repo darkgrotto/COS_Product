@@ -375,6 +375,8 @@ export function WishlistPage() {
                 <ToggleChip
                   key={col.key}
                   active={colorFilter === col.key}
+                  title={col.title}
+                  ariaLabel={`Filter by ${col.title}`}
                   onClick={() => setColorFilter(colorFilter === col.key ? '' : col.key)}
                 >
                   {col.label}

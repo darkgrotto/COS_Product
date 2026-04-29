@@ -36,6 +36,8 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
     private readonly ISealedTaxonomyRepository _taxonomy;
     private readonly IPackageVerifier _verifier;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ITreatmentValidator _treatmentValidator;
+    private readonly IImageStatsService? _imageStats;
     private readonly ILogger<ContentUpdateApplicator> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -43,19 +45,33 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         PropertyNameCaseInsensitive = true
     };
 
+    // Manifest image keys must match this exact shape. Anything else is rejected before
+    // it can drive a filesystem write or HTTP fetch (path-traversal / SSRF defense).
+    // - card images: images/sets/{setcode}/{cardid}.{ext}
+    //   setcode: 3-4 lowercase alphanumeric; cardid: setcode + 3-4 digits + optional trailing letter
+    // - sealed images: images/sealed/{id}[_s].{ext}
+    private static readonly System.Text.RegularExpressions.Regex ImageKeyRegex = new(
+        @"^images/(sets/[a-z0-9]{3,4}/[a-z0-9]{3,4}\d{3,4}[a-z]?\.(jpg|jpeg|png|webp)" +
+        @"|sealed/[a-z0-9][a-z0-9_\-]*(_s)?\.(jpg|jpeg|png|webp))$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
     public ContentUpdateApplicator(
         AppDbContext db,
         IImageStore imageStore,
         ISealedTaxonomyRepository taxonomy,
         IPackageVerifier verifier,
         IHttpClientFactory httpClientFactory,
-        ILogger<ContentUpdateApplicator> logger)
+        ITreatmentValidator treatmentValidator,
+        ILogger<ContentUpdateApplicator> logger,
+        IImageStatsService? imageStats = null)
     {
         _db = db;
         _imageStore = imageStore;
         _taxonomy = taxonomy;
         _verifier = verifier;
         _httpClientFactory = httpClientFactory;
+        _treatmentValidator = treatmentValidator;
+        _imageStats = imageStats;
         _logger = logger;
     }
 
@@ -158,6 +174,8 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
+
+        if (treatments != null) _treatmentValidator.Invalidate();
 
         // Fetch and save images outside the transaction - best effort, non-fatal
         await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
@@ -502,7 +520,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         var baseUrl = packageBaseUrl.TrimEnd('/') + "/";
         var http = _httpClientFactory.CreateClient("ImageFetch");
         var semaphore = new SemaphoreSlim(10, 10);
-        int saved = 0, skippedChecksum = 0, failed = 0;
+        int saved = 0, skippedChecksum = 0, failed = 0, rejected = 0;
         var savedLock = new object();
 
         var tasks = imagePaths.Select(async imagePath =>
@@ -510,8 +528,19 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             await semaphore.WaitAsync(ct);
             try
             {
-                var storePath = imagePath.Substring("images/".Length).ToLowerInvariant();
-                var imageUrl = baseUrl + imagePath;
+                // Reject manifest keys that don't match the documented shape before they
+                // are used to construct either a filesystem path or an HTTP URL.
+                var normalized = imagePath.ToLowerInvariant();
+                if (!ImageKeyRegex.IsMatch(normalized))
+                {
+                    _logger.LogWarning(
+                        "Rejecting manifest image key with unexpected shape: {Path}", imagePath);
+                    lock (savedLock) rejected++;
+                    return;
+                }
+
+                var storePath = normalized.Substring("images/".Length);
+                var imageUrl = baseUrl + normalized;
 
                 byte[] bytes;
                 try
@@ -553,7 +582,9 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         await Task.WhenAll(tasks);
 
         _logger.LogInformation(
-            "FetchAndSaveImagesAsync complete: {Saved} saved, {Skipped} skipped (checksum), {Failed} failed",
-            saved, skippedChecksum, failed);
+            "FetchAndSaveImagesAsync complete: {Saved} saved, {Skipped} skipped (checksum), {Rejected} rejected (bad path), {Failed} failed",
+            saved, skippedChecksum, rejected, failed);
+
+        if (saved > 0) _imageStats?.Invalidate();
     }
 }

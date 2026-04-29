@@ -15,7 +15,32 @@ public class SlabRepository : ISlabRepository
     public Task<List<SlabEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default) =>
         _db.SlabEntries.Where(e => e.UserId == userId).ToListAsync(ct);
 
-    public Task<List<SlabEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default)
+    public Task<List<SlabEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default) =>
+        BuildFilteredQuery(userId, filter).ToListAsync(ct);
+
+    public async Task<(List<SlabEntry> Items, int Total)> GetByUserPagedAsync(
+        Guid userId, CollectionFilter? filter, int page, int pageSize, CancellationToken ct = default)
+    {
+        var query = filter != null && HasFilters(filter)
+            ? BuildFilteredQuery(userId, filter)
+            : _db.SlabEntries.Where(e => e.UserId == userId);
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(e => e.CreatedAt)
+            .ThenByDescending(e => e.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+        return (items, total);
+    }
+
+    private static bool HasFilters(CollectionFilter filter) =>
+        !string.IsNullOrEmpty(filter.SetCode) || !string.IsNullOrEmpty(filter.Treatment) ||
+        !string.IsNullOrEmpty(filter.Condition) || filter.Autographed.HasValue ||
+        !string.IsNullOrEmpty(filter.GradingAgency);
+
+    private IQueryable<SlabEntry> BuildFilteredQuery(Guid userId, CollectionFilter filter)
     {
         var query = _db.SlabEntries
             .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
@@ -33,7 +58,7 @@ public class SlabRepository : ISlabRepository
         if (!string.IsNullOrEmpty(filter.GradingAgency))
             query = query.Where(x => x.se.GradingAgencyCode == filter.GradingAgency.ToLowerInvariant());
 
-        return query.Select(x => x.se).ToListAsync(ct);
+        return query.Select(x => x.se);
     }
 
     public async Task<SlabEntry> CreateAsync(SlabEntry entry, CancellationToken ct = default)

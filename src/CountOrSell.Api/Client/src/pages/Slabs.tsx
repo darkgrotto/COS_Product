@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Plus, Pencil, Trash2, ExternalLink, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { CardDetailDialog, QuickAddDialog, AddableCard, SortTh, SortDir } from '@/components/cards/CardDialogs'
+import { Pagination } from '@/components/Pagination'
+import { TableSkeleton } from '@/components/Skeleton'
 import { usePreferences } from '@/contexts/PreferencesContext'
+
+const PAGE_SIZE = 100
 
 // ---- Types ----------------------------------------------------------------
 
@@ -426,6 +430,8 @@ export function SlabsPage() {
   const [sortKey, setSortKey] = useState(prefs.cardSortDefault === 'identifier' ? 'identifier' : 'card')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [entries, setEntries] = useState<SlabEntry[]>([])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [agencies, setAgencies] = useState<GradingAgency[]>([])
   const [loading, setLoading] = useState(true)
@@ -440,28 +446,46 @@ export function SlabsPage() {
   const [conditionPick, setConditionPick] = useState('')
   const [conditionConfirm, setConditionConfirm] = useState(false)
 
-  const treatmentMap = Object.fromEntries(treatments.map(t => [t.key, t.displayName]))
-  const agencyMap = Object.fromEntries(agencies.map(a => [a.code, a]))
+  const treatmentMap = useMemo(
+    () => Object.fromEntries(treatments.map(t => [t.key, t.displayName])),
+    [treatments],
+  )
+  const agencyMap = useMemo(
+    () => Object.fromEntries(agencies.map(a => [a.code, a])),
+    [agencies],
+  )
 
-  function handleSort(key: string) {
-    if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('asc') }
-  }
+  const handleSort = useCallback((key: string) => {
+    setSortKey(prevKey => {
+      if (prevKey === key) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        return prevKey
+      }
+      setSortDir('asc')
+      return key
+    })
+  }, [])
 
-  const sorted = [...entries].sort((a, b) => {
+  const sorted = useMemo(() => [...entries].sort((a, b) => {
     let cmp = 0
     if (sortKey === 'card') cmp = (a.cardName ?? a.cardIdentifier).localeCompare(b.cardName ?? b.cardIdentifier)
     else if (sortKey === 'identifier') cmp = a.cardIdentifier.localeCompare(b.cardIdentifier)
     return sortDir === 'asc' ? cmp : -cmp
-  })
+  }), [entries, sortKey, sortDir])
 
   async function load() {
     const params = new URLSearchParams()
     if (filters.gradingAgency) params.set('filter.gradingAgency', filters.gradingAgency)
     if (filters.condition) params.set('filter.condition', filters.condition)
     if (filters.treatment) params.set('filter.treatment', filters.treatment)
+    params.set('page', String(page))
+    params.set('pageSize', String(PAGE_SIZE))
     const res = await fetch(`/api/slabs?${params}`, { credentials: 'include' })
-    if (res.ok) setEntries(await res.json())
+    if (res.ok) {
+      const data = await res.json()
+      setEntries(data.items)
+      setTotal(data.total)
+    }
   }
 
   useEffect(() => {
@@ -471,12 +495,15 @@ export function SlabsPage() {
     ]).then(([t, a]) => { setTreatments(t); setAgencies(a) })
   }, [])
 
+  // Reset to page 1 when filters change so we don't request a page that no longer exists.
+  useEffect(() => { setPage(1) }, [filters])
+
   useEffect(() => {
     setLoading(true)
     load().finally(() => setLoading(false))
-  }, [filters])
+  }, [filters, page])
 
-  const handleSave = useCallback(() => { load() }, [filters])
+  const handleSave = useCallback(() => { load() }, [filters, page])
 
   async function handleDelete() {
     if (!deleteEntry) return
@@ -507,17 +534,17 @@ export function SlabsPage() {
     await load()
   }
 
-  function toggleSelect(id: string) {
+  const toggleSelect = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
-  }
+  }, [])
 
-  function toggleSelectAll(all: boolean) {
+  const toggleSelectAll = useCallback((all: boolean) => {
     setSelected(all ? new Set(entries.map(e => e.id)) : new Set())
-  }
+  }, [entries])
 
   const totalValue = entries.reduce((s, e) => s + (e.marketValue ?? 0), 0)
   const hasValues = entries.some(e => e.marketValue != null)
@@ -529,8 +556,8 @@ export function SlabsPage() {
           <h1 className="text-2xl font-semibold">Slabs</h1>
           {!loading && (
             <p className="text-sm text-muted-foreground mt-0.5">
-              {entries.length} slab{entries.length !== 1 ? 's' : ''}
-              {hasValues && ` \u00b7 ${fmt(totalValue)} value`}
+              {total} slab{total !== 1 ? 's' : ''}
+              {hasValues && ` \u00b7 ${fmt(totalValue)} value (this page)`}
             </p>
           )}
         </div>
@@ -571,7 +598,7 @@ export function SlabsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
+        <TableSkeleton rows={8} columns={12} />
       ) : entries.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">
           {Object.values(filters).some(Boolean) ? 'No slabs match the current filters.' : 'No slabs yet.'}
@@ -690,6 +717,7 @@ export function SlabsPage() {
               })}
             </tbody>
           </table>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>
       )}
 
@@ -701,6 +729,7 @@ export function SlabsPage() {
         <CardDetailDialog
           identifier={detailId}
           onClose={() => setDetailId(null)}
+          onPriceRefreshed={() => { void load() }}
           onAdd={() => {
             const e = entries.find(x => x.cardIdentifier === detailId)
             if (e) setAddFromDetail({ identifier: e.cardIdentifier, name: e.cardName ?? e.cardIdentifier, currentMarketValue: e.marketValue })

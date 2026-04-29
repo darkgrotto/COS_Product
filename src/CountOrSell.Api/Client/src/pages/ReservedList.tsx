@@ -220,6 +220,8 @@ export function ReservedListPage() {
                 <ToggleChip
                   key={col.key}
                   active={colorFilter === col.key}
+                  title={col.title}
+                  ariaLabel={`Filter by ${col.title}`}
                   onClick={() => setColorFilter(colorFilter === col.key ? '' : col.key)}
                 >
                   {col.label}
@@ -481,6 +483,10 @@ export function ReservedListPage() {
         <CardDetailDialog
           identifier={detailCard.identifier}
           onClose={() => setDetailCard(null)}
+          onPriceRefreshed={async () => {
+            const res = await fetch('/api/cards/reserved-list')
+            if (res.ok) setCards(await res.json())
+          }}
           onAdd={() => setAddCard(detailCard)}
         />
       )}

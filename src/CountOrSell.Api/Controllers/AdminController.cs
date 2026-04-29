@@ -1,3 +1,4 @@
+using CountOrSell.Api.Services;
 using CountOrSell.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,12 +12,12 @@ namespace CountOrSell.Api.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly AppDbContext _db;
-    private readonly IConfiguration _config;
+    private readonly IImageStatsService _imageStats;
 
-    public AdminController(AppDbContext db, IConfiguration config)
+    public AdminController(AppDbContext db, IImageStatsService imageStats)
     {
         _db = db;
-        _config = config;
+        _imageStats = imageStats;
     }
 
     [HttpGet("dashboard")]
@@ -28,7 +29,7 @@ public class AdminController : ControllerBase
         var sealedProductCount = await _db.SealedProducts.CountAsync(ct);
         var reservedListCount = await _db.Cards.CountAsync(c => c.IsReserved, ct);
 
-        var imageStats = CountImages();
+        var imageStats = await _imageStats.GetCountsAsync(ct);
 
         return Ok(new
         {
@@ -40,24 +41,5 @@ public class AdminController : ControllerBase
             sealedImageCount = imageStats.SealedImages,
             reservedListCount
         });
-    }
-
-    private (int CardImages, int SealedImages) CountImages()
-    {
-        var basePath = _config["ImageStore:BasePath"]
-            ?? Path.Combine(AppContext.BaseDirectory, "images");
-        if (!Directory.Exists(basePath)) return (0, 0);
-
-        var setsPath = Path.Combine(basePath, "sets");
-        var sealedPath = Path.Combine(basePath, "sealed");
-
-        var cardImages = Directory.Exists(setsPath)
-            ? Directory.GetFiles(setsPath, "*.jpg", SearchOption.AllDirectories).Length
-            : 0;
-        var sealedImages = Directory.Exists(sealedPath)
-            ? Directory.GetFiles(sealedPath, "*.jpg", SearchOption.AllDirectories).Length
-            : 0;
-
-        return (cardImages, sealedImages);
     }
 }

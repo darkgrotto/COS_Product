@@ -206,6 +206,8 @@ function FiltersPanel({
           <ToggleChip
             key={col.key}
             active={filters.color === col.key}
+            title={col.title}
+            ariaLabel={`Filter by ${col.title}`}
             onClick={() => onChange({ ...filters, color: filters.color === col.key ? '' : col.key })}
           >
             {col.label}

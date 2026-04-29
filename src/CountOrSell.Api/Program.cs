@@ -1,3 +1,4 @@
+using CountOrSell.Api;
 using CountOrSell.Api.Auth;
 using CountOrSell.Api.Background.AppVersion;
 using CountOrSell.Api.Background.Backup;
@@ -7,16 +8,33 @@ using CountOrSell.Api.Services;
 using CountOrSell.Api.Services.Deployment;
 using CountOrSell.Api.Services.Destinations;
 using CountOrSell.Api.Services.LogForwarding;
+using CountOrSell.Api.Services.Signing;
 using CountOrSell.Data;
 using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+// Anti-forgery (CSRF) defense-in-depth. Cookie-based auth already has SameSite=Strict,
+// but tokens close the gap for older clients and any future XSS. The SPA reads the
+// token from GET /api/auth/csrf and echoes it back as X-CSRF-TOKEN on every state-
+// changing request; the global filter validates non-safe HTTP methods.
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.HttpOnly = true;
+});
+
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
+});
 
 // Demo mode
 builder.Services.AddSingleton<IDemoModeService, DemoModeService>();
@@ -30,18 +48,30 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromHours(4);
 });
 
-// Database
+// Database. Resolved once at startup; downstream services read from IConfiguration
+// rather than re-resolving with their own fallback chain.
 var connectionString =
     builder.Configuration.GetConnectionString("Default") is { Length: > 0 } cs
         ? cs
-        : Environment.GetEnvironmentVariable("POSTGRES_CONNECTION")
-          ?? "Host=localhost;Database=countorsell;Username=countorsell;Password=countorsell";
+        : Environment.GetEnvironmentVariable("POSTGRES_CONNECTION");
+
+if (string.IsNullOrWhiteSpace(connectionString))
+    throw new InvalidOperationException(
+        "Database connection string is not configured. Set POSTGRES_CONNECTION " +
+        "(env var) or ConnectionStrings:Default (configuration) before starting the API.");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(connectionString), ServiceLifetime.Singleton);
+
+// Merge admin-managed settings from the app_settings table into IConfiguration.
+// Inserted at index 0 so env vars and appsettings still override DB values.
+// Auth handlers (Google / Microsoft / Entra / GitHub) read from IConfiguration
+// at startup, so changes saved via the admin UI take effect on next restart.
+builder.Configuration.Sources.Insert(0,
+    new DbAppSettingsConfigurationSource { ConnectionString = connectionString });
 
 // Health checks
 builder.Services.AddHealthChecks()
@@ -72,6 +102,10 @@ builder.Services.AddScoped<IUserExportFileRepository, UserExportFileRepository>(
 builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
+// Reference-data validators
+builder.Services.AddSingleton<ITreatmentValidator, TreatmentValidator>();
+builder.Services.AddSingleton<IImageStatsService, ImageStatsService>();
+
 // Feature services
 builder.Services.AddScoped<IMetricsService, MetricsService>();
 builder.Services.AddScoped<IExportService, ExportService>();
@@ -87,6 +121,12 @@ builder.Services.AddHttpClient<ICardImageFetcher, ScryfallCardImageFetcher>();
 builder.Services.AddHttpClient<IUpdateManifestClient, UpdateManifestClient>();
 builder.Services.AddHttpClient<IPackageDownloader, PackageDownloader>();
 builder.Services.AddScoped<IPackageVerifier, PackageVerifier>();
+
+// Manifest signing: JWKS provider is a singleton (in-memory cache + DB persistence);
+// the verifier is scoped so it picks up the singleton without holding state itself.
+builder.Services.AddHttpClient(name: "Jwks", c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<IJwksProvider, JwksProvider>();
+builder.Services.AddScoped<IManifestSignatureVerifier, ManifestSignatureVerifier>();
 builder.Services.AddScoped<IContentUpdateApplicator, ContentUpdateApplicator>();
 builder.Services.AddScoped<IAdminNotificationService, AdminNotificationService>();
 builder.Services.AddScoped<IEmailNotificationService, EmailNotificationService>();
@@ -138,6 +178,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService
 builder.Services.AddSingleton<IUpdateCheckTrigger>(sp => sp.GetRequiredService<UpdateCheckService>());
 builder.Services.AddHostedService<AppVersionCheckService>();
 builder.Services.AddHostedService<BackupScheduleService>();
+builder.Services.AddHostedService<JwksRefreshService>();
 
 // Cookie authentication (always available)
 var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -182,6 +223,32 @@ if (!string.IsNullOrWhiteSpace(msClientId) && !string.IsNullOrWhiteSpace(msClien
     });
 }
 
+// Microsoft Entra ID (work / school accounts). Distinct from MicrosoftAccount which
+// only covers consumer (Live) accounts. TenantId selects the directory:
+// a specific GUID for single-tenant, "common" for any tenant + personal,
+// "organizations" for any tenant, "consumers" for personal only.
+var entraClientId = builder.Configuration["OAuth:MicrosoftEntra:ClientId"];
+var entraClientSecret = builder.Configuration["OAuth:MicrosoftEntra:ClientSecret"];
+var entraTenantId = builder.Configuration["OAuth:MicrosoftEntra:TenantId"];
+if (!string.IsNullOrWhiteSpace(entraClientId)
+    && !string.IsNullOrWhiteSpace(entraClientSecret)
+    && !string.IsNullOrWhiteSpace(entraTenantId))
+{
+    authBuilder.AddOpenIdConnect("microsoft-entra", "Microsoft (Entra ID)", options =>
+    {
+        options.Authority = $"https://login.microsoftonline.com/{entraTenantId}/v2.0";
+        options.ClientId = entraClientId;
+        options.ClientSecret = entraClientSecret;
+        options.ResponseType = "code";
+        options.SaveTokens = true;
+        options.CallbackPath = "/signin-microsoft-entra";
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+    });
+}
+
 var ghClientId = builder.Configuration["OAuth:GitHub:ClientId"];
 var ghClientSecret = builder.Configuration["OAuth:GitHub:ClientSecret"];
 if (!string.IsNullOrWhiteSpace(ghClientId) && !string.IsNullOrWhiteSpace(ghClientSecret))
@@ -223,6 +290,19 @@ catch { /* DB not yet available - log forwarding stays disabled until first conf
 
 app.Services.GetRequiredService<ILoggerFactory>()
     .AddProvider(app.Services.GetRequiredService<HttpLogForwardingProvider>());
+
+// Surface a clear warning if the canonical public URL is not pinned. Without it,
+// invite emails fall back to the incoming Host header, which is attacker-controllable.
+if (string.IsNullOrWhiteSpace(app.Configuration[PublicBaseUrlResolver.ConfigKey]))
+{
+    app.Services.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("Startup")
+        .LogWarning(
+            "{Key} is not configured. Invite-link generation will fall back to the " +
+            "incoming HTTP Host header, which is vulnerable to host-header injection. " +
+            "Set {Key} to your canonical public origin (e.g. https://app.example.com).",
+            PublicBaseUrlResolver.ConfigKey, PublicBaseUrlResolver.ConfigKey);
+}
 
 app.UseDefaultFiles();
 app.UseStaticFiles();

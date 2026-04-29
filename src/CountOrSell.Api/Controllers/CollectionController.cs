@@ -23,6 +23,7 @@ public class CollectionController : ControllerBase
     private readonly IUserRepository _users;
     private readonly ITcgPlayerService _tcgPlayer;
     private readonly ICollectionImportExportService _importExport;
+    private readonly ITreatmentValidator _treatments;
 
     public CollectionController(
         ICollectionRepository collection,
@@ -30,7 +31,8 @@ public class CollectionController : ControllerBase
         IMetricsService metrics,
         IUserRepository users,
         ITcgPlayerService tcgPlayer,
-        ICollectionImportExportService importExport)
+        ICollectionImportExportService importExport,
+        ITreatmentValidator treatments)
     {
         _collection = collection;
         _cards = cards;
@@ -38,6 +40,7 @@ public class CollectionController : ControllerBase
         _users = users;
         _tcgPlayer = tcgPlayer;
         _importExport = importExport;
+        _treatments = treatments;
     }
 
     private Guid CurrentUserId =>
@@ -54,33 +57,36 @@ public class CollectionController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? userId, [FromQuery] CollectionFilter? filter, CancellationToken ct)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] Guid? userId,
+        [FromQuery] CollectionFilter? filter,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        CancellationToken ct = default)
     {
         if (userId.HasValue && !IsAdmin)
             return Forbid();
 
-        var targetUserId = ResolveUserId(userId);
-        var effectiveFilter = filter ?? new CollectionFilter();
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 500) pageSize = 100;
 
-        List<CollectionEntry> entries;
-        if (HasFilters(effectiveFilter))
-            entries = await _collection.GetByUserFilteredAsync(targetUserId, effectiveFilter, ct);
-        else
-            entries = await _collection.GetByUserAsync(targetUserId, ct);
+        var targetUserId = ResolveUserId(userId);
+        var (entries, total) = await _collection.GetByUserPagedAsync(targetUserId, filter, page, pageSize, ct);
 
         var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
         var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);
-        var oracleUrls = await _cards.GetOracleRulingUrlsByIdentifiersAsync(identifiers, ct);
         var treatmentPrices = await _cards.GetPricesByIdentifiersAsync(identifiers, ct);
-        return Ok(entries.Select(e =>
+        var items = entries.Select(e =>
         {
             summaries.TryGetValue(e.CardIdentifier, out var summary);
             decimal? mv = treatmentPrices.TryGetValue(e.CardIdentifier, out var tPrices) &&
                           tPrices.TryGetValue(e.TreatmentKey, out var tp)
                 ? tp
                 : summary.MarketValue;
-            return MapEntry(e, summary.Name, mv, summary.SetCode, oracleUrls.GetValueOrDefault(e.CardIdentifier));
-        }));
+            return MapEntry(e, summary.Name, mv, summary.SetCode, summary.OracleRulingUrl);
+        });
+
+        return Ok(new { items, total, page, pageSize });
     }
 
     [HttpPost]
@@ -92,6 +98,8 @@ public class CollectionController : ControllerBase
         var cardId = request.CardIdentifier.ToLowerInvariant();
         if (!CardIdentifierValidator.IsValid(cardId))
             return BadRequest(new { error = $"Invalid card identifier: {request.CardIdentifier.ToUpperInvariant()}. Expected format: set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000)." });
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
         var entry = new CollectionEntry
         {
             Id = Guid.NewGuid(),
@@ -130,6 +138,9 @@ public class CollectionController : ControllerBase
 
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         entry.TreatmentKey = request.Treatment;
         entry.Quantity = request.Quantity;
@@ -268,6 +279,8 @@ public class CollectionController : ControllerBase
             return BadRequest(new { error = "At least one id is required." });
         if (string.IsNullOrEmpty(request.Treatment))
             return BadRequest(new { error = "Treatment is required." });
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
         var updated = await _collection.BulkSetTreatmentAsync(request.Ids, CurrentUserId, request.Treatment, ct);
         return Ok(new { updated });
     }
@@ -286,6 +299,9 @@ public class CollectionController : ControllerBase
     {
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         var setCode = request.SetCode.ToLowerInvariant();
         var cards = await _cards.GetBySetCodeAsync(setCode, ct);
@@ -328,6 +344,9 @@ public class CollectionController : ControllerBase
 
         if (!TryParseCondition(request.Condition, out var condition))
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         var now = DateTime.UtcNow;
         var bySet = new List<object>();

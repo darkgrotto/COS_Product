@@ -94,7 +94,8 @@ public class BackupService : IBackupService
             try
             {
                 using var stream = new MemoryStream(archiveBytes);
-                await dest.WriteAsync($"{label}.zip", stream, ct);
+                // On-disk name is the immutable record GUID; Label stays in the DB for display.
+                await dest.WriteAsync(BackupFileName.For(record), stream, ct);
                 destRecord.Success = true;
             }
             catch (Exception ex)
@@ -129,7 +130,9 @@ public class BackupService : IBackupService
         var connectionString =
             _config.GetConnectionString("Default")
             ?? Environment.GetEnvironmentVariable("POSTGRES_CONNECTION")
-            ?? "Host=localhost;Database=countorsell;Username=countorsell;Password=countorsell";
+            ?? throw new InvalidOperationException(
+                "Database connection string is not configured. Set POSTGRES_CONNECTION " +
+                "(env var) or ConnectionStrings:Default (configuration).");
 
         var parsed = ParseConnectionString(connectionString);
         var tableArgs = string.Join(" ", BackupScope.Tables.Select(t => $"--table={t}"));
@@ -187,12 +190,14 @@ public class BackupService : IBackupService
         ParseConnectionString(string connectionString)
     {
         var builder = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
-        return (
-            builder.Host ?? "localhost",
-            builder.Port,
-            builder.Database ?? "countorsell",
-            builder.Username ?? "countorsell",
-            builder.Password ?? "countorsell");
+        if (string.IsNullOrWhiteSpace(builder.Host)
+            || string.IsNullOrWhiteSpace(builder.Database)
+            || string.IsNullOrWhiteSpace(builder.Username)
+            || string.IsNullOrWhiteSpace(builder.Password))
+            throw new InvalidOperationException(
+                "Database connection string is missing one or more required fields " +
+                "(Host, Database, Username, Password).");
+        return (builder.Host, builder.Port, builder.Database, builder.Username, builder.Password);
     }
 
     private async Task PruneOldBackupsAsync(BackupType backupType, CancellationToken ct)
@@ -218,16 +223,18 @@ public class BackupService : IBackupService
                 .ToListAsync(ct);
             foreach (var destConfig in destConfigs)
             {
-                try
+                var dest = _destinationFactory.Create(destConfig);
+                // New writes use the GUID name; legacy backups may still be on disk
+                // under the old {Label}.zip convention. Try both.
+                foreach (var name in new[] { BackupFileName.For(old), BackupFileName.LegacyFor(old) })
                 {
-                    var dest = _destinationFactory.Create(destConfig);
-                    await dest.DeleteAsync($"{old.Label}.zip", ct);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex,
-                        "Failed to prune backup {Label} from {Dest}",
-                        old.Label, destConfig.Label);
+                    try { await dest.DeleteAsync(name, ct); }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Failed to prune backup {Name} from {Dest}",
+                            name, destConfig.Label);
+                    }
                 }
             }
         }

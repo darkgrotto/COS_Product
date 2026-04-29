@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  ChevronUp, ChevronDown, ChevronsUpDown, Plus, ExternalLink, Star,
+  ChevronUp, ChevronDown, ChevronsUpDown, Plus, ExternalLink, Star, RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { useToast } from '@/contexts/ToastContext'
+import { useDemo } from '@/contexts/DemoContext'
 
 // ---- Shared types -----------------------------------------------------------
 
@@ -76,17 +78,20 @@ export function sortTreatments<T extends { key: string; displayName: string }>(t
 // ---- Filter chip ------------------------------------------------------------
 
 export function ToggleChip({
-  active, onClick, children, title,
+  active, onClick, children, title, ariaLabel,
 }: {
   active: boolean
   onClick: () => void
   children: React.ReactNode
   title?: string
+  ariaLabel?: string
 }) {
   return (
     <button
       type="button"
       title={title}
+      aria-label={ariaLabel ?? title}
+      aria-pressed={active}
       onClick={onClick}
       className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
         active
@@ -226,13 +231,18 @@ export function CardDetailDialog({
   identifier,
   onClose,
   onAdd,
+  onPriceRefreshed,
 }: {
   identifier: string
   onClose: () => void
   onAdd: () => void
+  onPriceRefreshed?: (identifier: string, newMarketValue: number | null) => void
 }) {
   const [card, setCard] = useState<CardDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const { toast } = useToast()
+  const { isDemo } = useDemo()
 
   useEffect(() => {
     fetch(`/api/cards/${identifier.toLowerCase()}`)
@@ -240,6 +250,38 @@ export function CardDetailDialog({
       .then(d => { setCard(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [identifier])
+
+  async function handleRefreshPrice() {
+    if (!card || refreshing) return
+    setRefreshing(true)
+    try {
+      const res = await fetch(`/api/cards/${card.identifier.toLowerCase()}/refresh-price`, {
+        method: 'POST',
+      })
+      if (res.ok) {
+        const data = await res.json() as { currentMarketValue: number | null }
+        setCard(c => c ? { ...c, currentMarketValue: data.currentMarketValue } : c)
+        onPriceRefreshed?.(card.identifier, data.currentMarketValue)
+        toast(
+          data.currentMarketValue != null
+            ? `Updated to $${data.currentMarketValue.toFixed(2)}.`
+            : 'Price refreshed.',
+          'success',
+        )
+      } else {
+        const body = await res.json().catch(() => ({}))
+        const message = (body as { error?: string }).error
+          ?? (res.status === 400 ? 'TCGPlayer API key is not configured.'
+            : res.status === 502 ? 'TCGPlayer returned no price for this card.'
+              : `Refresh failed (${res.status}).`)
+        toast(message, 'error')
+      }
+    } catch {
+      toast('Network error - could not reach the server.', 'error')
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   return (
     <Dialog open onOpenChange={v => !v && onClose()}>
@@ -317,7 +359,21 @@ export function CardDetailDialog({
                 )}
                 <div>
                   <p className="text-xs text-muted-foreground">Market Value</p>
-                  <p className="font-medium">{fmt(card.currentMarketValue)}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{fmt(card.currentMarketValue)}</p>
+                    <button
+                      type="button"
+                      onClick={handleRefreshPrice}
+                      disabled={refreshing || isDemo}
+                      title={isDemo
+                        ? 'Price refresh is disabled in demo mode'
+                        : 'Refresh from TCGPlayer'}
+                      aria-label="Refresh price from TCGPlayer"
+                      className="text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -28,7 +28,7 @@ public class ContentUpdateTransactionRollbackTest : IClassFixture<PostgreSqlFixt
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), new StubTreatmentValidator(), NullLogger<ContentUpdateApplicator>.Instance);
 
         // Build a package with treatments but cards referencing a set that does not exist
         var (packageStream, packageManifest) = PackageBuilder.Build(
@@ -62,7 +62,7 @@ public class ContentUpdateTransactionRollbackTest : IClassFixture<PostgreSqlFixt
         var taxonomy = new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance);
         var verifier = new PackageVerifier();
         var applicator = new ContentUpdateApplicator(
-            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), NullLogger<ContentUpdateApplicator>.Instance);
+            db, imageStore, taxonomy, verifier, new NoOpHttpClientFactory(), new StubTreatmentValidator(), NullLogger<ContentUpdateApplicator>.Instance);
 
         var uniqueTreatmentKey = $"rollback-test-{Guid.NewGuid():N}";
         var (packageStream, packageManifest) = PackageBuilder.Build(

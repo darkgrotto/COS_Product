@@ -4,6 +4,7 @@ using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos.Requests;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
+using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,11 +17,13 @@ public class SlabsController : ControllerBase
 {
     private readonly ISlabRepository _slabs;
     private readonly ICardRepository _cards;
+    private readonly ITreatmentValidator _treatments;
 
-    public SlabsController(ISlabRepository slabs, ICardRepository cards)
+    public SlabsController(ISlabRepository slabs, ICardRepository cards, ITreatmentValidator treatments)
     {
         _slabs = slabs;
         _cards = cards;
+        _treatments = treatments;
     }
 
     private Guid CurrentUserId =>
@@ -30,26 +33,31 @@ public class SlabsController : ControllerBase
         User.IsInRole("Admin");
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? userId, [FromQuery] CollectionFilter filter, CancellationToken ct)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] Guid? userId,
+        [FromQuery] CollectionFilter filter,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        CancellationToken ct = default)
     {
         if (userId.HasValue && !IsAdmin)
             return Forbid();
 
-        var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 500) pageSize = 100;
 
-        List<SlabEntry> entries;
-        if (HasFilters(filter))
-            entries = await _slabs.GetByUserFilteredAsync(targetUserId, filter, ct);
-        else
-            entries = await _slabs.GetByUserAsync(targetUserId, ct);
+        var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
+        var (entries, total) = await _slabs.GetByUserPagedAsync(targetUserId, filter, page, pageSize, ct);
 
         var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
         var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);
-        return Ok(entries.Select(e =>
+        var items = entries.Select(e =>
         {
             summaries.TryGetValue(e.CardIdentifier, out var s);
             return MapEntry(e, s.Name, s.MarketValue, s.SetCode);
-        }));
+        });
+
+        return Ok(new { items, total, page, pageSize });
     }
 
     [HttpPost]
@@ -64,6 +72,9 @@ public class SlabsController : ControllerBase
         var cardId = request.CardIdentifier.ToLowerInvariant();
         if (!CardIdentifierValidator.IsValid(cardId))
             return BadRequest(new { error = $"Invalid card identifier: {request.CardIdentifier.ToUpperInvariant()}. Expected format: set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000)." });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         var entry = new SlabEntry
         {
@@ -110,6 +121,9 @@ public class SlabsController : ControllerBase
 
         if (request.SerialNumber.HasValue && !request.PrintRunTotal.HasValue)
             return BadRequest(new { error = "PrintRunTotal is required when SerialNumber is provided." });
+
+        if (!await _treatments.IsValidAsync(request.Treatment, ct))
+            return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
 
         entry.TreatmentKey = request.Treatment;
         entry.GradingAgencyCode = request.GradingAgency.ToLowerInvariant();

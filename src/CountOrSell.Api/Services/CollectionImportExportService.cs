@@ -5,6 +5,7 @@ using CountOrSell.Data;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Models;
 using CountOrSell.Domain.Models.Enums;
+using CountOrSell.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace CountOrSell.Api.Services;
@@ -13,11 +14,16 @@ public sealed class CollectionImportExportService : ICollectionImportExportServi
 {
     private readonly AppDbContext _db;
     private readonly ICollectionRepository _collection;
+    private readonly ITreatmentValidator _treatments;
 
-    public CollectionImportExportService(AppDbContext db, ICollectionRepository collection)
+    public CollectionImportExportService(
+        AppDbContext db,
+        ICollectionRepository collection,
+        ITreatmentValidator treatments)
     {
         _db = db;
         _collection = collection;
+        _treatments = treatments;
     }
 
     // ---- Export -----------------------------------------------------------------
@@ -308,6 +314,7 @@ public sealed class CollectionImportExportService : ICollectionImportExportServi
                 .ToDictionaryAsync(s => s.Name.ToLowerInvariant(), s => s.Code, ct);
         }
 
+        var validTreatments = await _treatments.GetValidKeysAsync(ct);
         var toAdd = new List<CollectionEntry>();
         var failures = new List<string>();
 
@@ -460,12 +467,19 @@ public sealed class CollectionImportExportService : ICollectionImportExportServi
                     continue;
                 }
 
+                var resolvedTreatment = string.IsNullOrEmpty(treatmentKey) ? "regular" : treatmentKey;
+                if (!validTreatments.Contains(resolvedTreatment))
+                {
+                    failures.Add($"Row {rowIdx}: unknown treatment '{resolvedTreatment}'");
+                    continue;
+                }
+
                 toAdd.Add(new CollectionEntry
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
                     CardIdentifier = cardIdentifier,
-                    TreatmentKey = string.IsNullOrEmpty(treatmentKey) ? "regular" : treatmentKey,
+                    TreatmentKey = resolvedTreatment,
                     Quantity = Math.Max(1, quantity),
                     Condition = ParseCondition(conditionStr),
                     Autographed = autographed,

@@ -1,4 +1,5 @@
 using CountOrSell.Domain.Dtos;
+using CountOrSell.Domain.Dtos.Signing;
 using CountOrSell.Domain.Services;
 using System.Text.Json;
 
@@ -37,19 +38,58 @@ public class UpdateManifestClient : IUpdateManifestClient
         }
     }
 
-    public async Task<PackageManifest?> FetchPackageManifestAsync(string manifestUrl, CancellationToken ct)
+    public async Task<SignedPackageManifest?> FetchSignedPackageManifestAsync(
+        string manifestUrl, CancellationToken ct)
     {
+        byte[] manifestBytes;
         try
         {
             var response = await _httpClient.GetAsync(manifestUrl, ct);
             response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync(ct);
-            return JsonSerializer.Deserialize<PackageManifest>(json, JsonOptions);
+            manifestBytes = await response.Content.ReadAsByteArrayAsync(ct);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to fetch per-package manifest from {Url}", manifestUrl);
             return null;
         }
+
+        var sigUrl = manifestUrl + ".sig";
+        SignedManifestEnvelope? envelope;
+        try
+        {
+            var sigResponse = await _httpClient.GetAsync(sigUrl, ct);
+            sigResponse.EnsureSuccessStatusCode();
+            var sigBody = await sigResponse.Content.ReadAsStringAsync(ct);
+            envelope = JsonSerializer.Deserialize<SignedManifestEnvelope>(sigBody, JsonOptions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch detached signature from {Url}", sigUrl);
+            return null;
+        }
+
+        if (envelope == null
+            || string.IsNullOrEmpty(envelope.Alg)
+            || string.IsNullOrEmpty(envelope.Kid)
+            || string.IsNullOrEmpty(envelope.Sig))
+        {
+            _logger.LogWarning("Detached signature at {Url} is missing required fields", sigUrl);
+            return null;
+        }
+
+        PackageManifest? parsed;
+        try
+        {
+            parsed = JsonSerializer.Deserialize<PackageManifest>(manifestBytes, JsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Per-package manifest at {Url} is not valid JSON", manifestUrl);
+            return null;
+        }
+
+        if (parsed == null) return null;
+        return new SignedPackageManifest(manifestBytes, envelope, parsed);
     }
 }

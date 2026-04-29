@@ -28,6 +28,7 @@ public class SealedTaxonomyReplacementTest : IClassFixture<PostgreSqlFixture>
             new SealedTaxonomyRepository(db, NullLogger<SealedTaxonomyRepository>.Instance),
             new PackageVerifier(),
             new NoOpHttpClientFactory(),
+            new StubTreatmentValidator(),
             NullLogger<ContentUpdateApplicator>.Instance);
 
     [Fact]

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { invalidateCsrfToken } from '../lib/csrf'
 
 export type UserRole = 'Admin' | 'GeneralUser'
 
@@ -55,11 +56,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error((data as { error?: string }).error ?? 'Login failed')
     }
     const data: AuthUser = await res.json()
+    // Login may rotate the anti-forgery cookie; force a refetch on next state change.
+    invalidateCsrfToken()
     setUser(data)
   }
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    invalidateCsrfToken()
     setUser(null)
   }
 

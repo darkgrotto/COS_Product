@@ -13,17 +13,29 @@ namespace CountOrSell.Api.Controllers;
 public class InvitationsController : ControllerBase
 {
     private readonly IInvitationService _invitations;
+    private readonly IConfiguration _config;
+    private readonly ILogger<InvitationsController> _logger;
 
-    public InvitationsController(IInvitationService invitations)
+    public InvitationsController(
+        IInvitationService invitations,
+        IConfiguration config,
+        ILogger<InvitationsController> logger)
     {
         _invitations = invitations;
+        _config = config;
+        _logger = logger;
     }
 
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    private string BaseUrl =>
-        $"{Request.Scheme}://{Request.Host}";
+    // PUBLIC_BASE_URL pins the canonical public origin used in invite links, defeating
+    // Host-header injection. When unset, falls back to the request-derived origin for
+    // backwards compatibility on instances that have not yet configured the value.
+    private PublicBaseUrlResolver.Result ResolveBaseUrl() =>
+        PublicBaseUrlResolver.Resolve(
+            _config[PublicBaseUrlResolver.ConfigKey],
+            $"{Request.Scheme}://{Request.Host}");
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
@@ -36,8 +48,18 @@ public class InvitationsController : ControllerBase
         if (!Enum.TryParse<UserRole>(request.Role, ignoreCase: true, out var role))
             return BadRequest(new { error = "Role must be Admin or GeneralUser." });
 
+        var resolved = ResolveBaseUrl();
+        if (!resolved.Success)
+        {
+            _logger.LogError(
+                "Refusing to create invitation: {Error}", resolved.Error);
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new { error = resolved.Error });
+        }
+
         var (invitation, inviteUrl) = await _invitations.CreateInvitationAsync(
-            request.Email.Trim(), role, CurrentUserId, BaseUrl, ct);
+            request.Email.Trim(), role, CurrentUserId, resolved.BaseUrl!, ct);
 
         return Ok(new
         {

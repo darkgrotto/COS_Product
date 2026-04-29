@@ -7,6 +7,7 @@ public interface ISealedInventoryRepository
     Task<SealedInventoryEntry?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<List<SealedInventoryEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default);
     Task<List<SealedInventoryEntry>> GetByUserFilteredAsync(Guid userId, string? categorySlug, string? subTypeSlug, CancellationToken ct = default);
+    Task<(List<SealedInventoryEntry> Items, int Total)> GetByUserPagedAsync(Guid userId, string? categorySlug, string? subTypeSlug, int page, int pageSize, CancellationToken ct = default);
     Task<SealedInventoryEntry> CreateAsync(SealedInventoryEntry entry, CancellationToken ct = default);
     Task<SealedInventoryEntry> UpdateAsync(SealedInventoryEntry entry, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
