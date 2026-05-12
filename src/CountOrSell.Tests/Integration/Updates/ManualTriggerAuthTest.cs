@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using CountOrSell.Api.Background.Updates;
 using CountOrSell.Data;
 using Microsoft.AspNetCore.Authentication;
@@ -64,8 +65,21 @@ public class ManualTriggerAuthTest : IClassFixture<WebApplicationFactory<Program
     public async Task ManualCheck_AsAdmin_Returns200()
     {
         var factory = BuildFactory("Admin");
-        var client = factory.CreateClient();
+        // Antiforgery cookie is Secure-only and tokens are principal-bound, so the
+        // happy-path test must use https and fetch a csrf token before posting.
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+        });
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Test");
+
+        var csrf = await client.GetAsync("/api/auth/csrf");
+        csrf.EnsureSuccessStatusCode();
+        using (var doc = JsonDocument.Parse(await csrf.Content.ReadAsStringAsync()))
+        {
+            client.DefaultRequestHeaders.Add(
+                "X-CSRF-TOKEN", doc.RootElement.GetProperty("token").GetString());
+        }
 
         var response = await client.PostAsync("/api/updates/check", null);
 
@@ -121,6 +135,8 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         _testOptions = testOptions;
     }
 
+    private static readonly string TestUserId = Guid.NewGuid().ToString();
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.ContainsKey("Authorization"))
@@ -129,7 +145,7 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         var role = _testOptions.CurrentValue.Role;
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.NameIdentifier, TestUserId),
             new Claim(ClaimTypes.Name, "testuser"),
             new Claim(ClaimTypes.Role, role)
         };

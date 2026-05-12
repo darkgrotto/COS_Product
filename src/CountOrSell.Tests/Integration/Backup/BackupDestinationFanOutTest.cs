@@ -26,7 +26,10 @@ public class BackupDestinationFanOutTest
         return new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["INSTANCE_NAME"] = instanceName
+                ["INSTANCE_NAME"] = instanceName,
+                // BuildBackupArchiveAsync requires a connection string even though
+                // the process runner is mocked - pg_dump is never actually invoked.
+                ["ConnectionStrings:Default"] = "Host=stub;Database=stub;Username=stub;Password=stub"
             })
             .Build();
     }

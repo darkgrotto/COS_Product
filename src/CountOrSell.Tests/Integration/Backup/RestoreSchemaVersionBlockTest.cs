@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using CountOrSell.Api.Background.Updates;
 using CountOrSell.Api.Services;
 using CountOrSell.Data;
@@ -75,14 +76,31 @@ public class RestoreSchemaVersionBlockTest : IClassFixture<WebApplicationFactory
         });
     }
 
+    // Production antiforgery cookie is Secure-only and tokens are bound to the
+    // principal, so the test client must talk https and present a token fetched
+    // by the same user identity that will issue the state-changing request.
+    private static async Task<HttpClient> CreateAuthClientAsync(WebApplicationFactory<Program> factory)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+        });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Test");
+
+        var csrfResponse = await client.GetAsync("/api/auth/csrf");
+        csrfResponse.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await csrfResponse.Content.ReadAsStringAsync());
+        client.DefaultRequestHeaders.Add(
+            "X-CSRF-TOKEN", doc.RootElement.GetProperty("token").GetString());
+        return client;
+    }
+
     [Fact]
     public async Task Restore_Returns409_WhenBackupSchemaVersionExceedsDeployment()
     {
         var archiveBytes = BuildFakeBackupArchive(schemaVersion: 9999);
         var factory = BuildFactory();
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Test");
+        var client = await CreateAuthClientAsync(factory);
 
         using var content = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(archiveBytes);
@@ -101,9 +119,7 @@ public class RestoreSchemaVersionBlockTest : IClassFixture<WebApplicationFactory
         // Schema version 1 matches ApplicationSchemaVersion = 1
         var archiveBytes = BuildFakeBackupArchive(schemaVersion: 1);
         var factory = BuildFactory();
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Test");
+        var client = await CreateAuthClientAsync(factory);
 
         using var content = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(archiveBytes);
@@ -159,6 +175,10 @@ public class RestoreTestAuthHandler : AuthenticationHandler<AuthenticationScheme
         UrlEncoder encoder)
         : base(options, logger, encoder) { }
 
+    // Stable id across the csrf-fetch and the state-changing request -
+    // antiforgery tokens are principal-bound and would otherwise mismatch.
+    private static readonly string TestUserId = Guid.NewGuid().ToString();
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.ContainsKey("Authorization"))
@@ -166,7 +186,7 @@ public class RestoreTestAuthHandler : AuthenticationHandler<AuthenticationScheme
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.NameIdentifier, TestUserId),
             new Claim(ClaimTypes.Name, "testadmin"),
             new Claim(ClaimTypes.Role, "Admin")
         };

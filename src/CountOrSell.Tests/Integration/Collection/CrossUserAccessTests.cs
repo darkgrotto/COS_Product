@@ -98,6 +98,26 @@ public class CrossUserAccessTests : IClassFixture<WebApplicationFactory<Program>
         return client;
     }
 
+    // For state-changing requests the test must speak https (cookie is Secure-only)
+    // and present a csrf token issued under the same user identity.
+    private static async Task<HttpClient> ClientAsWithCsrfAsync(
+        WebApplicationFactory<Program> factory, Guid userId, string role)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+        });
+        client.DefaultRequestHeaders.Add("X-Test-User-Id", userId.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-User-Role", role);
+
+        var csrf = await client.GetAsync("/api/auth/csrf");
+        csrf.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await csrf.Content.ReadAsStringAsync());
+        client.DefaultRequestHeaders.Add(
+            "X-CSRF-TOKEN", doc.RootElement.GetProperty("token").GetString());
+        return client;
+    }
+
     private static async Task SeedAsync(WebApplicationFactory<Program> factory, Guid entryId)
     {
         using var scope = factory.Services.CreateScope();
@@ -177,7 +197,7 @@ public class CrossUserAccessTests : IClassFixture<WebApplicationFactory<Program>
         var entryId = Guid.NewGuid();
         await SeedAsync(factory, entryId);
 
-        var client = ClientAs(factory, AdminId, "Admin");
+        var client = await ClientAsWithCsrfAsync(factory, AdminId, "Admin");
         var payload = JsonSerializer.Serialize(new
         {
             cardIdentifier = "eoe001",

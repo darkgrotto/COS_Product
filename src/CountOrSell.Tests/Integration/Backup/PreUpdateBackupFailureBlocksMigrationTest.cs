@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using CountOrSell.Api.Background.Updates;
 using CountOrSell.Api.Services;
 using CountOrSell.Data;
@@ -92,9 +93,20 @@ public class PreUpdateBackupFailureBlocksMigrationTest
             await db.SaveChangesAsync();
         }
 
-        var client = factory.CreateClient();
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+        });
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Test");
+
+        var csrf = await client.GetAsync("/api/auth/csrf");
+        csrf.EnsureSuccessStatusCode();
+        using (var doc = JsonDocument.Parse(await csrf.Content.ReadAsStringAsync()))
+        {
+            client.DefaultRequestHeaders.Add(
+                "X-CSRF-TOKEN", doc.RootElement.GetProperty("token").GetString());
+        }
 
         var response = await client.PostAsync(
             $"/api/updates/schema/{seededUpdate.Id}/approve", null);
@@ -121,6 +133,8 @@ public class SchemaApprovalTestAuthHandler : AuthenticationHandler<Authenticatio
         UrlEncoder encoder)
         : base(options, logger, encoder) { }
 
+    private static readonly string TestUserId = Guid.NewGuid().ToString();
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.ContainsKey("Authorization"))
@@ -128,7 +142,7 @@ public class SchemaApprovalTestAuthHandler : AuthenticationHandler<Authenticatio
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.NameIdentifier, TestUserId),
             new Claim(ClaimTypes.Name, "testadmin"),
             new Claim(ClaimTypes.Role, "Admin")
         };
