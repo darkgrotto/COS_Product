@@ -23,15 +23,17 @@ interface RLCard extends AddableCard {
 }
 
 interface OwnedEntry {
-  id: string
+  entryId: string
   cardIdentifier: string
   cardName: string | null
   setCode: string | null
-  treatmentKey: string
+  cardType: string | null
+  treatment: string
   quantity: number
   condition: string
-  acquisitionDate: string
+  autographed: boolean
   acquisitionPrice: number
+  marketValue: number | null
 }
 
 type SortKey = 'name' | 'identifier' | 'setCode' | 'cardType' | 'currentMarketValue' | 'ownedQuantity'
@@ -166,7 +168,7 @@ export function ReservedListPage() {
   }
 
   function toggleSelectAll(all: boolean) {
-    setSelected(all ? new Set(ownedEntries.map(e => e.id)) : new Set())
+    setSelected(all ? new Set(ownedEntries.map(e => e.entryId)) : new Set())
   }
 
   async function handleBulkDelete() {
@@ -345,7 +347,7 @@ export function ReservedListPage() {
                     <th className="px-3 py-2 w-8">
                       <input
                         type="checkbox"
-                        checked={ownedEntries.length > 0 && ownedEntries.every(e => selected.has(e.id))}
+                        checked={ownedEntries.length > 0 && ownedEntries.every(e => selected.has(e.entryId))}
                         onChange={ev => toggleSelectAll(ev.target.checked)}
                         aria-label="Select all"
                       />
@@ -360,14 +362,14 @@ export function ReservedListPage() {
                 </thead>
                 <tbody>
                   {ownedEntries.map(e => {
-                    const treatmentLabel = treatments.find(t => t.key === e.treatmentKey)?.displayName ?? e.treatmentKey
+                    const treatmentLabel = treatments.find(t => t.key === e.treatment)?.displayName ?? e.treatment
                     return (
-                      <tr key={e.id} className={`border-b last:border-0 hover:bg-muted/20 ${selected.has(e.id) ? 'bg-muted/30' : ''}`}>
+                      <tr key={e.entryId} className={`border-b last:border-0 hover:bg-muted/20 ${selected.has(e.entryId) ? 'bg-muted/30' : ''}`}>
                         <td className="px-3 py-2">
                           <input
                             type="checkbox"
-                            checked={selected.has(e.id)}
-                            onChange={() => toggleSelect(e.id)}
+                            checked={selected.has(e.entryId)}
+                            onChange={() => toggleSelect(e.entryId)}
                             aria-label={`Select ${e.cardName ?? e.cardIdentifier}`}
                           />
                         </td>
