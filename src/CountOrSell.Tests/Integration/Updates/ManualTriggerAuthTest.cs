@@ -37,8 +37,9 @@ public class ManualTriggerAuthTest : IClassFixture<WebApplicationFactory<Program
                 var dbCtxDescriptor = services.SingleOrDefault(
                     d => d.ServiceType == typeof(AppDbContext));
                 if (dbCtxDescriptor != null) services.Remove(dbCtxDescriptor);
-                services.AddDbContext<AppDbContext>(opt =>
-                    opt.UseInMemoryDatabase($"AuthTestDb_{Guid.NewGuid()}"));
+                services.AddDbContext<AppDbContext>(
+                    opt => opt.UseInMemoryDatabase($"AuthTestDb_{Guid.NewGuid()}"),
+                    optionsLifetime: ServiceLifetime.Singleton);
 
                 // Replace UpdateCheckService / IUpdateCheckTrigger with no-op mock
                 var triggerDescriptor = services.SingleOrDefault(

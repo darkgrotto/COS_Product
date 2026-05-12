@@ -46,8 +46,9 @@ public class PreUpdateBackupFailureBlocksMigrationTest
                 if (dbCtxDescriptor != null) services.Remove(dbCtxDescriptor);
 
                 var dbName = $"SchemaApprovalTestDb_{Guid.NewGuid()}";
-                services.AddDbContext<AppDbContext>(opt =>
-                    opt.UseInMemoryDatabase(dbName));
+                services.AddDbContext<AppDbContext>(
+                    opt => opt.UseInMemoryDatabase(dbName),
+                    optionsLifetime: ServiceLifetime.Singleton);
 
                 // Replace IUpdateCheckTrigger with no-op
                 var triggerDescriptor = services.SingleOrDefault(

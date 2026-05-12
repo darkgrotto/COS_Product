@@ -39,9 +39,11 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
                     services.Remove(dbContextDescriptor);
                 }
 
-                // Add in-memory database
-                services.AddDbContext<AppDbContext>(options =>
-                    options.UseInMemoryDatabase("HealthCheckTestDb_Healthy"));
+                // Add in-memory database. optionsLifetime must match Program.cs (Singleton)
+                // so the singleton IDbContextFactory does not consume scoped options.
+                services.AddDbContext<AppDbContext>(
+                    options => options.UseInMemoryDatabase("HealthCheckTestDb_Healthy"),
+                    optionsLifetime: ServiceLifetime.Singleton);
             });
         });
 
@@ -73,9 +75,10 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
                 }
 
                 // Use a deliberately invalid PostgreSQL connection string
-                services.AddDbContext<AppDbContext>(options =>
-                    options.UseNpgsql(
-                        "Host=invalid-host-that-does-not-exist;Database=nonexistent;Username=nobody;Password=invalid;Timeout=1;Command Timeout=1"));
+                services.AddDbContext<AppDbContext>(
+                    options => options.UseNpgsql(
+                        "Host=invalid-host-that-does-not-exist;Database=nonexistent;Username=nobody;Password=invalid;Timeout=1;Command Timeout=1"),
+                    optionsLifetime: ServiceLifetime.Singleton);
             });
         });
 
@@ -105,8 +108,9 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
                     services.Remove(dbContextDescriptor);
                 }
 
-                services.AddDbContext<AppDbContext>(options =>
-                    options.UseInMemoryDatabase("HealthCheckTestDb_ContentType"));
+                services.AddDbContext<AppDbContext>(
+                    options => options.UseInMemoryDatabase("HealthCheckTestDb_ContentType"),
+                    optionsLifetime: ServiceLifetime.Singleton);
             });
         });
 
@@ -136,8 +140,9 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
                     services.Remove(dbContextDescriptor);
                 }
 
-                services.AddDbContext<AppDbContext>(options =>
-                    options.UseInMemoryDatabase("HealthCheckTestDb_JsonVerify"));
+                services.AddDbContext<AppDbContext>(
+                    options => options.UseInMemoryDatabase("HealthCheckTestDb_JsonVerify"),
+                    optionsLifetime: ServiceLifetime.Singleton);
             });
         });
 

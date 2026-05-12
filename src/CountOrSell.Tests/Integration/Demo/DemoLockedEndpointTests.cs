@@ -38,8 +38,9 @@ public class DemoLockedEndpointTests : IClassFixture<WebApplicationFactory<Progr
                 var dbCtxDescriptor = services.SingleOrDefault(
                     d => d.ServiceType == typeof(AppDbContext));
                 if (dbCtxDescriptor != null) services.Remove(dbCtxDescriptor);
-                services.AddDbContext<AppDbContext>(opt =>
-                    opt.UseInMemoryDatabase($"DemoLockedDb_{Guid.NewGuid()}"));
+                services.AddDbContext<AppDbContext>(
+                    opt => opt.UseInMemoryDatabase($"DemoLockedDb_{Guid.NewGuid()}"),
+                    optionsLifetime: ServiceLifetime.Singleton);
 
                 var triggerDescriptor = services.SingleOrDefault(
                     d => d.ServiceType == typeof(IUpdateCheckTrigger));

@@ -30,8 +30,9 @@ public class AboutViewTest : IClassFixture<WebApplicationFactory<Program>>
                 var dbCtxDescriptor = services.SingleOrDefault(
                     d => d.ServiceType == typeof(AppDbContext));
                 if (dbCtxDescriptor != null) services.Remove(dbCtxDescriptor);
-                services.AddDbContext<AppDbContext>(opt =>
-                    opt.UseInMemoryDatabase($"AboutTestDb_{Guid.NewGuid()}"));
+                services.AddDbContext<AppDbContext>(
+                    opt => opt.UseInMemoryDatabase($"AboutTestDb_{Guid.NewGuid()}"),
+                    optionsLifetime: ServiceLifetime.Singleton);
 
                 services.AddAuthentication("Test")
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(

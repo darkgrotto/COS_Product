@@ -60,8 +60,11 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "Database connection string is not configured. Set POSTGRES_CONNECTION " +
         "(env var) or ConnectionStrings:Default (configuration) before starting the API.");
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+// DbContextOptions registered as Singleton so the singleton IDbContextFactory
+// can consume it; AppDbContext itself stays Scoped.
+builder.Services.AddDbContext<AppDbContext>(
+    options => options.UseNpgsql(connectionString),
+    optionsLifetime: ServiceLifetime.Singleton);
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(connectionString), ServiceLifetime.Singleton);

@@ -40,8 +40,9 @@ public class RestoreSchemaVersionBlockTest : IClassFixture<WebApplicationFactory
                 var dbCtxDescriptor = services.SingleOrDefault(
                     d => d.ServiceType == typeof(AppDbContext));
                 if (dbCtxDescriptor != null) services.Remove(dbCtxDescriptor);
-                services.AddDbContext<AppDbContext>(opt =>
-                    opt.UseInMemoryDatabase($"RestoreTestDb_{Guid.NewGuid()}"));
+                services.AddDbContext<AppDbContext>(
+                    opt => opt.UseInMemoryDatabase($"RestoreTestDb_{Guid.NewGuid()}"),
+                    optionsLifetime: ServiceLifetime.Singleton);
 
                 // Replace IUpdateCheckTrigger with no-op
                 var triggerDescriptor = services.SingleOrDefault(

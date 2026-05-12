@@ -79,8 +79,9 @@ public class CrossUserAccessTests : IClassFixture<WebApplicationFactory<Program>
                     d => d.ServiceType == typeof(AppDbContext));
                 if (ctxDesc != null) services.Remove(ctxDesc);
 
-                services.AddDbContext<AppDbContext>(opt =>
-                    opt.UseInMemoryDatabase(dbName));
+                services.AddDbContext<AppDbContext>(
+                    opt => opt.UseInMemoryDatabase(dbName),
+                    optionsLifetime: ServiceLifetime.Singleton);
 
                 services.AddAuthentication("HeaderDriven")
                     .AddScheme<AuthenticationSchemeOptions, HeaderDrivenAuthHandler>(
