@@ -64,9 +64,14 @@ public class SealedTaxonomyRepository : ISealedTaxonomyRepository
         var incomingCategorySlugs = categories.Select(c => c.Slug).ToHashSet();
         var incomingSubTypeSlugs = categories.SelectMany(c => c.SubTypes).Select(s => s.Slug).ToHashSet();
 
-        // Null orphaned inventory entries where category is being removed
-        var existingCategorySlugs = await _db.SealedProductCategories.Select(c => c.Slug).ToListAsync(ct);
-        var removedCategorySlugs = existingCategorySlugs.Where(s => !incomingCategorySlugs.Contains(s)).ToList();
+        var existingCategories = await _db.SealedProductCategories.ToListAsync(ct);
+        var existingSubTypes = await _db.SealedProductSubTypes.ToListAsync(ct);
+
+        // Null inventory entries whose category is being removed. The FK cascade
+        // would handle this on its own, but doing it here keeps the warning logs
+        // attached to the change set.
+        var removedCategorySlugs = existingCategories.Select(c => c.Slug)
+            .Where(s => !incomingCategorySlugs.Contains(s)).ToList();
         if (removedCategorySlugs.Count > 0)
         {
             var orphanedByCategory = await _db.SealedInventoryEntries
@@ -82,9 +87,9 @@ public class SealedTaxonomyRepository : ISealedTaxonomyRepository
             }
         }
 
-        // Null orphaned inventory entries where sub-type is being removed (but category remains)
-        var existingSubTypeSlugs = await _db.SealedProductSubTypes.Select(s => s.Slug).ToListAsync(ct);
-        var removedSubTypeSlugs = existingSubTypeSlugs.Where(s => !incomingSubTypeSlugs.Contains(s)).ToList();
+        // Null inventory entries whose sub-type is being removed (but category remains).
+        var removedSubTypeSlugs = existingSubTypes.Select(s => s.Slug)
+            .Where(s => !incomingSubTypeSlugs.Contains(s)).ToList();
         if (removedSubTypeSlugs.Count > 0)
         {
             var orphanedBySubType = await _db.SealedInventoryEntries
@@ -99,31 +104,59 @@ public class SealedTaxonomyRepository : ISealedTaxonomyRepository
             }
         }
 
-        // Full replace: delete all existing taxonomy rows, then insert incoming
-        var allCategories = await _db.SealedProductCategories.ToListAsync(ct);
-        var allSubTypes = await _db.SealedProductSubTypes.ToListAsync(ct);
+        // Upsert in place. A wholesale delete-and-reinsert triggers the FK
+        // SET-NULL cascade on every inventory entry referencing surviving
+        // categories - even though those categories are coming back unchanged.
+        // SubTypes go first so the category FK stays satisfied through the swap.
+        var subTypesToRemove = existingSubTypes.Where(s => !incomingSubTypeSlugs.Contains(s.Slug)).ToList();
+        _db.SealedProductSubTypes.RemoveRange(subTypesToRemove);
 
-        _db.SealedProductSubTypes.RemoveRange(allSubTypes);
-        _db.SealedProductCategories.RemoveRange(allCategories);
-        await _db.SaveChangesAsync(ct);
+        var categoriesToRemove = existingCategories.Where(c => !incomingCategorySlugs.Contains(c.Slug)).ToList();
+        _db.SealedProductCategories.RemoveRange(categoriesToRemove);
 
-        var newCategories = categories.Select(c => new SealedProductCategory
+        var existingCategoriesBySlug = existingCategories.ToDictionary(c => c.Slug);
+        foreach (var dto in categories)
         {
-            Slug = c.Slug,
-            DisplayName = c.DisplayName,
-            SortOrder = c.SortOrder
-        }).ToList();
+            if (existingCategoriesBySlug.TryGetValue(dto.Slug, out var existing))
+            {
+                existing.DisplayName = dto.DisplayName;
+                existing.SortOrder = dto.SortOrder;
+            }
+            else
+            {
+                _db.SealedProductCategories.Add(new SealedProductCategory
+                {
+                    Slug = dto.Slug,
+                    DisplayName = dto.DisplayName,
+                    SortOrder = dto.SortOrder
+                });
+            }
+        }
 
-        var newSubTypes = categories.SelectMany(c => c.SubTypes.Select(s => new SealedProductSubType
+        var existingSubTypesBySlug = existingSubTypes.ToDictionary(s => s.Slug);
+        foreach (var cat in categories)
         {
-            Slug = s.Slug,
-            CategorySlug = c.Slug,
-            DisplayName = s.DisplayName,
-            SortOrder = s.SortOrder
-        })).ToList();
+            foreach (var dto in cat.SubTypes)
+            {
+                if (existingSubTypesBySlug.TryGetValue(dto.Slug, out var existing))
+                {
+                    existing.DisplayName = dto.DisplayName;
+                    existing.SortOrder = dto.SortOrder;
+                    existing.CategorySlug = cat.Slug;
+                }
+                else
+                {
+                    _db.SealedProductSubTypes.Add(new SealedProductSubType
+                    {
+                        Slug = dto.Slug,
+                        CategorySlug = cat.Slug,
+                        DisplayName = dto.DisplayName,
+                        SortOrder = dto.SortOrder
+                    });
+                }
+            }
+        }
 
-        _db.SealedProductCategories.AddRange(newCategories);
-        _db.SealedProductSubTypes.AddRange(newSubTypes);
         await _db.SaveChangesAsync(ct);
     }
 }

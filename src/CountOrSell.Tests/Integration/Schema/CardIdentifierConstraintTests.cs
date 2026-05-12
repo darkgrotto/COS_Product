@@ -65,7 +65,10 @@ public class CardIdentifierConstraintTests : IClassFixture<PostgreSqlFixture>
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            CardIdentifier = "eoe0001", // four-digit suffix "0001" < 1000 - invalid
+            // 8 chars - the only 4-digit-suffix parse is "eoe1" + "0001", and the
+            // alternative parse "eoe" + "10001" has too many digits, so the
+            // identifier is unambiguously invalid (suffix < 1000).
+            CardIdentifier = "eoe10001",
             TreatmentKey = treatmentKey,
             Quantity = 1,
             Condition = CardCondition.NM,

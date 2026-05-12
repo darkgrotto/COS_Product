@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using CountOrSell.Api.Controllers;
 using CountOrSell.Data;
 using CountOrSell.Domain.Services;
 using CountOrSell.Tests.Infrastructure;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Moq;
@@ -19,8 +21,21 @@ public class AdminSettingsTests : IClassFixture<PostgreSqlFixture>
         _fixture = fixture;
     }
 
-    private static SettingsController BuildController(AppDbContext db) =>
-        new(db, new ConfigurationBuilder().Build(), new Mock<IAuditLogger>().Object);
+    private static SettingsController BuildController(AppDbContext db)
+    {
+        // SettingsController.ActorName dereferences User.FindFirstValue, so the
+        // controller must run with a real ClaimsPrincipal attached.
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.Name, "testadmin"), new Claim(ClaimTypes.Role, "Admin") },
+            "Test"));
+        return new SettingsController(db, new ConfigurationBuilder().Build(), new Mock<IAuditLogger>().Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = principal }
+            }
+        };
+    }
 
     // --- Instance name ---
 

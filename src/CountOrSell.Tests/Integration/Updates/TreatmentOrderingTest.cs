@@ -62,7 +62,9 @@ public class TreatmentOrderingTest : IClassFixture<PostgreSqlFixture>
         var cardSaved = await verifyDb.Cards.AnyAsync(c => c.Identifier == cardId);
         Assert.True(cardSaved, "Card should be saved");
 
-        var contentVersion = packageManifest.ContentVersions["cards"].Version;
+        // ContentUpdateApplicator persists ContentVersion as the formatted package
+        // GeneratedAt (not the per-component cards version), so query by that.
+        var contentVersion = packageManifest.GeneratedAt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
         var updateVersion = await verifyDb.UpdateVersions
             .FirstOrDefaultAsync(u => u.ContentVersion == contentVersion);
         Assert.NotNull(updateVersion);
