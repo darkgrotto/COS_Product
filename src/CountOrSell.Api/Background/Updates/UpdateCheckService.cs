@@ -253,7 +253,11 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             await using var scope = _scopeFactory.CreateAsyncScope();
             var manifestClient = scope.ServiceProvider.GetRequiredService<IUpdateManifestClient>();
             var downloader = scope.ServiceProvider.GetRequiredService<IPackageDownloader>();
+            var sigVerifier = scope.ServiceProvider.GetRequiredService<IManifestSignatureVerifier>();
+            var jwks = scope.ServiceProvider.GetRequiredService<IJwksProvider>();
             var applicator = scope.ServiceProvider.GetRequiredService<IContentUpdateApplicator>();
+
+            await jwks.RefreshAsync(ct);
 
             var manifest = await manifestClient.FetchManifestAsync(ct);
             if (manifest == null)
@@ -270,9 +274,22 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             var packageRef = candidates.MaxBy(p => p.GeneratedAt) ?? candidates[^1];
 
-            var packageManifest = await manifestClient.FetchPackageManifestAsync(packageRef.ManifestUrl, ct);
-            if (packageManifest == null)
-                return new UpdateCheckResult(false, "Found a package but could not fetch its manifest.");
+            var signed = await manifestClient.FetchSignedPackageManifestAsync(packageRef.ManifestUrl, ct);
+            if (signed == null)
+                return new UpdateCheckResult(false, "Found a package but could not fetch its manifest or signature.");
+
+            // Verify the detached signature BEFORE consuming any field from the manifest.
+            var sigResult = await sigVerifier.VerifyAsync(signed.ManifestBytes, signed.Envelope, ct);
+            if (!sigResult.IsValid)
+            {
+                _logger.LogError(
+                    "Refusing targeted redownload {PackageId}: manifest signature verification failed - {Reason}",
+                    packageRef.PackageId, sigResult.Message);
+                return new UpdateCheckResult(false,
+                    $"Update refused: manifest signature verification failed ({sigResult.Message}).");
+            }
+
+            var packageManifest = signed.Parsed;
 
             var lastSlash = packageRef.ManifestUrl.LastIndexOf('/');
             var packageBaseUrl = lastSlash >= 0
