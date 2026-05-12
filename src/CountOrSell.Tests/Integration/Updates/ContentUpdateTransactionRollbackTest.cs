@@ -108,4 +108,19 @@ internal sealed class NoOpImageStore : IImageStore
 
     public Task<bool> HasImagesAsync(CancellationToken ct)
         => Task.FromResult(false);
+
+    public Task<int> PurgeSetImagesAsync(string setCode, CancellationToken ct)
+        => Task.FromResult(0);
+
+    public Task<int> PurgeSealedImagesAsync(CancellationToken ct)
+        => Task.FromResult(0);
+
+    public Task<int> PurgeAllImagesAsync(CancellationToken ct)
+        => Task.FromResult(0);
+
+    public Task<Dictionary<string, int>> GetImageCountsBySetAsync(CancellationToken ct)
+        => Task.FromResult(new Dictionary<string, int>());
+
+    public Task<int> GetSealedImageCountAsync(CancellationToken ct)
+        => Task.FromResult(0);
 }
