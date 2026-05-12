@@ -31,7 +31,10 @@ builder.Services.AddAntiforgery(options =>
     options.Cookie.HttpOnly = true;
 });
 
-builder.Services.AddControllers(options =>
+// AddControllersWithViews (not AddControllers) so view services register
+// AutoValidateAntiforgeryTokenAuthorizationFilter - the internal filter
+// type that AutoValidateAntiforgeryTokenAttribute resolves at runtime.
+builder.Services.AddControllersWithViews(options =>
 {
     options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
 });
