@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using CountOrSell.Api.Background.Updates;
 using CountOrSell.Data;
 using CountOrSell.Domain.Services;
@@ -71,10 +72,22 @@ public class DemoLockedEndpointTests : IClassFixture<WebApplicationFactory<Progr
         });
     }
 
-    private static HttpClient CreateAuthClient(WebApplicationFactory<Program> factory)
+    // Production antiforgery requires SecurePolicy.Always, so the test client must
+    // speak https. HandleCookies (default true) preserves the antiforgery cookie
+    // across the csrf-token fetch and the subsequent state-changing request.
+    private static async Task<HttpClient> CreateAuthClientAsync(WebApplicationFactory<Program> factory)
     {
-        var client = factory.CreateClient();
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+        });
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Test");
+
+        var csrfResponse = await client.GetAsync("/api/auth/csrf");
+        csrfResponse.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await csrfResponse.Content.ReadAsStringAsync());
+        var token = doc.RootElement.GetProperty("token").GetString();
+        client.DefaultRequestHeaders.Add("X-CSRF-TOKEN", token);
         return client;
     }
 
@@ -102,7 +115,7 @@ public class DemoLockedEndpointTests : IClassFixture<WebApplicationFactory<Progr
     public async Task DemoLockedEndpoint_Returns403_InDemoMode(HttpMethod method, string url)
     {
         var factory = BuildDemoFactory("Admin");
-        var client = CreateAuthClient(factory);
+        var client = await CreateAuthClientAsync(factory);
 
         HttpContent? content;
         if (url == "/api/restore")
@@ -156,6 +169,11 @@ public class DemoTestAuthHandler : AuthenticationHandler<AuthenticationSchemeOpt
         _testOptions = testOptions;
     }
 
+    // Stable per-scheme user id - antiforgery binds tokens to the principal,
+    // so a fresh guid per request would invalidate the token between csrf-fetch
+    // and the state-changing call.
+    private static readonly string TestUserId = Guid.NewGuid().ToString();
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.ContainsKey("Authorization"))
@@ -164,7 +182,7 @@ public class DemoTestAuthHandler : AuthenticationHandler<AuthenticationSchemeOpt
         var role = _testOptions.CurrentValue.Role;
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.NameIdentifier, TestUserId),
             new Claim(ClaimTypes.Name, "testuser"),
             new Claim(ClaimTypes.Role, role),
         };
