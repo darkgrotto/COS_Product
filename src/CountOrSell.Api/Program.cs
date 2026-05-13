@@ -14,10 +14,25 @@ using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Trust X-Forwarded-Proto / X-Forwarded-For from the reverse proxy in front of
+// Kestrel (nginx for Docker; App Service / App Runner / Cloud Run for cloud
+// deployments). Without this the app sees every request as plain http, which
+// makes antiforgery's Secure cookie throw, breaks redirect_uri scheme matching
+// on OAuth, and yields the proxy's IP in audit logs instead of the client's.
+// KnownProxies/KnownNetworks are cleared because the proxy address is not
+// predictable inside container networks.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // Anti-forgery (CSRF) defense-in-depth. Cookie-based auth already has SameSite=Strict,
 // but tokens close the gap for older clients and any future XSS. The SPA reads the
@@ -309,6 +324,10 @@ if (string.IsNullOrWhiteSpace(app.Configuration[PublicBaseUrlResolver.ConfigKey]
             "Set {Key} to your canonical public origin (e.g. https://app.example.com).",
             PublicBaseUrlResolver.ConfigKey, PublicBaseUrlResolver.ConfigKey);
 }
+
+// Must run before anything that reads Request.Scheme or Request.IsHttps
+// (auth, antiforgery, static-file redirects).
+app.UseForwardedHeaders();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
