@@ -1,0 +1,5 @@
+ProductIdentifier,Quantity,Condition,AcquisitionDate,AcquisitionPrice,CategorySlug,SubTypeSlug,Notes
+eoe-collector-booster-box,1,NM,2026-01-15,249.99,booster,collector,Sealed case
+eoe-play-booster-box,2,NM,2026-02-01,179.50,booster,play,
+eoe-bundle,3,NM,2026-02-12,49.99,bundle,,
+fdn-collector-booster-box,1,LP,2026-03-05,229.00,booster,collector,Outer plastic damaged

@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using CountOrSell.Api.Filters;
+using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos.Requests;
@@ -18,12 +20,18 @@ public class SlabsController : ControllerBase
     private readonly ISlabRepository _slabs;
     private readonly ICardRepository _cards;
     private readonly ITreatmentValidator _treatments;
+    private readonly ISlabImportExportService _importExport;
 
-    public SlabsController(ISlabRepository slabs, ICardRepository cards, ITreatmentValidator treatments)
+    public SlabsController(
+        ISlabRepository slabs,
+        ICardRepository cards,
+        ITreatmentValidator treatments,
+        ISlabImportExportService importExport)
     {
         _slabs = slabs;
         _cards = cards;
         _treatments = treatments;
+        _importExport = importExport;
     }
 
     private Guid CurrentUserId =>
@@ -171,6 +179,39 @@ public class SlabsController : ControllerBase
             return BadRequest(new { error = $"Invalid condition: {request.Condition}" });
         var updated = await _slabs.BulkSetConditionAsync(request.Ids, CurrentUserId, request.Condition, ct);
         return Ok(new { updated });
+    }
+
+    [HttpGet("import-template")]
+    public IActionResult ImportTemplate()
+    {
+        var (data, fileName) = _importExport.GenerateTemplate();
+        return File(data, "text/csv; charset=utf-8", fileName);
+    }
+
+    [HttpGet("export")]
+    public async Task<IActionResult> Export(CancellationToken ct)
+    {
+        var (data, fileName) = await _importExport.ExportAsync(CurrentUserId, ct);
+        return File(data, "text/csv; charset=utf-8", fileName);
+    }
+
+    [HttpPost("import")]
+    [DemoLocked]
+    [RequestSizeLimit(10_485_760)] // 10 MB
+    public async Task<IActionResult> Import(IFormFile file, CancellationToken ct)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { error = "No file provided." });
+
+        using var stream = file.OpenReadStream();
+        var result = await _importExport.ImportAsync(CurrentUserId, stream, ct);
+        return Ok(new
+        {
+            result.Added,
+            result.Skipped,
+            result.Failed,
+            result.Failures,
+        });
     }
 
     private static bool HasFilters(CollectionFilter filter) =>

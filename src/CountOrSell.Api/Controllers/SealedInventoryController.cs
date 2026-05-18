@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using CountOrSell.Api.Filters;
+using CountOrSell.Api.Services;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Dtos.Requests;
 using CountOrSell.Domain.Models;
@@ -16,15 +18,18 @@ public class SealedInventoryController : ControllerBase
     private readonly ISealedInventoryRepository _sealedInventory;
     private readonly ISealedProductRepository _sealedProducts;
     private readonly ISealedTaxonomyRepository _taxonomy;
+    private readonly ISealedInventoryImportExportService _importExport;
 
     public SealedInventoryController(
         ISealedInventoryRepository sealedInventory,
         ISealedProductRepository sealedProducts,
-        ISealedTaxonomyRepository taxonomy)
+        ISealedTaxonomyRepository taxonomy,
+        ISealedInventoryImportExportService importExport)
     {
         _sealedInventory = sealedInventory;
         _sealedProducts = sealedProducts;
         _taxonomy = taxonomy;
+        _importExport = importExport;
     }
 
     private Guid CurrentUserId =>
@@ -212,6 +217,39 @@ public class SealedInventoryController : ControllerBase
             return BadRequest(new { error = "At least one id is required." });
         var updated = await _sealedInventory.BulkSetAcquisitionDateAsync(request.Ids, CurrentUserId, request.AcquisitionDate, ct);
         return Ok(new { updated });
+    }
+
+    [HttpGet("import-template")]
+    public IActionResult ImportTemplate()
+    {
+        var (data, fileName) = _importExport.GenerateTemplate();
+        return File(data, "text/csv; charset=utf-8", fileName);
+    }
+
+    [HttpGet("export")]
+    public async Task<IActionResult> Export(CancellationToken ct)
+    {
+        var (data, fileName) = await _importExport.ExportAsync(CurrentUserId, ct);
+        return File(data, "text/csv; charset=utf-8", fileName);
+    }
+
+    [HttpPost("import")]
+    [DemoLocked]
+    [RequestSizeLimit(10_485_760)] // 10 MB
+    public async Task<IActionResult> Import(IFormFile file, CancellationToken ct)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { error = "No file provided." });
+
+        using var stream = file.OpenReadStream();
+        var result = await _importExport.ImportAsync(CurrentUserId, stream, ct);
+        return Ok(new
+        {
+            result.Added,
+            result.Skipped,
+            result.Failed,
+            result.Failures,
+        });
     }
 
     private static bool TryParseCondition(string value, out CardCondition result) =>

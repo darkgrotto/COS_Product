@@ -1,0 +1,5 @@
+CardIdentifier,Treatment,SerialNumber,PrintRunTotal,Condition,Autographed,AcquisitionDate,AcquisitionPrice,Notes
+EOE019,serialized,42,500,NM,false,2026-01-15,49.99,Local trade
+EOE019,serialized,17,500,LP,true,2026-02-01,79.50,From convention
+FDN001,serialized,1,100,NM,false,2026-03-12,199.00,
+3ED019,foil,250,1000,MP,false,2025-12-30,15.00,Older pull

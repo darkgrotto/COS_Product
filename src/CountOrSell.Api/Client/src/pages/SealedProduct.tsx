@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Filter, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Filter, Upload, X } from 'lucide-react'
+import { ImportCsvDialog } from '@/components/ImportCsvDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -638,6 +639,7 @@ export function SealedProductPage() {
   const [filters, setFilters] = useState<Filters>({ categorySlug: '', subTypeSlug: '' })
 
   const [addOpen, setAddOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<SealedInventoryEntry | null>(null)
   const [deleteEntry, setDeleteEntry] = useState<SealedInventoryEntry | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -822,9 +824,14 @@ export function SealedProductPage() {
             </p>
           )}
         </div>
-        <Button onClick={() => setAddOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" /> Add
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-1 h-4 w-4" /> Import CSV
+          </Button>
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" /> Add
+          </Button>
+        </div>
       </div>
 
       {categories.length > 0 && (
@@ -1067,6 +1074,15 @@ export function SealedProductPage() {
         description={`Change acquisition date to "${datePick}" for the selected entries.`}
         confirmLabel="Apply"
         onConfirm={handleBulkSetDate}
+      />
+      <ImportCsvDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        entityLabel="Sealed Inventory"
+        templateUrl="/api/sealed-inventory/import-template"
+        importUrl="/api/sealed-inventory/import"
+        hint="Required: ProductIdentifier, Quantity, Condition, AcquisitionDate, AcquisitionPrice. CategorySlug and SubTypeSlug must match taxonomy entries when provided."
+        onImportDone={fetchEntries}
       />
     </div>
   )

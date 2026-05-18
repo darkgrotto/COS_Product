@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Download, Plus, Search, Star, Trash2, X } from 'lucide-react'
+import { Download, Plus, Search, Star, Trash2, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ImportCsvDialog } from '@/components/ImportCsvDialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -184,6 +185,7 @@ export function WishlistPage() {
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [loading, setLoading] = useState(true)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [addToCollection, setAddToCollection] = useState<AddableCard | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -331,6 +333,9 @@ export function WishlistPage() {
               <Download className="h-4 w-4" /> Export TCGPlayer
             </Button>
           )}
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4" /> Import CSV
+          </Button>
           <Button size="sm" className="gap-1" onClick={() => setAddDialogOpen(true)}>
             <Plus className="h-4 w-4" /> Add Card
           </Button>
@@ -603,6 +608,15 @@ export function WishlistPage() {
           onAdded={_mode => setAddToCollection(null)}
         />
       )}
+      <ImportCsvDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        entityLabel="Wishlist"
+        templateUrl="/api/wishlist/import-template"
+        importUrl="/api/wishlist/import"
+        hint="Two required columns: CardIdentifier (e.g. EOE019), Treatment (e.g. regular, foil)."
+        onImportDone={load}
+      />
     </div>
   )
 }

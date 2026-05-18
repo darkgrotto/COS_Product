@@ -21,6 +21,9 @@ public record ImportResult(
 
 public interface ICollectionImportExportService
 {
+    /// <summary>Returns a header-only CountOrSell-format CSV usable as an import template.</summary>
+    (byte[] Data, string FileName) GenerateTemplate();
+
     /// <summary>Returns a CSV byte array for the user's collection in the requested format.</summary>
     Task<(byte[] Data, string FileName)> ExportAsync(
         Guid userId,

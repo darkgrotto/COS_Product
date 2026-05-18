@@ -131,6 +131,10 @@ builder.Services.AddSingleton<IImageStatsService, ImageStatsService>();
 builder.Services.AddScoped<IMetricsService, MetricsService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<ICollectionImportExportService, CollectionImportExportService>();
+builder.Services.AddScoped<IWishlistImportExportService, WishlistImportExportService>();
+builder.Services.AddScoped<ISerializedImportExportService, SerializedImportExportService>();
+builder.Services.AddScoped<ISlabImportExportService, SlabImportExportService>();
+builder.Services.AddScoped<ISealedInventoryImportExportService, SealedInventoryImportExportService>();
 builder.Services.AddHttpClient<ITcgPlayerService, TcgPlayerService>();
 
 // Image store

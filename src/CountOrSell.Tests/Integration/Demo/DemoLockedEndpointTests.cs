@@ -96,6 +96,10 @@ public class DemoLockedEndpointTests : IClassFixture<WebApplicationFactory<Progr
         {
             new object[] { HttpMethod.Post, "/api/collection/refresh-price/eoe001" },
             new object[] { HttpMethod.Get, "/api/wishlist/export/tcgplayer" },
+            new object[] { HttpMethod.Post, "/api/wishlist/import" },
+            new object[] { HttpMethod.Post, "/api/serialized/import" },
+            new object[] { HttpMethod.Post, "/api/slabs/import" },
+            new object[] { HttpMethod.Post, "/api/sealed-inventory/import" },
             new object[] { HttpMethod.Post, "/api/backup/trigger" },
             new object[] { HttpMethod.Post, "/api/restore" },
             new object[] { HttpMethod.Post, $"/api/restore/{Guid.NewGuid()}" },
@@ -109,6 +113,14 @@ public class DemoLockedEndpointTests : IClassFixture<WebApplicationFactory<Progr
             new object[] { HttpMethod.Post, $"/api/updates/schema/1/approve" },
             new object[] { HttpMethod.Post, $"/api/users/{Guid.NewGuid()}/remove" },
         };
+
+    private static readonly HashSet<string> CsvImportEndpoints = new()
+    {
+        "/api/wishlist/import",
+        "/api/serialized/import",
+        "/api/slabs/import",
+        "/api/sealed-inventory/import",
+    };
 
     [Theory]
     [MemberData(nameof(LockedEndpoints))]
@@ -127,6 +139,16 @@ public class DemoLockedEndpointTests : IClassFixture<WebApplicationFactory<Progr
             var fileBytes = new ByteArrayContent(new byte[] { 0x50, 0x4B, 0x03, 0x04 });
             fileBytes.Headers.ContentType = MediaTypeHeaderValue.Parse("application/zip");
             form.Add(fileBytes, "file", "backup.zip");
+            content = form;
+        }
+        else if (CsvImportEndpoints.Contains(url))
+        {
+            // CSV import endpoints take multipart/form-data with an IFormFile named "file".
+            // The DemoLockedFilter runs before the action body validates the file.
+            var form = new MultipartFormDataContent();
+            var fileBytes = new ByteArrayContent(Encoding.UTF8.GetBytes("Header\nrow\n"));
+            fileBytes.Headers.ContentType = MediaTypeHeaderValue.Parse("text/csv");
+            form.Add(fileBytes, "file", "sample.csv");
             content = form;
         }
         else if (method == HttpMethod.Post || method == HttpMethod.Patch)

@@ -1,0 +1,5 @@
+CardIdentifier,Treatment,GradingAgency,Grade,CertificateNumber,SerialNumber,PrintRunTotal,Condition,Autographed,AcquisitionDate,AcquisitionPrice,Notes
+EOE019,regular,PSA,9.5,12345678,,,NM,false,2026-01-15,89.99,Pop 12
+EOE019,foil,BGS,9.5,87654321,,,NM,false,2026-02-10,199.00,
+FDN001,serialized,CGC,10,11223344,1,100,NM,true,2026-03-05,599.00,Signed slab
+3ED019,regular,SGC,9,99887766,,,LP,false,2025-12-20,250.00,Vintage

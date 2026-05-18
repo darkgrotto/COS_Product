@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Upload, X } from 'lucide-react'
+import { ImportCsvDialog } from '@/components/ImportCsvDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -428,6 +429,7 @@ export function SerializedPage() {
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<Filters>({ treatment: '', condition: '' })
   const [addOpen, setAddOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<SerializedEntry | null>(null)
   const [deleteEntry, setDeleteEntry] = useState<SerializedEntry | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -532,9 +534,14 @@ export function SerializedPage() {
             </p>
           )}
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Add Card
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Import CSV
+          </Button>
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Add Card
+          </Button>
+        </div>
       </div>
 
       <FiltersPanel
@@ -707,6 +714,15 @@ export function SerializedPage() {
         confirmLabel="Remove All"
         destructive
         onConfirm={handleBulkDelete}
+      />
+      <ImportCsvDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        entityLabel="Serialized Cards"
+        templateUrl="/api/serialized/import-template"
+        importUrl="/api/serialized/import"
+        hint="Required: CardIdentifier, Treatment, SerialNumber, PrintRunTotal, Condition, AcquisitionDate, AcquisitionPrice."
+        onImportDone={load}
       />
     </div>
   )

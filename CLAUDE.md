@@ -439,6 +439,7 @@ DEMO_EXPIRES_AT=         # ISO 8601 datetime for countdown clock (optional)
 
 **Locked endpoints (return 403, message: "This action is not available in demo mode."):**
 - `POST /api/collection/refresh-price/{cardIdentifier}`, `GET /api/wishlist/export/tcgplayer`
+- `POST /api/wishlist/import`, `POST /api/serialized/import`, `POST /api/slabs/import`, `POST /api/sealed-inventory/import`
 - `POST /api/backup/trigger`, `POST /api/restore`, `POST /api/restore/{backupId}`
 - `POST /api/backup/destinations`, `DELETE /api/backup/destinations/{id}`
 - `PATCH /api/settings/instance`, `PATCH /api/settings/self-enrollment`

@@ -1,0 +1,15 @@
+CardIdentifier,Treatment,GradingAgency,Grade,CertificateNumber,SerialNumber,PrintRunTotal,Condition,Autographed,AcquisitionDate,AcquisitionPrice,Notes
+,regular,PSA,9.5,11111111,,,NM,false,2026-01-15,89.99,Missing identifier
+EOE0123,regular,PSA,9.5,22222222,,,NM,false,2026-01-15,89.99,Invalid identifier
+EOE019,sparkle,PSA,9.5,33333333,,,NM,false,2026-01-15,89.99,Unknown treatment
+EOE019,regular,UNKNOWN,9.5,44444444,,,NM,false,2026-01-15,89.99,Unknown grading agency
+EOE019,regular,PSA,,55555555,,,NM,false,2026-01-15,89.99,Missing grade
+EOE019,regular,PSA,9.5,,,,NM,false,2026-01-15,89.99,Missing certificate number
+EOE019,regular,PSA,9.5,66666666,5,,NM,false,2026-01-15,89.99,Serial without print run
+EOE019,regular,PSA,9.5,77777777,500,100,NM,false,2026-01-15,89.99,Serial exceeds print run
+EOE019,regular,PSA,9.5,88888888,,,Pristine,false,2026-01-15,89.99,Invalid condition
+EOE019,regular,PSA,9.5,99999999,,,NM,false,not-a-date,89.99,Invalid date
+EOE019,regular,PSA,9.5,10101010,,,NM,false,2026-01-15,-12.00,Negative price
+EOE019,regular,PSA,9.5,21212121,,,NM,false,2026-01-15,89.99,First copy of duplicate cert
+EOE019,regular,PSA,9.5,21212121,,,NM,false,2026-01-15,89.99,Duplicate cert in same file
+zzz9999,regular,PSA,9.5,32323232,,,NM,false,2026-01-15,89.99,Card not in database

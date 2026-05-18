@@ -26,6 +26,20 @@ public sealed class CollectionImportExportService : ICollectionImportExportServi
         _treatments = treatments;
     }
 
+    // ---- Template ---------------------------------------------------------------
+
+    public (byte[] Data, string FileName) GenerateTemplate()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Identifier,Name,SetCode,Treatment,Quantity,Condition,Autographed,AcquisitionDate,AcquisitionPrice,Notes");
+        sb.AppendLine("# Required: Identifier, Quantity, Condition. Treatment defaults to 'regular'.");
+        sb.AppendLine("# Condition: NM, LP, MP, HP, DMG. Autographed: true or false. AcquisitionDate: YYYY-MM-DD.");
+        sb.AppendLine("# Name and SetCode are informational only - the Identifier resolves the card.");
+        sb.AppendLine("# Remove or replace this example row before importing.");
+        sb.AppendLine("EOE019,Example Card,EOE,regular,1,NM,false,2026-01-15,0.50,");
+        return (Encoding.UTF8.GetBytes(sb.ToString()), "collection-template.csv");
+    }
+
     // ---- Export -----------------------------------------------------------------
 
     public async Task<(byte[] Data, string FileName)> ExportAsync(

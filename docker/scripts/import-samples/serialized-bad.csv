@@ -1,0 +1,11 @@
+CardIdentifier,Treatment,SerialNumber,PrintRunTotal,Condition,Autographed,AcquisitionDate,AcquisitionPrice,Notes
+,serialized,1,100,NM,false,2026-01-15,49.99,Missing identifier
+EOE0123,serialized,1,100,NM,false,2026-01-15,49.99,Invalid identifier (zero-padded suffix)
+EOE019,sparkle,1,100,NM,false,2026-01-15,49.99,Unknown treatment
+EOE019,serialized,0,100,NM,false,2026-01-15,49.99,Non-positive serial
+EOE019,serialized,5,not-a-number,NM,false,2026-01-15,49.99,Non-integer print run
+EOE019,serialized,500,100,NM,false,2026-01-15,49.99,Serial exceeds print run
+EOE019,serialized,1,100,Pristine,false,2026-01-15,49.99,Invalid condition
+EOE019,serialized,1,100,NM,false,not-a-date,49.99,Invalid date
+EOE019,serialized,1,100,NM,false,2026-01-15,-5.00,Negative price
+zzz9999,serialized,1,100,NM,false,2026-01-15,49.99,Card not in database

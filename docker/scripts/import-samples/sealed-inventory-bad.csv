@@ -1,0 +1,10 @@
+ProductIdentifier,Quantity,Condition,AcquisitionDate,AcquisitionPrice,CategorySlug,SubTypeSlug,Notes
+,1,NM,2026-01-15,249.99,booster,collector,Missing product identifier
+eoe-collector-booster-box,0,NM,2026-01-15,249.99,booster,collector,Non-positive quantity
+eoe-collector-booster-box,1,Pristine,2026-01-15,249.99,booster,collector,Invalid condition
+eoe-collector-booster-box,1,NM,not-a-date,249.99,booster,collector,Invalid date
+eoe-collector-booster-box,1,NM,2026-01-15,-10.00,booster,collector,Negative price
+eoe-collector-booster-box,1,NM,2026-01-15,249.99,no-such-category,collector,Unknown category
+eoe-collector-booster-box,1,NM,2026-01-15,249.99,booster,no-such-subtype,Unknown sub-type for category
+eoe-collector-booster-box,1,NM,2026-01-15,249.99,,collector,Sub-type without category
+no-such-product,1,NM,2026-01-15,249.99,booster,collector,Sealed product not in database

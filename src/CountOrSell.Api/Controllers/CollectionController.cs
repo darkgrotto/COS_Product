@@ -394,6 +394,13 @@ public class CollectionController : ControllerBase
         return Ok(new { totalAdded, totalSkipped, bySet });
     }
 
+    [HttpGet("import-template")]
+    public IActionResult ImportTemplate()
+    {
+        var (data, fileName) = _importExport.GenerateTemplate();
+        return File(data, "text/csv; charset=utf-8", fileName);
+    }
+
     [HttpGet("export")]
     public async Task<IActionResult> Export(
         [FromQuery] string format = "cos",

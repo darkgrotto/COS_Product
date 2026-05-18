@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { Plus, Pencil, Trash2, ExternalLink, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, ExternalLink, Upload, X } from 'lucide-react'
+import { ImportCsvDialog } from '@/components/ImportCsvDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -437,6 +438,7 @@ export function SlabsPage() {
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<Filters>({ gradingAgency: '', condition: '', treatment: '' })
   const [addOpen, setAddOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<SlabEntry | null>(null)
   const [deleteEntry, setDeleteEntry] = useState<SlabEntry | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -561,9 +563,14 @@ export function SlabsPage() {
             </p>
           )}
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Add Slab
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Import CSV
+          </Button>
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Add Slab
+          </Button>
+        </div>
       </div>
 
       <FiltersPanel filters={filters} agencies={agencies} treatments={treatments}
@@ -767,6 +774,15 @@ export function SlabsPage() {
         description={`Change condition to "${conditionPick}" for the selected slabs.`}
         confirmLabel="Apply"
         onConfirm={handleBulkSetCondition}
+      />
+      <ImportCsvDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        entityLabel="Slabs"
+        templateUrl="/api/slabs/import-template"
+        importUrl="/api/slabs/import"
+        hint="Required: CardIdentifier, Treatment, GradingAgency, Grade, CertificateNumber, Condition, AcquisitionDate, AcquisitionPrice. SerialNumber and PrintRunTotal must be supplied together (or left empty)."
+        onImportDone={load}
       />
     </div>
   )
