@@ -88,14 +88,16 @@ Each grading agency has a `validationUrlTemplate` and a `supportsDirectLookup` f
 
 These agencies are provided by update packages and cannot be modified by Product instance admins:
 
-| Code | Full Name | Direct Lookup |
-|------|-----------|--------------|
-| BGS | Beckett Grading Services | Yes (URL TBD) |
-| PSA | Professional Sports Authenticator | Yes (URL TBD) |
-| SGC | Sportscard Guaranty | Yes (URL TBD) |
-| CGC | Certified Guaranty Company | Yes (URL TBD) |
-| CCC | Certificateur de Cartes de Collection | No (landing page only) |
-| ISA | International Sports Authentication | Yes (URL TBD) |
+URL templates use the `{cert}` placeholder, which the frontend substitutes with the certificate number.
+
+| Code | Full Name | Direct Lookup | URL Template |
+|------|-----------|--------------|--------------|
+| PSA | Professional Sports Authenticator | Yes | `https://www.psacard.com/cert/{cert}` |
+| CGC | Certified Guaranty Company | Yes | `https://www.cgccards.com/certlookup/{cert}` |
+| ISA | International Sports Authentication | Yes | `https://www.isagrading.com/certificate-verification?certificateNumber={cert}` |
+| BGS | Beckett Grading Services | No (JS form, no documented deep-link) | `https://www.beckett.com/grading/card-lookup` |
+| SGC | Sportscard Guaranty | No (JS form, no documented deep-link) | `https://www.gosgc.com/auth-code` |
+| CCC | Certificateur de Cartes de Collection | No (landing page only) | `https://cccgrading.com/en/ccc-card-verification` |
 
 Product instance admins can add local agencies via `POST /api/grading-agencies`. Local agencies can be edited and deleted; canonical agencies cannot.
 
@@ -213,6 +215,7 @@ Filters are applied across all collection views where contextually appropriate. 
 | `color` | string | `White`, `Blue`, `Black`, `Red`, `Green`, `Colorless`, `Multicolor` |
 | `condition` | string | `NM`, `LP`, `MP`, `HP`, `DMG` |
 | `cardType` | string | Top-level MTG types: `Creature`, `Instant`, `Sorcery`, `Land`, `Enchantment`, `Artifact`, `Planeswalker`, `Battle`, etc. |
+| `cardSubtype` | string | MTG subtype as it appears after the dash on the type line, e.g. `Wizard`, `Equipment`, `Forest` |
 | `treatment` | string | Treatment key from the reference table |
 | `autographed` | boolean | `true` or `false` |
 | `serialized` | boolean | `true` or `false` |
@@ -222,7 +225,7 @@ Filters are applied across all collection views where contextually appropriate. 
 
 Filters are applied at the database query level (via EF Core LINQ), not as post-fetch in-memory filtering. A filter that has no effect in a given context is not sent by the UI (e.g., `setCode` is suppressed when already viewing a specific set).
 
-Card type filtering matches on partial string (`Contains`) against the `cardType` field. Subtype filtering is not implemented in the initial release.
+Card type filtering matches on partial string (`Contains`) against the `cardType` field. Subtype filtering uses the separate `filter.cardSubtype` parameter against a denormalized `cardSubtypes` column (comma-joined, parsed from `type_line` at ingestion). Subtype matching is also `Contains`-based; pass the subtype name as it appears on the type line (e.g. `Wizard`, `Equipment`, `Forest`).
 
 ---
 

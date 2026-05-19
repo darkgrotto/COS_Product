@@ -542,11 +542,28 @@ docker compose -f docker/test/docker-compose.test.yml up --abort-on-container-ex
 ---
 
 ## Open Decisions
-- [ ] Partial restore (deferred, do not prevent architecturally)
-- [ ] Email notification service for admin update alerts (implementation detail per provider)
-- [ ] OAuth configuration UI design (post-setup admin settings)
-- [ ] Additional backup destinations beyond initial three (e.g. Dropbox, Google Drive)
-- [ ] pricing.json per-set file in update packages - format confirmed, but Product currently does not apply per-treatment pricing from packages; all market values currently come as a single CurrentMarketValue per card. Decide whether per-treatment pricing should be stored and surfaced.
+
+Each entry lists the current state (what exists in the codebase today) and the concrete next step to close it. Items closed since project start are recorded in the Decision Log below.
+
+- [ ] **Partial restore** (deferred, do not prevent architecturally)
+  - State: full-restore works end-to-end. No selection UI; no apply-subset backend path.
+  - Next: design the selection UI (which content types / users / date ranges), then a backend `RestoreService.RestoreSubsetAsync` that operates inside a single transaction.
+
+- [ ] **Email notification service for admin update alerts**
+  - State: `EmailNotificationService.SendUpdateNotificationAsync` is a stub - it logs but never sends. In-app notifications already work via `AdminNotificationService`.
+  - Next: pick a provider strategy (SMTP direct, or an abstraction over SES / SendGrid / Mailgun / Postmark) and add the provider-config keys to `docs/configuration.md`. Wire SMTP creds through `IConfiguration` like the OAuth providers do.
+
+- [ ] **OAuth configuration UI design (post-setup admin settings)**
+  - State: backend reads OAuth credentials from `IConfiguration` keys (`OAuth:Google:ClientId`, etc.) at startup, so changes require an app restart. `PATCH /api/settings/oauth/{provider}` and `DELETE /api/settings/oauth/{provider}` exist and are demo-locked. No admin UI surfaces them today.
+  - Next: build the admin settings page that calls those existing endpoints; document the restart-required behavior or design a hot-reload path.
+
+- [ ] **Remote backup destinations (Azure Blob / AWS S3 / GCP Storage)**
+  - State: only `LocalFileBackupDestination` is functional. The three cloud destination classes are registered in `BackupDestinationFactory` and accept config, but their `WriteAsync` / `ReadAsync` / `DeleteAsync` methods throw `NotImplementedException`. `docs/configuration.md` already calls this out per provider.
+  - Next: pick one to implement first (Azure Blob is the wizard default), add the corresponding SDK NuGet package, wire credentials through `BackupDestinationConfig.ConfigurationJson`, and add an integration test against a local emulator (Azurite / LocalStack / fake-gcs-server). Then repeat for the others. Additional non-cloud destinations (Dropbox, Drive) are a separate downstream task once at least one cloud works.
+
+- [ ] **pricing.json per-treatment pricing surfacing**
+  - State: update packages ship per-set `pricing.json` with `{card_id, treatment, price_usd, captured_at}` rows, but `ContentUpdateApplicator` only consumes the single `CurrentMarketValue` per card. Per-treatment pricing data is currently discarded on ingestion.
+  - Next: decide whether per-treatment pricing should be stored (new `card_prices` rows keyed by `(card_id, treatment)`) and surfaced in the UI (per-row market value reflecting the user's actual treatment), or whether `CurrentMarketValue` remains the single source. If yes, design the schema change + how slabs/serialized rows should pick their per-treatment value.
 
 ## Decision Log
 Non-obvious facts not fully captured in body sections above.

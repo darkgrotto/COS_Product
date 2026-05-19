@@ -11,10 +11,10 @@ CountOrSell is a self-hostable web application for tracking Magic: The Gathering
 - **Market value and profit/loss** - per-entry, per-set, per-content-type, and whole-collection calculations
 - **Set completion tracking** - raw count and percentage, with optional regular-treatment-only mode per user
 - **Wishlist management** - per-user wishlists with current market values and total
-- **Universal filtering** - filter by set, color, condition, card type, treatment, autographed, serialized, slabbed, sealed product, and grading agency across all views
+- **Universal filtering** - filter by set, color, condition, card type, card subtype, treatment, autographed, serialized, slabbed, sealed product, and grading agency across all views
 - **TCGPlayer direct price refresh** - single-card price queries using a user or admin-supplied API key
 - **Content update system** - automatic daily content updates from countorsell.com, admin-approved schema updates
-- **Backup and restore** - scheduled and pre-update backups to local, Azure Blob, AWS S3, or GCP Storage destinations
+- **Backup and restore** - scheduled and pre-update backups to local file destinations. Azure Blob, AWS S3, and GCP Storage destination types are registered but their write/read paths are stubs pending SDK integration (see [docs/configuration.md](docs/configuration.md))
 - **Multi-provider deployment** - Azure App Service, AWS App Runner, GCP Cloud Run, or Docker Compose
 - **Local and OAuth authentication** - local accounts plus Google, Microsoft, and GitHub OAuth (configured post-setup)
 - **Two-role model** - Admin and GeneralUser, with a protected built-in local admin account
