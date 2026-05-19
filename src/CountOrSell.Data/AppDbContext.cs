@@ -605,8 +605,8 @@ public class AppDbContext : DbContext
             {
                 Code = "bgs",
                 FullName = "Beckett Grading Services",
-                ValidationUrlTemplate = "https://www.beckett.com/grading",
-                SupportsDirectLookup = true,
+                ValidationUrlTemplate = "https://www.beckett.com/grading/card-lookup",
+                SupportsDirectLookup = false,
                 Source = AgencySource.Canonical,
                 Active = true
             },
@@ -614,7 +614,7 @@ public class AppDbContext : DbContext
             {
                 Code = "psa",
                 FullName = "Professional Sports Authenticator",
-                ValidationUrlTemplate = "https://www.psacard.com/cert/{0}",
+                ValidationUrlTemplate = "https://www.psacard.com/cert/{cert}",
                 SupportsDirectLookup = true,
                 Source = AgencySource.Canonical,
                 Active = true
@@ -623,8 +623,8 @@ public class AppDbContext : DbContext
             {
                 Code = "sgc",
                 FullName = "Sportscard Guaranty",
-                ValidationUrlTemplate = "https://www.sgccard.com/cert/{0}",
-                SupportsDirectLookup = true,
+                ValidationUrlTemplate = "https://www.gosgc.com/auth-code",
+                SupportsDirectLookup = false,
                 Source = AgencySource.Canonical,
                 Active = true
             },
@@ -632,7 +632,7 @@ public class AppDbContext : DbContext
             {
                 Code = "cgc",
                 FullName = "Certified Guaranty Company",
-                ValidationUrlTemplate = "https://www.cgccards.com/certlookup/{0}",
+                ValidationUrlTemplate = "https://www.cgccards.com/certlookup/{cert}",
                 SupportsDirectLookup = true,
                 Source = AgencySource.Canonical,
                 Active = true
@@ -650,7 +650,7 @@ public class AppDbContext : DbContext
             {
                 Code = "isa",
                 FullName = "International Sports Authentication",
-                ValidationUrlTemplate = "https://www.isagrading.com/verify/{0}",
+                ValidationUrlTemplate = "https://www.isagrading.com/certificate-verification?certificateNumber={cert}",
                 SupportsDirectLookup = true,
                 Source = AgencySource.Canonical,
                 Active = true

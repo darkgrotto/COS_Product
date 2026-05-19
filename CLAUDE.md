@@ -211,9 +211,15 @@ Canonical agencies are NOT received via update packages - they are seeded into t
 
 Fields: agency code (required, unique across canonical and local, e.g. "PSA"), agency full name (required), validation URL template (required; configurable by admin for local agencies, not modifiable for canonical), supports direct certificate lookup (boolean, default true), source (canonical or local, system-assigned), active flag (boolean, default true).
 
-Initial canonical agencies: BGS (Beckett Grading Services), PSA (Professional Sports Authenticator), SGC (Sportscard Guaranty), CGC (Certified Guaranty Company), CCC (Certificateur de Cartes de Collection, https://cccgrading.com/en/ccc-card-verification, supports-direct-lookup: false), ISA (International Sports Authentication).
+Initial canonical agencies (URL templates use the `{cert}` placeholder; the frontend substitutes the certificate number):
+- PSA (Professional Sports Authenticator) - `https://www.psacard.com/cert/{cert}` - supports-direct-lookup: true
+- CGC (Certified Guaranty Company) - `https://www.cgccards.com/certlookup/{cert}` - supports-direct-lookup: true
+- ISA (International Sports Authentication) - `https://www.isagrading.com/certificate-verification?certificateNumber={cert}` - supports-direct-lookup: true
+- BGS (Beckett Grading Services) - `https://www.beckett.com/grading/card-lookup` - supports-direct-lookup: false (JS form, no documented deep-link)
+- SGC (Sportscard Guaranty) - `https://www.gosgc.com/auth-code` - supports-direct-lookup: false (JS form, no documented deep-link)
+- CCC (Certificateur de Cartes de Collection) - `https://cccgrading.com/en/ccc-card-verification` - supports-direct-lookup: false
 
-Certificate validation: supports-direct-lookup true -> "Verify Certificate" link opens directly to record with cert number interpolated into URL template. supports-direct-lookup false -> link opens landing page, certificate number displayed prominently alongside link for manual entry.
+Certificate validation: supports-direct-lookup true -> "Verify Certificate" link opens directly to record with cert number interpolated into URL template via the `{cert}` placeholder. supports-direct-lookup false -> link opens landing page, certificate number displayed prominently alongside link for manual entry.
 
 Agency collision handling (identical codes): admin notified before update is applied; all records referencing local agency remapped to canonical version automatically; admin must acknowledge before update proceeds.
 
@@ -539,10 +545,7 @@ docker compose -f docker/test/docker-compose.test.yml up --abort-on-container-ex
 - [ ] Card subtype filtering (deferred enhancement, do not prevent architecturally)
 - [ ] Partial restore (deferred, do not prevent architecturally)
 - [ ] Email notification service for admin update alerts (implementation detail per provider)
-- [ ] CCC certificate validation URL template (landing page only, confirm exact cert lookup path at implementation)
-- [ ] Validation URL templates for BGS, SGC, CGC, ISA (confirm exact patterns at implementation)
 - [ ] OAuth configuration UI design (post-setup admin settings)
-- [ ] Application version check source URL - no app-version.json endpoint exists on countorsell.com currently; version check is a no-op pending a defined endpoint
 - [ ] Additional backup destinations beyond initial three (e.g. Dropbox, Google Drive)
 - [ ] pricing.json per-set file in update packages - format confirmed, but Product currently does not apply per-treatment pricing from packages; all market values currently come as a single CurrentMarketValue per card. Decide whether per-treatment pricing should be stored and surfaced.
 
@@ -551,3 +554,6 @@ Non-obvious facts not fully captured in body sections above.
 
 - 2026-03-18 - Taxonomy slugs are PKs (no integer IDs). On taxonomy replacement in an update, orphaned sealed product inventory references are nulled.
 - 2026-04-14 - CMC column uses unbounded numeric precision to handle extreme values (e.g. Gleemax CMC 1000000).
+- 2026-05-18 - Grading agency URL templates use the `{cert}` placeholder (the frontend substitutes via `.replace('{cert}', ...)`). Previous seeds used `{0}` which silently no-op'd and produced broken Verify-Certificate links.
+- 2026-05-18 - PSA, CGC, ISA expose documented direct cert-lookup URLs; BGS, SGC, CCC use JS-rendered forms on landing pages with no documented deep-link pattern and are seeded with `supports-direct-lookup=false`.
+- 2026-05-18 - Application version check reads the latest GitHub release at `https://api.github.com/repos/darkgrotto/COS_Product/releases/latest` and strips the leading `v` from `tag_name`. Aligns with the manual `vX.Y.Z` tag flow in Deployment; rate limit (60/hr unauthenticated per IP) is well above once-daily polling.

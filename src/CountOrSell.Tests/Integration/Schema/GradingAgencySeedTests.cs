@@ -31,27 +31,34 @@ public class GradingAgencySeedTests : IClassFixture<PostgreSqlFixture>
         Assert.True(agency.Active);
     }
 
-    [Fact]
-    public async Task CCC_HasSupportsDirectLookupFalse()
-    {
-        await using var db = _fixture.CreateContext();
-        var ccc = await db.GradingAgencies.FindAsync("ccc");
-        Assert.NotNull(ccc);
-        Assert.False(ccc.SupportsDirectLookup);
-    }
-
+    // Agencies that publish a documented direct cert-lookup URL.
     [Theory]
-    [InlineData("bgs")]
     [InlineData("psa")]
-    [InlineData("sgc")]
     [InlineData("cgc")]
     [InlineData("isa")]
-    public async Task CanonicalAgency_ExceptCCC_SupportsDirectLookup(string code)
+    public async Task DirectLookupAgency_HasCertPlaceholderInUrl(string code)
     {
         await using var db = _fixture.CreateContext();
         var agency = await db.GradingAgencies.FindAsync(code);
         Assert.NotNull(agency);
         Assert.True(agency.SupportsDirectLookup);
+        Assert.Contains("{cert}", agency.ValidationUrlTemplate);
+    }
+
+    // Agencies whose lookup is a JS-rendered form on a landing page with no
+    // documented deep-link URL pattern. The cert number is displayed alongside
+    // the link for manual entry in the UI.
+    [Theory]
+    [InlineData("bgs")]
+    [InlineData("sgc")]
+    [InlineData("ccc")]
+    public async Task LandingOnlyAgency_HasNoCertPlaceholder(string code)
+    {
+        await using var db = _fixture.CreateContext();
+        var agency = await db.GradingAgencies.FindAsync(code);
+        Assert.NotNull(agency);
+        Assert.False(agency.SupportsDirectLookup);
+        Assert.DoesNotContain("{cert}", agency.ValidationUrlTemplate);
     }
 
     [Fact]

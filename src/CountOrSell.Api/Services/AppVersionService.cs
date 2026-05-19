@@ -1,12 +1,18 @@
 using CountOrSell.Domain.Services;
+using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace CountOrSell.Api.Services;
 
-// Fetches latest application version from countorsell.com.
-// The exact source URL is TBD (open decision).
+// Fetches the latest released application version from the GitHub Releases API.
+// The release flow is "push a v{X}.{Y}.{Z} git tag" (see CLAUDE.md "Deployment"),
+// so the latest release's tag_name is the authoritative source.
 public class AppVersionService : IAppVersionService
 {
+    private const string LatestReleaseUrl =
+        "https://api.github.com/repos/darkgrotto/COS_Product/releases/latest";
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<AppVersionService> _logger;
 
@@ -25,15 +31,22 @@ public class AppVersionService : IAppVersionService
     {
         try
         {
-            // Source URL is TBD - open decision
-            var response = await _httpClient.GetAsync(
-                "https://www.countorsell.com/app-version.json", ct);
+            using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseUrl);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            // GitHub requires a User-Agent on every API request.
+            request.Headers.UserAgent.ParseAdd("CountOrSell-AppVersionCheck");
+
+            using var response = await _httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode) return null;
-            var contentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
-            if (!contentType.Contains("json", StringComparison.OrdinalIgnoreCase)) return null;
+
             var json = await response.Content.ReadAsStringAsync(ct);
-            var doc = JsonSerializer.Deserialize<AppVersionResponse>(json, JsonOptions);
-            return doc?.Version;
+            var release = JsonSerializer.Deserialize<GitHubReleaseResponse>(json, JsonOptions);
+            var tag = release?.TagName;
+            if (string.IsNullOrWhiteSpace(tag)) return null;
+
+            // Tag format is "vX.Y.Z" - strip the leading "v" so consumers compare
+            // against the application's own version string.
+            return tag.StartsWith('v') || tag.StartsWith('V') ? tag[1..] : tag;
         }
         catch (Exception ex)
         {
@@ -42,8 +55,9 @@ public class AppVersionService : IAppVersionService
         }
     }
 
-    private sealed class AppVersionResponse
+    private sealed class GitHubReleaseResponse
     {
-        public string? Version { get; set; }
+        [JsonPropertyName("tag_name")]
+        public string? TagName { get; set; }
     }
 }
