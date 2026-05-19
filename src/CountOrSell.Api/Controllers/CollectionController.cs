@@ -467,7 +467,8 @@ public class CollectionController : ControllerBase
 
     private static bool HasFilters(CollectionFilter filter) =>
         filter.SetCode != null || filter.Color != null || filter.Condition != null ||
-        filter.CardType != null || filter.Treatment != null || filter.Autographed.HasValue ||
+        filter.CardType != null || filter.CardSubtype != null ||
+        filter.Treatment != null || filter.Autographed.HasValue ||
         filter.IsReserved.HasValue || filter.HasPhyrexianMana.HasValue || filter.HasHybridMana.HasValue;
 
     private static bool TryParseCondition(string value, out CardCondition result) =>

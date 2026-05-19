@@ -6,6 +6,7 @@ public class CollectionFilter
     public string? Color { get; set; }
     public string? Condition { get; set; }
     public string? CardType { get; set; }
+    public string? CardSubtype { get; set; }
     public string? Treatment { get; set; }
     public bool? Autographed { get; set; }
     public bool? IsReserved { get; set; }

@@ -45,6 +45,8 @@ public class MetricsService : IMetricsService
         }
         if (!string.IsNullOrEmpty(filter.CardType))
             collectionQuery = collectionQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
+        if (!string.IsNullOrEmpty(filter.CardSubtype))
+            collectionQuery = collectionQuery.Where(x => x.c.CardSubtypes != null && x.c.CardSubtypes.Contains(filter.CardSubtype));
         if (!string.IsNullOrEmpty(filter.Treatment))
             collectionQuery = collectionQuery.Where(x => x.ce.TreatmentKey == filter.Treatment);
         if (!string.IsNullOrEmpty(filter.Condition) && Enum.TryParse<CardCondition>(filter.Condition, true, out var condFilter))
@@ -228,6 +230,8 @@ public class MetricsService : IMetricsService
             }
             if (!string.IsNullOrEmpty(filter.CardType))
                 ownedQuery = ownedQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
+            if (!string.IsNullOrEmpty(filter.CardSubtype))
+                ownedQuery = ownedQuery.Where(x => x.c.CardSubtypes != null && x.c.CardSubtypes.Contains(filter.CardSubtype));
             if (!string.IsNullOrEmpty(filter.Treatment))
                 ownedQuery = ownedQuery.Where(x => x.ce.TreatmentKey == filter.Treatment);
             if (!string.IsNullOrEmpty(filter.Condition) && Enum.TryParse<CardCondition>(filter.Condition, true, out var condOwned))
@@ -266,6 +270,8 @@ public class MetricsService : IMetricsService
             }
             if (!string.IsNullOrEmpty(filter.CardType))
                 valueQuery = valueQuery.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
+            if (!string.IsNullOrEmpty(filter.CardSubtype))
+                valueQuery = valueQuery.Where(x => x.c.CardSubtypes != null && x.c.CardSubtypes.Contains(filter.CardSubtype));
             if (!string.IsNullOrEmpty(filter.Treatment))
                 valueQuery = valueQuery.Where(x => x.ce.TreatmentKey == filter.Treatment);
             if (!string.IsNullOrEmpty(filter.Condition) && Enum.TryParse<CardCondition>(filter.Condition, true, out var condVal))
@@ -284,9 +290,10 @@ public class MetricsService : IMetricsService
             })
             .ToDictionaryAsync(v => v.SetCode, ct);
 
-        // Total cards per set - adjusted when a card-level filter (color/cardType) is active
+        // Total cards per set - adjusted when a card-level filter (color/cardType/cardSubtype) is active
         bool hasCardFilter = filter != null &&
-            (!string.IsNullOrEmpty(filter.Color) || !string.IsNullOrEmpty(filter.CardType));
+            (!string.IsNullOrEmpty(filter.Color) || !string.IsNullOrEmpty(filter.CardType) ||
+             !string.IsNullOrEmpty(filter.CardSubtype));
 
         Dictionary<string, int> totalBySet;
         if (hasCardFilter)
@@ -301,6 +308,8 @@ public class MetricsService : IMetricsService
             }
             if (!string.IsNullOrEmpty(filter.CardType))
                 cardQuery = cardQuery.Where(c => c.CardType != null && c.CardType.Contains(filter.CardType));
+            if (!string.IsNullOrEmpty(filter.CardSubtype))
+                cardQuery = cardQuery.Where(c => c.CardSubtypes != null && c.CardSubtypes.Contains(filter.CardSubtype));
 
             totalBySet = await cardQuery
                 .GroupBy(c => c.SetCode)
@@ -359,6 +368,8 @@ public class MetricsService : IMetricsService
         }
         if (!string.IsNullOrEmpty(filter.CardType))
             query = query.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
+        if (!string.IsNullOrEmpty(filter.CardSubtype))
+            query = query.Where(x => x.c.CardSubtypes != null && x.c.CardSubtypes.Contains(filter.CardSubtype));
         if (!string.IsNullOrEmpty(filter.Treatment))
             query = query.Where(x => x.ce.TreatmentKey == filter.Treatment);
         if (!string.IsNullOrEmpty(filter.Condition) && Enum.TryParse<CardCondition>(filter.Condition, true, out var cond))

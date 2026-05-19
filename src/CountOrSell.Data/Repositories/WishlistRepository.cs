@@ -25,6 +25,8 @@ public class WishlistRepository : IWishlistRepository
             query = query.Where(x => x.c != null && x.c.Color == filter.Color);
         if (!string.IsNullOrEmpty(filter.CardType))
             query = query.Where(x => x.c != null && x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
+        if (!string.IsNullOrEmpty(filter.CardSubtype))
+            query = query.Where(x => x.c != null && x.c.CardSubtypes != null && x.c.CardSubtypes.Contains(filter.CardSubtype));
 
         var rows = await query.ToListAsync(ct);
         return rows.Select(x => (x.e, x.c)).ToList();

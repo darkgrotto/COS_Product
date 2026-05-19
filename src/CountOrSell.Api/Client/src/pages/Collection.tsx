@@ -80,6 +80,7 @@ interface Filters {
   autographed: string
   color: string
   cardType: string
+  cardSubtype: string
   isReserved: boolean
   hasPhyrexianMana: boolean
   hasHybridMana: boolean
@@ -117,7 +118,7 @@ const CARD_TYPES = [
 ]
 
 const BLANK_FILTERS: Filters = {
-  setCode: '', treatment: '', condition: '', autographed: '', color: '', cardType: '',
+  setCode: '', treatment: '', condition: '', autographed: '', color: '', cardType: '', cardSubtype: '',
   isReserved: false, hasPhyrexianMana: false, hasHybridMana: false,
 }
 
@@ -757,8 +758,8 @@ function FiltersPanel({
   onClear: () => void
 }) {
   const active = filters.setCode || filters.treatment || filters.condition ||
-    filters.autographed || filters.color || filters.cardType || filters.isReserved ||
-    filters.hasPhyrexianMana || filters.hasHybridMana
+    filters.autographed || filters.color || filters.cardType || filters.cardSubtype ||
+    filters.isReserved || filters.hasPhyrexianMana || filters.hasHybridMana
 
   return (
     <div className="space-y-2">
@@ -854,6 +855,14 @@ function FiltersPanel({
             {t}
           </ToggleChip>
         ))}
+        <span className="text-xs text-muted-foreground ml-3">Subtype:</span>
+        <Input
+          aria-label="Filter by subtype"
+          placeholder="e.g. Wizard"
+          value={filters.cardSubtype}
+          onChange={e => onChange({ ...filters, cardSubtype: e.target.value })}
+          className="h-7 w-32 text-xs"
+        />
         <span className="text-xs text-muted-foreground ml-3">|</span>
         <ToggleChip
           active={filters.isReserved}
@@ -1455,6 +1464,7 @@ export function CollectionPage() {
     if (filters.setCode) params.set('filter.setCode', filters.setCode)
     if (filters.color) params.set('filter.color', filters.color)
     if (filters.cardType) params.set('filter.cardType', filters.cardType)
+    if (filters.cardSubtype) params.set('filter.cardSubtype', filters.cardSubtype)
     if (filters.treatment) params.set('filter.treatment', filters.treatment)
     if (filters.condition) params.set('filter.condition', filters.condition)
     if (filters.autographed) params.set('filter.autographed', filters.autographed)
@@ -1477,6 +1487,7 @@ export function CollectionPage() {
     if (filters.autographed) params.set('filter.autographed', filters.autographed)
     if (filters.color) params.set('filter.color', filters.color)
     if (filters.cardType) params.set('filter.cardType', filters.cardType)
+    if (filters.cardSubtype) params.set('filter.cardSubtype', filters.cardSubtype)
     if (filters.isReserved) params.set('filter.isReserved', 'true')
     if (filters.hasPhyrexianMana) params.set('filter.hasPhyrexianMana', 'true')
     if (filters.hasHybridMana) params.set('filter.hasHybridMana', 'true')
@@ -1592,8 +1603,8 @@ export function CollectionPage() {
   const totalPl = totalValue - totalCost
   const hasValues = entries.some(e => e.marketValue != null)
   const hasActiveFilters = !!(filters.setCode || filters.treatment || filters.condition ||
-    filters.autographed || filters.color || filters.cardType || filters.isReserved ||
-    filters.hasPhyrexianMana || filters.hasHybridMana)
+    filters.autographed || filters.color || filters.cardType || filters.cardSubtype ||
+    filters.isReserved || filters.hasPhyrexianMana || filters.hasHybridMana)
 
   return (
     <div>

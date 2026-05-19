@@ -242,6 +242,7 @@ public class AppDbContext : DbContext
             e.Property(c => c.ColorIdentity).HasColumnName("color_identity").HasMaxLength(20);
             e.Property(c => c.Keywords).HasColumnName("keywords").HasMaxLength(500);
             e.Property(c => c.CardType).HasColumnName("card_type").HasMaxLength(200);
+            e.Property(c => c.CardSubtypes).HasColumnName("card_subtypes").HasMaxLength(200);
             e.Property(c => c.OracleText).HasColumnName("oracle_text");
             e.Property(c => c.Layout).HasColumnName("layout").HasMaxLength(50);
             e.Property(c => c.OracleRulingUrl).HasColumnName("oracle_ruling_url").HasMaxLength(500);

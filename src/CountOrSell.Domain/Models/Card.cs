@@ -13,6 +13,9 @@ public class Card
     public string? ColorIdentity { get; set; }  // comma-joined color_identity array
     public string? Keywords { get; set; }        // comma-joined keywords array
     public string? CardType { get; set; }
+    // Comma-joined subtypes parsed from the type_line (e.g. "Human,Wizard").
+    // Null when the card has no subtypes (Land, Artifact with no dash, etc.).
+    public string? CardSubtypes { get; set; }
     public string? OracleText { get; set; }
     public string? Layout { get; set; }
     public string? OracleRulingUrl { get; set; }

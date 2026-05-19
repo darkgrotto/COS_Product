@@ -3,6 +3,7 @@ using System.Text.Json;
 using CountOrSell.Data;
 using CountOrSell.Data.Images;
 using CountOrSell.Data.Repositories;
+using CountOrSell.Domain;
 using CountOrSell.Domain.Dtos;
 using CountOrSell.Domain.Dtos.Packages;
 using CountOrSell.Domain.Models;
@@ -279,6 +280,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 ColorIdentity = d.ColorIdentity.Count > 0 ? string.Join(",", d.ColorIdentity) : null,
                 Keywords = d.Keywords.Count > 0 ? string.Join(",", d.Keywords) : null,
                 CardType = d.TypeLine,
+                CardSubtypes = CardTypeLineParser.ExtractSubtypes(d.TypeLine),
                 OracleText = d.OracleText,
                 Layout = d.Layout,
                 Rarity = d.Rarity,
@@ -301,6 +303,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 entity.ColorIdentity = dto.ColorIdentity.Count > 0 ? string.Join(",", dto.ColorIdentity) : null;
                 entity.Keywords = dto.Keywords.Count > 0 ? string.Join(",", dto.Keywords) : null;
                 entity.CardType = dto.TypeLine;
+                entity.CardSubtypes = CardTypeLineParser.ExtractSubtypes(dto.TypeLine);
                 entity.OracleText = dto.OracleText;
                 entity.Layout = dto.Layout;
                 entity.Rarity = dto.Rarity;

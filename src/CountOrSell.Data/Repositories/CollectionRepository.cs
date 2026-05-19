@@ -37,7 +37,8 @@ public class CollectionRepository : ICollectionRepository
 
     private static bool HasFilters(CollectionFilter filter) =>
         !string.IsNullOrEmpty(filter.SetCode) || !string.IsNullOrEmpty(filter.Color) ||
-        !string.IsNullOrEmpty(filter.CardType) || !string.IsNullOrEmpty(filter.Treatment) ||
+        !string.IsNullOrEmpty(filter.CardType) || !string.IsNullOrEmpty(filter.CardSubtype) ||
+        !string.IsNullOrEmpty(filter.Treatment) ||
         !string.IsNullOrEmpty(filter.Condition) || filter.Autographed.HasValue ||
         filter.IsReserved.HasValue || filter.HasPhyrexianMana.HasValue || filter.HasHybridMana.HasValue;
 
@@ -60,6 +61,9 @@ public class CollectionRepository : ICollectionRepository
 
         if (!string.IsNullOrEmpty(filter.CardType))
             query = query.Where(x => x.c.CardType != null && x.c.CardType.Contains(filter.CardType));
+
+        if (!string.IsNullOrEmpty(filter.CardSubtype))
+            query = query.Where(x => x.c.CardSubtypes != null && x.c.CardSubtypes.Contains(filter.CardSubtype));
 
         if (!string.IsNullOrEmpty(filter.Treatment))
             query = query.Where(x => x.ce.TreatmentKey == filter.Treatment);

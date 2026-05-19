@@ -542,7 +542,6 @@ docker compose -f docker/test/docker-compose.test.yml up --abort-on-container-ex
 ---
 
 ## Open Decisions
-- [ ] Card subtype filtering (deferred enhancement, do not prevent architecturally)
 - [ ] Partial restore (deferred, do not prevent architecturally)
 - [ ] Email notification service for admin update alerts (implementation detail per provider)
 - [ ] OAuth configuration UI design (post-setup admin settings)
@@ -557,3 +556,4 @@ Non-obvious facts not fully captured in body sections above.
 - 2026-05-18 - Grading agency URL templates use the `{cert}` placeholder (the frontend substitutes via `.replace('{cert}', ...)`). Previous seeds used `{0}` which silently no-op'd and produced broken Verify-Certificate links.
 - 2026-05-18 - PSA, CGC, ISA expose documented direct cert-lookup URLs; BGS, SGC, CCC use JS-rendered forms on landing pages with no documented deep-link pattern and are seeded with `supports-direct-lookup=false`.
 - 2026-05-18 - Application version check reads the latest GitHub release at `https://api.github.com/repos/darkgrotto/COS_Product/releases/latest` and strips the leading `v` from `tag_name`. Aligns with the manual `vX.Y.Z` tag flow in Deployment; rate limit (60/hr unauthenticated per IP) is well above once-daily polling.
+- 2026-05-18 - Card subtypes are stored as a comma-joined denormalized column (`cards.card_subtypes`) parsed from `type_line` at ingestion time. Filter is `filter.cardSubtype` (substring `Contains` match, same precision profile as `filter.cardType`). Backfill migration handles single-face cards precisely; multi-face cards self-correct on next content update.
