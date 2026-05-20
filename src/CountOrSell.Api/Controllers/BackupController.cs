@@ -171,9 +171,18 @@ public class BackupController : ControllerBase
     {
         var config = await _db.BackupDestinationConfigs.FindAsync(new object[] { id }, ct);
         if (config == null) return NotFound(new { error = "Destination not found." });
-        var dest = factory.Create(config);
-        var ok = await dest.TestConnectionAsync(ct);
-        return Ok(new { success = ok });
+        try
+        {
+            using var dest = factory.Create(config);
+            var ok = await dest.TestConnectionAsync(ct);
+            return Ok(new { success = ok });
+        }
+        catch (ArgumentException ex)
+        {
+            // Surface the same diagnostic the operator would otherwise hit at the next
+            // scheduled-backup run, instead of letting it 500 the test-connection probe.
+            return Ok(new { success = false, error = ex.Message });
+        }
     }
 
     private DateTime CalculateNextScheduledTime()

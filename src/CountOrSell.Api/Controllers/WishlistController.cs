@@ -17,15 +17,18 @@ namespace CountOrSell.Api.Controllers;
 public class WishlistController : ControllerBase
 {
     private readonly IWishlistRepository _wishlist;
+    private readonly ICardRepository _cards;
     private readonly ITreatmentValidator _treatments;
     private readonly IWishlistImportExportService _importExport;
 
     public WishlistController(
         IWishlistRepository wishlist,
+        ICardRepository cards,
         ITreatmentValidator treatments,
         IWishlistImportExportService importExport)
     {
         _wishlist = wishlist;
+        _cards = cards;
         _treatments = treatments;
         _importExport = importExport;
     }
@@ -38,20 +41,37 @@ public class WishlistController : ControllerBase
     {
         var rows = await _wishlist.GetByUserWithCardsAsync(CurrentUserId, filter, ct);
 
-        decimal totalValue = rows.Sum(r => r.Card?.CurrentMarketValue ?? 0);
-        var entriesWithValue = rows.Select(r => new
+        // Per-treatment market values from card_prices override the regular-treatment
+        // Card.CurrentMarketValue for entries whose TreatmentKey has its own price row.
+        var identifiers = rows.Select(r => r.Entry.CardIdentifier).Distinct().ToList();
+        var treatmentPrices = await _cards.GetPricesByIdentifiersAsync(identifiers, ct);
+
+        decimal? ResolveMarketValue(WishlistEntry entry, Card? card)
         {
-            r.Entry.Id,
-            CardIdentifier = r.Entry.CardIdentifier.ToUpperInvariant(),
-            CardName = r.Card?.Name,
-            SetCode = r.Card?.SetCode?.ToUpperInvariant(),
-            Color = r.Card?.Color,
-            CardType = r.Card?.CardType,
-            MarketValue = r.Card?.CurrentMarketValue ?? 0,
-            TreatmentKey = r.Entry.TreatmentKey,
-            r.Entry.CreatedAt
+            if (treatmentPrices.TryGetValue(entry.CardIdentifier, out var tPrices)
+                && tPrices.TryGetValue(entry.TreatmentKey, out var tp))
+                return tp;
+            return card?.CurrentMarketValue;
+        }
+
+        var entriesWithValue = rows.Select(r =>
+        {
+            var mv = ResolveMarketValue(r.Entry, r.Card);
+            return new
+            {
+                r.Entry.Id,
+                CardIdentifier = r.Entry.CardIdentifier.ToUpperInvariant(),
+                CardName = r.Card?.Name,
+                SetCode = r.Card?.SetCode?.ToUpperInvariant(),
+                Color = r.Card?.Color,
+                CardType = r.Card?.CardType,
+                MarketValue = mv ?? 0,
+                TreatmentKey = r.Entry.TreatmentKey,
+                r.Entry.CreatedAt
+            };
         }).ToList();
 
+        decimal totalValue = entriesWithValue.Sum(e => e.MarketValue);
         return Ok(new { totalValue, entries = entriesWithValue });
     }
 

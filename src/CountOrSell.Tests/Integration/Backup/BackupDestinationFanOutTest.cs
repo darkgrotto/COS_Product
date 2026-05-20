@@ -217,4 +217,99 @@ public class BackupDestinationFanOutTest
         Assert.NotNull(notifiedMessage);
         Assert.Contains("BadDest", notifiedMessage);
     }
+
+    [Fact]
+    public async Task TakeBackup_OneMisconfiguredDestination_DoesNotBlockOthers_AndRecordIsPersisted()
+    {
+        using var db = CreateDb();
+
+        // Two active destinations: one whose factory.Create will throw (simulating a
+        // misconfigured row that no longer satisfies the current validation rules),
+        // and one that succeeds. The whole fan-out must complete: the good destination
+        // gets the write, the BackupRecord is saved, and the bad destination is
+        // recorded with Success=false + ErrorMessage.
+        var goodConfig = new BackupDestinationConfig
+        {
+            Id = Guid.NewGuid(),
+            DestinationType = "local",
+            Label = "GoodDest",
+            ConfigurationJson = "{}",
+            IsActive = true
+        };
+        var badConfig = new BackupDestinationConfig
+        {
+            Id = Guid.NewGuid(),
+            DestinationType = "gcp-storage",
+            Label = "MisconfiguredDest",
+            ConfigurationJson = "{}", // missing required bucket/projectId
+            IsActive = true
+        };
+        db.BackupDestinationConfigs.AddRange(goodConfig, badConfig);
+        await db.SaveChangesAsync();
+
+        var goodDestWritten = false;
+        var mockGoodDest = new Mock<IBackupDestination>();
+        mockGoodDest.Setup(d => d.DestinationType).Returns("local");
+        mockGoodDest.Setup(d => d.Label).Returns("GoodDest");
+        mockGoodDest.Setup(d => d.WriteAsync(
+            It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .Callback(() => goodDestWritten = true)
+            .Returns(Task.CompletedTask);
+        mockGoodDest.Setup(d => d.DeleteAsync(
+            It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var factory = new Mock<IBackupDestinationFactory>();
+        factory.Setup(f => f.Create(It.Is<BackupDestinationConfig>(c => c.Label == "GoodDest")))
+            .Returns(mockGoodDest.Object);
+        factory.Setup(f => f.Create(It.Is<BackupDestinationConfig>(c => c.Label == "MisconfiguredDest")))
+            .Throws(new ArgumentException(
+                "GCP Storage destination 'MisconfiguredDest' is missing required 'bucket' in ConfigurationJson."));
+
+        var mockRunner = new Mock<IProcessRunner>();
+        mockRunner.Setup(r => r.RunAsync(
+            It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<Dictionary<string, string>?>(), It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync("-- dump sql");
+
+        var mockSchemaVersion = new Mock<ISchemaVersionService>();
+        mockSchemaVersion.Setup(s => s.GetCurrentSchemaVersionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        string? notifiedMessage = null;
+        var mockNotify = new Mock<IAdminNotificationService>();
+        mockNotify.Setup(n => n.NotifyAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((msg, cat, _) => notifiedMessage = msg)
+            .Returns(Task.CompletedTask);
+
+        var svc = new BackupService(
+            db, mockSchemaVersion.Object, factory.Object, mockNotify.Object,
+            CreateConfig(), mockRunner.Object,
+            new Mock<ILogger<BackupService>>().Object);
+
+        var record = await svc.TakeBackupAsync(BackupType.Scheduled, CancellationToken.None);
+
+        Assert.True(goodDestWritten,
+            "Good destination must still receive the write when sibling destination throws on Create.");
+        Assert.Equal(2, record.Destinations.Count);
+
+        var goodResult = record.Destinations.Single(d => d.DestinationLabel == "GoodDest");
+        var badResult = record.Destinations.Single(d => d.DestinationLabel == "MisconfiguredDest");
+
+        Assert.True(goodResult.Success);
+        Assert.False(badResult.Success);
+        Assert.NotNull(badResult.ErrorMessage);
+        Assert.Contains("MisconfiguredDest", badResult.ErrorMessage);
+
+        Assert.NotNull(notifiedMessage);
+        Assert.Contains("MisconfiguredDest", notifiedMessage);
+
+        // BackupRecord must have been persisted - this is the regression guard:
+        // before the fix, the Create throw escaped the loop and SaveChangesAsync
+        // was never reached.
+        var persisted = await db.BackupRecords.FindAsync(record.Id);
+        Assert.NotNull(persisted);
+    }
 }

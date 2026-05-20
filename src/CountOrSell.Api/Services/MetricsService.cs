@@ -29,8 +29,19 @@ public class MetricsService : IMetricsService
         var result = new MetricsResult();
 
         // Cards
+        // Left-join to CardPrices on (CardIdentifier, TreatmentKey). When a row is
+        // present we honor it even if PriceUsd is null (TCG hasn't priced this
+        // treatment - treated as 0 in sums); when no row is present, fall back to
+        // Card.CurrentMarketValue. Matches the per-row mapping in CollectionController.
         var collectionQuery = _db.CollectionEntries
-            .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c });
+            .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
+            .GroupJoin(
+                _db.CardPrices,
+                x => new { Id = x.ce.CardIdentifier, T = x.ce.TreatmentKey },
+                p => new { Id = p.CardIdentifier, T = p.TreatmentKey },
+                (x, prices) => new { x.ce, x.c, prices })
+            .SelectMany(x => x.prices.DefaultIfEmpty(),
+                (x, price) => new { x.ce, x.c, price });
         if (userId.HasValue)
             collectionQuery = collectionQuery.Where(x => x.ce.UserId == userId.Value);
 
@@ -58,8 +69,12 @@ public class MetricsService : IMetricsService
             .GroupBy(_ => 1)
             .Select(g => new
             {
-                Value = g.Sum(x => (x.c.CurrentMarketValue ?? 0m) * x.ce.Quantity),
-                ProfitLoss = g.Sum(x => ((x.c.CurrentMarketValue ?? 0m) - x.ce.AcquisitionPrice) * x.ce.Quantity),
+                Value = g.Sum(x =>
+                    ((x.price != null ? x.price.PriceUsd : x.c.CurrentMarketValue) ?? 0m)
+                    * x.ce.Quantity),
+                ProfitLoss = g.Sum(x =>
+                    (((x.price != null ? x.price.PriceUsd : x.c.CurrentMarketValue) ?? 0m)
+                     - x.ce.AcquisitionPrice) * x.ce.Quantity),
                 Count = g.Sum(x => x.ce.Quantity)
             })
             .FirstOrDefaultAsync(ct);
@@ -78,7 +93,14 @@ public class MetricsService : IMetricsService
 
         // Serialized
         var serializedQuery = _db.SerializedEntries
-            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c });
+            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
+            .GroupJoin(
+                _db.CardPrices,
+                x => new { Id = x.se.CardIdentifier, T = x.se.TreatmentKey },
+                p => new { Id = p.CardIdentifier, T = p.TreatmentKey },
+                (x, prices) => new { x.se, x.c, prices })
+            .SelectMany(x => x.prices.DefaultIfEmpty(),
+                (x, price) => new { x.se, x.c, price });
         if (userId.HasValue)
             serializedQuery = serializedQuery.Where(x => x.se.UserId == userId.Value);
 
@@ -86,8 +108,11 @@ public class MetricsService : IMetricsService
             .GroupBy(_ => 1)
             .Select(g => new
             {
-                Value = g.Sum(x => x.c.CurrentMarketValue ?? 0m),
-                ProfitLoss = g.Sum(x => (x.c.CurrentMarketValue ?? 0m) - x.se.AcquisitionPrice),
+                Value = g.Sum(x =>
+                    (x.price != null ? x.price.PriceUsd : x.c.CurrentMarketValue) ?? 0m),
+                ProfitLoss = g.Sum(x =>
+                    ((x.price != null ? x.price.PriceUsd : x.c.CurrentMarketValue) ?? 0m)
+                    - x.se.AcquisitionPrice),
                 Count = g.Count()
             })
             .FirstOrDefaultAsync(ct);
@@ -107,7 +132,14 @@ public class MetricsService : IMetricsService
 
         // Slabs
         var slabQuery = _db.SlabEntries
-            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c });
+            .Join(_db.Cards, se => se.CardIdentifier, c => c.Identifier, (se, c) => new { se, c })
+            .GroupJoin(
+                _db.CardPrices,
+                x => new { Id = x.se.CardIdentifier, T = x.se.TreatmentKey },
+                p => new { Id = p.CardIdentifier, T = p.TreatmentKey },
+                (x, prices) => new { x.se, x.c, prices })
+            .SelectMany(x => x.prices.DefaultIfEmpty(),
+                (x, price) => new { x.se, x.c, price });
         if (userId.HasValue)
             slabQuery = slabQuery.Where(x => x.se.UserId == userId.Value);
 
@@ -115,8 +147,11 @@ public class MetricsService : IMetricsService
             .GroupBy(_ => 1)
             .Select(g => new
             {
-                Value = g.Sum(x => x.c.CurrentMarketValue ?? 0m),
-                ProfitLoss = g.Sum(x => (x.c.CurrentMarketValue ?? 0m) - x.se.AcquisitionPrice),
+                Value = g.Sum(x =>
+                    (x.price != null ? x.price.PriceUsd : x.c.CurrentMarketValue) ?? 0m),
+                ProfitLoss = g.Sum(x =>
+                    ((x.price != null ? x.price.PriceUsd : x.c.CurrentMarketValue) ?? 0m)
+                    - x.se.AcquisitionPrice),
                 Count = g.Count()
             })
             .FirstOrDefaultAsync(ct);
@@ -249,9 +284,18 @@ public class MetricsService : IMetricsService
             })
             .ToDictionaryAsync(x => x.SetCode, x => x.OwnedCount, ct);
 
-        // Value query - same filters as owned
+        // Value query - same filters as owned, plus the per-treatment CardPrice
+        // left-join so foil/etched/etc. entries are priced from their own row when
+        // present rather than the regular-treatment Card.CurrentMarketValue.
         var valueQuery = _db.CollectionEntries
             .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
+            .GroupJoin(
+                _db.CardPrices,
+                x => new { Id = x.ce.CardIdentifier, T = x.ce.TreatmentKey },
+                p => new { Id = p.CardIdentifier, T = p.TreatmentKey },
+                (x, prices) => new { x.ce, x.c, prices })
+            .SelectMany(x => x.prices.DefaultIfEmpty(),
+                (x, price) => new { x.ce, x.c, price })
             .Where(x => x.ce.UserId == userId);
 
         if (regularOnly)
@@ -285,8 +329,12 @@ public class MetricsService : IMetricsService
             .Select(g => new
             {
                 SetCode = g.Key,
-                TotalValue = g.Sum(x => (x.c.CurrentMarketValue ?? 0) * x.ce.Quantity),
-                TotalProfitLoss = g.Sum(x => ((x.c.CurrentMarketValue ?? 0) - x.ce.AcquisitionPrice) * x.ce.Quantity)
+                TotalValue = g.Sum(x =>
+                    ((x.price != null ? x.price.PriceUsd : x.c.CurrentMarketValue) ?? 0m)
+                    * x.ce.Quantity),
+                TotalProfitLoss = g.Sum(x =>
+                    (((x.price != null ? x.price.PriceUsd : x.c.CurrentMarketValue) ?? 0m)
+                     - x.ce.AcquisitionPrice) * x.ce.Quantity)
             })
             .ToDictionaryAsync(v => v.SetCode, ct);
 
@@ -353,8 +401,19 @@ public class MetricsService : IMetricsService
     public async Task<(List<TopCardResult> Results, int TotalCount)> GetTopCardsAsync(
         Guid userId, string metric, int limit, int offset, CollectionFilter filter, CancellationToken ct = default)
     {
+        // Per-treatment CardPrice left-joined so foil/etched/etc. rows contribute their
+        // own value rather than the regular-treatment Card.CurrentMarketValue. Grouped
+        // per (card, treatment) so two entries with different treatments on the same
+        // card identifier do not collapse into a single ranking row priced uniformly.
         var query = _db.CollectionEntries
             .Join(_db.Cards, ce => ce.CardIdentifier, c => c.Identifier, (ce, c) => new { ce, c })
+            .GroupJoin(
+                _db.CardPrices,
+                x => new { Id = x.ce.CardIdentifier, T = x.ce.TreatmentKey },
+                p => new { Id = p.CardIdentifier, T = p.TreatmentKey },
+                (x, prices) => new { x.ce, x.c, prices })
+            .SelectMany(x => x.prices.DefaultIfEmpty(),
+                (x, price) => new { x.ce, x.c, price })
             .Where(x => x.ce.UserId == userId);
 
         if (!string.IsNullOrEmpty(filter.SetCode))
@@ -377,16 +436,28 @@ public class MetricsService : IMetricsService
         if (filter.Autographed.HasValue)
             query = query.Where(x => x.ce.Autographed == filter.Autographed.Value);
 
+        // Group by treatment so that the same card identifier in two different
+        // treatments produces two rankable rows, each at its own per-treatment price.
+        // The frontend uses TreatmentKey to disambiguate what would otherwise look
+        // like duplicate (card, set) rows with different values.
         var grouped = query
-            .GroupBy(x => new { x.c.Identifier, x.c.Name, SetCode = x.c.SetCode, x.c.CurrentMarketValue })
+            .GroupBy(x => new
+            {
+                x.c.Identifier,
+                x.c.Name,
+                SetCode = x.c.SetCode,
+                x.ce.TreatmentKey,
+                EffectiveMarketValue = x.price != null ? x.price.PriceUsd : x.c.CurrentMarketValue
+            })
             .Select(g => new
             {
                 CardIdentifier = g.Key.Identifier,
                 CardName = g.Key.Name,
                 SetCode = g.Key.SetCode,
-                MarketValue = g.Key.CurrentMarketValue,
+                TreatmentKey = g.Key.TreatmentKey,
+                MarketValue = g.Key.EffectiveMarketValue,
                 TotalQuantity = g.Sum(x => x.ce.Quantity),
-                TotalValue = g.Sum(x => (x.c.CurrentMarketValue ?? 0m) * x.ce.Quantity)
+                TotalValue = g.Sum(x => (g.Key.EffectiveMarketValue ?? 0m) * x.ce.Quantity)
             });
 
         var totalCount = await grouped.CountAsync(ct);
@@ -402,6 +473,7 @@ public class MetricsService : IMetricsService
             CardIdentifier = x.CardIdentifier.ToUpperInvariant(),
             CardName = x.CardName,
             SetCode = x.SetCode.ToUpperInvariant(),
+            TreatmentKey = x.TreatmentKey,
             TotalQuantity = x.TotalQuantity,
             TotalValue = x.TotalValue,
             MarketValue = x.MarketValue

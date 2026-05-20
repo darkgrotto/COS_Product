@@ -81,18 +81,24 @@ public class BackupService : IBackupService
 
         foreach (var destConfig in destConfigs)
         {
-            var dest = _destinationFactory.Create(destConfig);
+            // Per-destination try/catch must wrap factory.Create as well. A misconfigured
+            // destination row (e.g. missing required field after a schema/contract change)
+            // would otherwise abort the whole fan-out before the BackupRecord is saved,
+            // contradicting the documented "one destination failing does not block others"
+            // contract and - critically - cascading to block schema migrations when this
+            // runs as a pre-update backup.
             var destRecord = new BackupDestinationRecord
             {
                 Id = Guid.NewGuid(),
                 BackupRecordId = record.Id,
-                DestinationType = dest.DestinationType,
-                DestinationLabel = dest.Label,
+                DestinationType = destConfig.DestinationType,
+                DestinationLabel = destConfig.Label,
                 AttemptedAt = DateTime.UtcNow
             };
 
             try
             {
+                using var dest = _destinationFactory.Create(destConfig);
                 using var stream = new MemoryStream(archiveBytes);
                 // On-disk name is the immutable record GUID; Label stays in the DB for display.
                 await dest.WriteAsync(BackupFileName.For(record), stream, ct);
@@ -100,11 +106,11 @@ public class BackupService : IBackupService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Backup destination {Label} failed", dest.Label);
+                _logger.LogError(ex, "Backup destination {Label} failed", destConfig.Label);
                 destRecord.Success = false;
                 destRecord.ErrorMessage = ex.Message;
                 await _notifications.NotifyAsync(
-                    $"Backup destination '{dest.Label}' failed: {ex.Message}",
+                    $"Backup destination '{destConfig.Label}' failed: {ex.Message}",
                     "backup", ct);
             }
 
@@ -223,18 +229,36 @@ public class BackupService : IBackupService
                 .ToListAsync(ct);
             foreach (var destConfig in destConfigs)
             {
-                var dest = _destinationFactory.Create(destConfig);
-                // New writes use the GUID name; legacy backups may still be on disk
-                // under the old {Label}.zip convention. Try both.
-                foreach (var name in new[] { BackupFileName.For(old), BackupFileName.LegacyFor(old) })
+                IBackupDestination? dest = null;
+                try
                 {
-                    try { await dest.DeleteAsync(name, ct); }
-                    catch (Exception ex)
+                    dest = _destinationFactory.Create(destConfig);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Skipping pruning for misconfigured destination {Dest}", destConfig.Label);
+                    continue;
+                }
+
+                try
+                {
+                    // New writes use the GUID name; legacy backups may still be on disk
+                    // under the old {Label}.zip convention. Try both.
+                    foreach (var name in new[] { BackupFileName.For(old), BackupFileName.LegacyFor(old) })
                     {
-                        _logger.LogWarning(ex,
-                            "Failed to prune backup {Name} from {Dest}",
-                            name, destConfig.Label);
+                        try { await dest.DeleteAsync(name, ct); }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex,
+                                "Failed to prune backup {Name} from {Dest}",
+                                name, destConfig.Label);
+                        }
                     }
+                }
+                finally
+                {
+                    dest.Dispose();
                 }
             }
         }

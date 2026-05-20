@@ -553,18 +553,6 @@ Each entry lists the current state (what exists in the codebase today) and the c
   - State: `EmailNotificationService.SendUpdateNotificationAsync` is a stub - it logs but never sends. In-app notifications already work via `AdminNotificationService`.
   - Next: pick a provider strategy (SMTP direct, or an abstraction over SES / SendGrid / Mailgun / Postmark) and add the provider-config keys to `docs/configuration.md`. Wire SMTP creds through `IConfiguration` like the OAuth providers do.
 
-- [ ] **OAuth configuration UI design (post-setup admin settings)**
-  - State: backend reads OAuth credentials from `IConfiguration` keys (`OAuth:Google:ClientId`, etc.) at startup, so changes require an app restart. `PATCH /api/settings/oauth/{provider}` and `DELETE /api/settings/oauth/{provider}` exist and are demo-locked. No admin UI surfaces them today.
-  - Next: build the admin settings page that calls those existing endpoints; document the restart-required behavior or design a hot-reload path.
-
-- [ ] **Remote backup destinations (Azure Blob / AWS S3 / GCP Storage)**
-  - State: only `LocalFileBackupDestination` is functional. The three cloud destination classes are registered in `BackupDestinationFactory` and accept config, but their `WriteAsync` / `ReadAsync` / `DeleteAsync` methods throw `NotImplementedException`. `docs/configuration.md` already calls this out per provider.
-  - Next: pick one to implement first (Azure Blob is the wizard default), add the corresponding SDK NuGet package, wire credentials through `BackupDestinationConfig.ConfigurationJson`, and add an integration test against a local emulator (Azurite / LocalStack / fake-gcs-server). Then repeat for the others. Additional non-cloud destinations (Dropbox, Drive) are a separate downstream task once at least one cloud works.
-
-- [ ] **pricing.json per-treatment pricing surfacing**
-  - State: update packages ship per-set `pricing.json` with `{card_id, treatment, price_usd, captured_at}` rows, but `ContentUpdateApplicator` only consumes the single `CurrentMarketValue` per card. Per-treatment pricing data is currently discarded on ingestion.
-  - Next: decide whether per-treatment pricing should be stored (new `card_prices` rows keyed by `(card_id, treatment)`) and surfaced in the UI (per-row market value reflecting the user's actual treatment), or whether `CurrentMarketValue` remains the single source. If yes, design the schema change + how slabs/serialized rows should pick their per-treatment value.
-
 ## Decision Log
 Non-obvious facts not fully captured in body sections above.
 
@@ -574,3 +562,5 @@ Non-obvious facts not fully captured in body sections above.
 - 2026-05-18 - PSA, CGC, ISA expose documented direct cert-lookup URLs; BGS, SGC, CCC use JS-rendered forms on landing pages with no documented deep-link pattern and are seeded with `supports-direct-lookup=false`.
 - 2026-05-18 - Application version check reads the latest GitHub release at `https://api.github.com/repos/darkgrotto/COS_Product/releases/latest` and strips the leading `v` from `tag_name`. Aligns with the manual `vX.Y.Z` tag flow in Deployment; rate limit (60/hr unauthenticated per IP) is well above once-daily polling.
 - 2026-05-18 - Card subtypes are stored as a comma-joined denormalized column (`cards.card_subtypes`) parsed from `type_line` at ingestion time. Filter is `filter.cardSubtype` (substring `Contains` match, same precision profile as `filter.cardType`). Backfill migration handles single-face cards precisely; multi-face cards self-correct on next content update.
+- 2026-05-19 - All three cloud backup destinations (`azure-blob`, `aws-s3`, `gcp-storage`) are now functional and exercised by Testcontainers integration tests (Azurite / LocalStack / fake-gcs-server). Config schema per destination is documented in `docs/configuration.md`; missing required fields throw labeled `ArgumentException` from `BackupDestinationFactory`. Auth model: Azure uses connection-string, AWS falls back to the SDK default credential chain when no static keys supplied, GCP falls back to Application Default Credentials.
+- 2026-05-19 - Per-treatment pricing is now surfaced everywhere market value is shown. Effective market value resolves as: per-treatment row in `card_prices` keyed by `(cardIdentifier, treatmentKey)` first; `card.currentMarketValue` (regular-treatment price) as fallback. Applied in `MetricsService` (collection / serialized / slab aggregates, set-completion value, top-cards ranking), `WishlistController.GetAll`, `SerializedController.GetAll`, and `SlabsController.GetAll`. `CollectionController` already had this pattern. If a `card_prices` row exists but `PriceUsd` is null, the entry contributes 0 to sums - matches "TCG knows about this treatment but has no price" semantics rather than silently substituting the regular price.

@@ -59,10 +59,15 @@ public class SlabsController : ControllerBase
 
         var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
         var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);
+        var treatmentPrices = await _cards.GetPricesByIdentifiersAsync(identifiers, ct);
         var items = entries.Select(e =>
         {
             summaries.TryGetValue(e.CardIdentifier, out var s);
-            return MapEntry(e, s.Name, s.MarketValue, s.SetCode);
+            decimal? mv = treatmentPrices.TryGetValue(e.CardIdentifier, out var tPrices) &&
+                          tPrices.TryGetValue(e.TreatmentKey, out var tp)
+                ? tp
+                : s.MarketValue;
+            return MapEntry(e, s.Name, mv, s.SetCode);
         });
 
         return Ok(new { items, total, page, pageSize });

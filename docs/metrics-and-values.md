@@ -6,15 +6,17 @@
 
 Collection value is the current market price of everything owned.
 
-**Formula:** `current market value * quantity` per entry, summed.
+**Formula:** `effective market value * quantity` per entry, summed.
+
+**Effective market value** is the per-treatment price for the entry's `(cardIdentifier, treatmentKey)` if a row exists in the `card_prices` table; otherwise `card.currentMarketValue` (which holds the regular-treatment price). This means a foil entry whose treatment has its own price in the latest pricing data is valued at the foil price, not the regular price. If the per-treatment row exists but its `priceUsd` is null, the entry contributes 0 to the sum.
 
 **Breakdown by content type:**
 
 | Content type | How value is calculated |
 |-------------|------------------------|
-| cards | `SUM(card.currentMarketValue * entry.quantity)` across all collection entries |
-| serialized | `SUM(card.currentMarketValue)` across all serialized entries (each is qty 1) |
-| slabs | `SUM(card.currentMarketValue)` across all slab entries (each is qty 1) |
+| cards | `SUM(effectiveMarketValue * entry.quantity)` across all collection entries |
+| serialized | `SUM(effectiveMarketValue)` across all serialized entries (each is qty 1) |
+| slabs | `SUM(effectiveMarketValue)` across all slab entries (each is qty 1) |
 | sealed-product | Sealed product market value field is not yet populated from update packages - currently returns 0 |
 
 **Where viewable:** Per card (via card market value endpoint), per set (via set completion + metrics endpoints with `setCode` filter), per content type, and for the whole collection via `GET /api/collection/metrics`.
@@ -27,7 +29,7 @@ Admins requesting metrics without a `userId` query parameter receive aggregate m
 
 Profit/loss measures gain or loss against what was paid for the collection.
 
-**Formula:** `(current market value * quantity) - (acquisition price * quantity)` per entry, summed.
+**Formula:** `(effective market value - acquisition price) * quantity` per entry, summed. The same `effectiveMarketValue` resolution described in section 1 (per-treatment first, then `card.currentMarketValue` fallback) applies here.
 
 Profit/loss is available at the same levels as collection value: per content type, per set (filtered), and whole collection. Universal filters are applicable.
 
@@ -90,9 +92,9 @@ The `byContentType` array in the metrics response provides per-type breakdowns i
 
 ## 6. Wishlist Value
 
-Each wishlist entry stores a card identifier. When the wishlist is retrieved, the current market value for each card is looked up from the cards table and returned alongside the entry.
+Each wishlist entry stores a card identifier and a treatment key. When the wishlist is retrieved, the per-treatment price for `(cardIdentifier, treatmentKey)` is looked up from the `card_prices` table; if no row exists, the response falls back to `card.currentMarketValue`. This means a wishlist entry for the foil printing of a card returns the foil price when one is available.
 
-**Per-entry value:** `card.currentMarketValue` (or 0 if the card is not found in the reference data)
+**Per-entry value:** per-treatment `card_prices` row if present, otherwise `card.currentMarketValue`, or 0 if neither resolves.
 
 **Total wishlist value:** Sum of all per-entry market values
 

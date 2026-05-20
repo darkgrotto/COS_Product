@@ -68,41 +68,54 @@ If `path` is omitted, defaults to `<app-base-directory>/backups`.
 
 **`azure-blob` - Azure Blob Storage**
 
-Not yet fully implemented - requires Azure.Storage.Blobs SDK integration. The destination type is registered and the wizard can collect a connection string, but write/read/delete operations will throw `NotImplementedException` until the SDK is wired up.
+Writes `.zip` files to an Azure Blob Storage container. The container is created automatically on the first write or `TestConnection` call.
 
 Configuration JSON fields:
 ```json
 {
-  "connectionString": "DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net"
+  "connectionString": "DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net",
+  "containerName": "cos-backups"
 }
 ```
+
+`connectionString` is required. `containerName` is optional; if omitted, the destination uses `cos-backups`.
 
 ---
 
 **`aws-s3` - AWS S3**
 
-Not yet fully implemented - requires AWSSDK.S3 SDK integration. Registered as a destination type but write/read/delete operations will throw `NotImplementedException` until the SDK is wired up.
+Writes `.zip` files to an S3 bucket. The bucket is created automatically on the first write or `TestConnection` call if it does not already exist.
 
 Configuration JSON fields:
 ```json
 {
   "bucket": "my-backup-bucket",
-  "region": "us-east-1"
+  "region": "us-east-1",
+  "accessKey": "AKIA...",
+  "secretKey": "...",
+  "serviceUrl": "http://localhost:4566"
 }
 ```
+
+`bucket` and `region` are required. `accessKey` and `secretKey` are optional - if omitted, the AWS SDK's default credential provider chain is used (environment variables, shared credentials file, EC2/ECS instance metadata, etc.). If `accessKey` is provided, `secretKey` is also required. `serviceUrl` is optional and only used to point at S3-compatible endpoints such as LocalStack or MinIO; when set, path-style addressing is forced.
 
 ---
 
 **`gcp-storage` - GCP Cloud Storage**
 
-Not yet fully implemented - requires Google.Cloud.Storage.V1 SDK integration. Registered as a destination type but write/read/delete operations will throw `NotImplementedException` until the SDK is wired up.
+Writes `.zip` files to a GCS bucket. The bucket is created automatically on the first write or `TestConnection` call if it does not already exist.
 
 Configuration JSON fields:
 ```json
 {
-  "bucket": "my-backup-bucket"
+  "bucket": "my-backup-bucket",
+  "projectId": "my-gcp-project",
+  "credentialsJson": "{...service account JSON...}",
+  "endpoint": "http://localhost:4443"
 }
 ```
+
+`bucket` and `projectId` are required (the project ID is needed to create the bucket if it does not yet exist). `credentialsJson` is optional - if omitted, Application Default Credentials are used (environment variable `GOOGLE_APPLICATION_CREDENTIALS`, gcloud user credentials, or instance metadata on GCE/Cloud Run). `endpoint` is optional and only used to point at GCS-compatible emulators such as fake-gcs-server; when set, the client uses unauthenticated access.
 
 ---
 

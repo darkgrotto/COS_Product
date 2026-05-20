@@ -91,6 +91,13 @@ function fmtPl(v: number | null | undefined) {
   return `${sign}$${v.toFixed(2)}`
 }
 
+function formatTreatmentKey(key: string): string {
+  return key
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
 function plColor(v: number | null | undefined) {
   if (v == null) return 'text-muted-foreground'
   if (v > 0) return 'text-green-600'
@@ -253,6 +260,7 @@ interface TopCardResult {
   cardIdentifier: string
   cardName: string
   setCode: string
+  treatmentKey: string
   totalQuantity: number
   totalValue: number
   marketValue: number | null
@@ -568,11 +576,16 @@ function TopCardsSection({
               </thead>
               <tbody>
                 {data.results.map((c, i) => (
-                  <tr key={`${c.cardIdentifier}-${i}`} className="border-b last:border-0 hover:bg-muted/20">
+                  <tr key={`${c.cardIdentifier}-${c.treatmentKey}-${i}`} className="border-b last:border-0 hover:bg-muted/20">
                     <td className="px-4 py-2 text-muted-foreground tabular-nums text-xs">{offset + i + 1}</td>
                     <td className="px-4 py-2">
                       <div className="font-medium leading-tight">{c.cardName}</div>
-                      <div className="text-xs text-muted-foreground font-mono">{c.cardIdentifier}</div>
+                      <div className="text-xs text-muted-foreground font-mono">
+                        {c.cardIdentifier}
+                        {c.treatmentKey && c.treatmentKey !== 'regular' && (
+                          <span className="ml-2 italic">{formatTreatmentKey(c.treatmentKey)}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{c.setCode}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{c.totalQuantity}</td>

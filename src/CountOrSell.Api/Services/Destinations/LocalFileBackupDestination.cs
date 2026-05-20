@@ -79,4 +79,6 @@ public class LocalFileBackupDestination : IBackupDestination
             return Task.FromResult(false);
         }
     }
+
+    public void Dispose() { /* no SDK client to release */ }
 }
