@@ -67,7 +67,7 @@ const CONDITION_LABELS: Record<string, string> = {
 
 function fmt(v: number | null | undefined) {
   if (v == null) return '-'
-  return `$${v.toFixed(2)}`
+  return `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function plColor(pl: number | null) {

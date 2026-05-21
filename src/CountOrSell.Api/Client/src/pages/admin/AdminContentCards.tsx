@@ -332,7 +332,7 @@ function CardDetailView({
             {detail.currentMarketValue != null && (
               <>
                 <span className="text-muted-foreground font-medium">Market Value</span>
-                <span>${detail.currentMarketValue.toFixed(2)}</span>
+                <span>${detail.currentMarketValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </>
             )}
             <span className="text-muted-foreground font-medium">Last Updated</span>
@@ -658,7 +658,7 @@ function CardsTable({
                       <RarityBadge rarity={card.rarity} />
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm">
-                      {card.currentMarketValue != null ? `$${card.currentMarketValue.toFixed(2)}` : <span className="text-muted-foreground">-</span>}
+                      {card.currentMarketValue != null ? `$${card.currentMarketValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="text-muted-foreground">-</span>}
                     </TableCell>
                   </TableRow>
                 ))

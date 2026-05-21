@@ -135,10 +135,10 @@ export function AdminContentUsers() {
                       <TableCell>{entry.quantity}</TableCell>
                       <TableCell>{entry.condition}</TableCell>
                       <TableCell>
-                        {entry.acquisitionPrice != null ? `$${entry.acquisitionPrice.toFixed(2)}` : '-'}
+                        {entry.acquisitionPrice != null ? `$${entry.acquisitionPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                       </TableCell>
                       <TableCell>
-                        {entry.currentMarketValue != null ? `$${entry.currentMarketValue.toFixed(2)}` : '-'}
+                        {entry.currentMarketValue != null ? `$${entry.currentMarketValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                       </TableCell>
                     </TableRow>
                   ))

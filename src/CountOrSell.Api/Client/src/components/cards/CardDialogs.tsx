@@ -61,7 +61,7 @@ export function today() {
 
 export function fmt(v: number | null | undefined) {
   if (v == null) return '-'
-  return `$${v.toFixed(2)}`
+  return `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 // Regular first, Foil second, then alphabetical by displayName.
@@ -264,7 +264,7 @@ export function CardDetailDialog({
         onPriceRefreshed?.(card.identifier, data.currentMarketValue)
         toast(
           data.currentMarketValue != null
-            ? `Updated to $${data.currentMarketValue.toFixed(2)}.`
+            ? `Updated to ${fmt(data.currentMarketValue)}.`
             : 'Price refreshed.',
           'success',
         )

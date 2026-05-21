@@ -38,13 +38,13 @@ type CompletionSort = 'missing' | 'owned' | 'age' | 'code' | 'name'
 
 function fmt(v: number | null | undefined) {
   if (v == null) return '-'
-  return `$${v.toFixed(2)}`
+  return `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function fmtPl(v: number | null | undefined) {
   if (v == null) return '-'
   const sign = v >= 0 ? '+' : ''
-  return `${sign}$${v.toFixed(2)}`
+  return `${sign}$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function plColor(v: number | null | undefined) {

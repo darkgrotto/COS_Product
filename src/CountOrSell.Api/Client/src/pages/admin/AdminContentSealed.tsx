@@ -207,7 +207,7 @@ function SealedDetailView({
             {detail.currentMarketValue != null && (
               <>
                 <span className="text-muted-foreground font-medium">Market Value</span>
-                <span>${detail.currentMarketValue.toFixed(2)}</span>
+                <span>${detail.currentMarketValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </>
             )}
             <span className="text-muted-foreground font-medium">Last Updated</span>
@@ -389,7 +389,7 @@ function SealedTable({
                     <TableCell className="font-mono text-xs">{p.identifier}</TableCell>
                     <TableCell className="text-right tabular-nums text-sm">
                       {p.currentMarketValue != null
-                        ? `$${p.currentMarketValue.toFixed(2)}`
+                        ? `$${p.currentMarketValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : <span className="text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
