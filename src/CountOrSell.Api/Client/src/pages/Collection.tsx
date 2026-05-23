@@ -1016,8 +1016,6 @@ function SetGroupedView({
 
 // ---- Cards flat table -------------------------------------------------------
 
-const CONDITION_ORDER: Record<string, number> = { NM: 0, LP: 1, MP: 2, HP: 3, DMG: 4 }
-
 interface CollectionRowProps {
   entry: CollectionEntry
   treatmentLabel: string
@@ -1122,7 +1120,9 @@ function CardsTable({
   onDelete,
   onAdjustQty,
   onDetail,
-  defaultSortKey,
+  sortKey,
+  sortDir,
+  onSort,
 }: {
   entries: CollectionEntry[]
   treatments: Treatment[]
@@ -1133,48 +1133,15 @@ function CardsTable({
   onDelete: (e: CollectionEntry) => void
   onAdjustQty: (e: CollectionEntry, delta: number) => void
   onDetail: (id: string) => void
-  defaultSortKey: string
+  sortKey: string
+  sortDir: SortDir
+  onSort: (key: string) => void
 }) {
-  const [sortKey, setSortKey] = useState(defaultSortKey)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
-
-  const handleSort = useCallback((key: string) => {
-    setSortKey(prevKey => {
-      if (prevKey === key) {
-        setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-        return prevKey
-      }
-      setSortDir('asc')
-      return key
-    })
-  }, [])
-
   const treatmentMap = useMemo(
     () => Object.fromEntries(treatments.map(t => [t.key, t.displayName])),
     [treatments],
   )
   const allSelected = entries.length > 0 && entries.every(e => selected.has(e.id))
-
-  const sorted = useMemo(() => [...entries].sort((a, b) => {
-    let cmp = 0
-    switch (sortKey) {
-      case 'card': cmp = (a.cardName ?? a.cardIdentifier).localeCompare(b.cardName ?? b.cardIdentifier); break
-      case 'identifier': cmp = a.cardIdentifier.localeCompare(b.cardIdentifier); break
-      case 'set': cmp = (a.setCode ?? '').localeCompare(b.setCode ?? ''); break
-      case 'treatment': cmp = (treatmentMap[a.treatmentKey] ?? a.treatmentKey).localeCompare(treatmentMap[b.treatmentKey] ?? b.treatmentKey); break
-      case 'qty': cmp = a.quantity - b.quantity; break
-      case 'condition': cmp = (CONDITION_ORDER[a.condition] ?? 99) - (CONDITION_ORDER[b.condition] ?? 99); break
-      case 'market': cmp = (a.marketValue ?? -1) - (b.marketValue ?? -1); break
-      case 'acq': cmp = a.acquisitionPrice - b.acquisitionPrice; break
-      case 'pl': {
-        const pa = a.marketValue != null ? (a.marketValue - a.acquisitionPrice) * a.quantity : null
-        const pb = b.marketValue != null ? (b.marketValue - b.acquisitionPrice) * b.quantity : null
-        cmp = (pa ?? -Infinity) - (pb ?? -Infinity)
-        break
-      }
-    }
-    return sortDir === 'asc' ? cmp : -cmp
-  }), [entries, sortKey, sortDir, treatmentMap])
 
   if (entries.length === 0) {
     return (
@@ -1198,20 +1165,20 @@ function CardsTable({
                 aria-label="Select all"
               />
             </th>
-            <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={handleSort} />
-            <SortTh label="ID" sortKey="identifier" current={sortKey} dir={sortDir} onSort={handleSort} />
-            <SortTh label="Set" sortKey="set" current={sortKey} dir={sortDir} onSort={handleSort} />
-            <SortTh label="Treatment" sortKey="treatment" current={sortKey} dir={sortDir} onSort={handleSort} />
-            <SortTh label="Qty" sortKey="qty" current={sortKey} dir={sortDir} onSort={handleSort} className="text-center" />
-            <SortTh label="Cond." sortKey="condition" current={sortKey} dir={sortDir} onSort={handleSort} />
-            <SortTh label="Market" sortKey="market" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
-            <SortTh label="Acq." sortKey="acq" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
-            <SortTh label="P/L" sortKey="pl" current={sortKey} dir={sortDir} onSort={handleSort} className="text-right" />
+            <SortTh label="Card" sortKey="card" current={sortKey} dir={sortDir} onSort={onSort} />
+            <SortTh label="ID" sortKey="identifier" current={sortKey} dir={sortDir} onSort={onSort} />
+            <SortTh label="Set" sortKey="set" current={sortKey} dir={sortDir} onSort={onSort} />
+            <SortTh label="Treatment" sortKey="treatment" current={sortKey} dir={sortDir} onSort={onSort} />
+            <SortTh label="Qty" sortKey="qty" current={sortKey} dir={sortDir} onSort={onSort} className="text-center" />
+            <SortTh label="Cond." sortKey="condition" current={sortKey} dir={sortDir} onSort={onSort} />
+            <SortTh label="Market" sortKey="market" current={sortKey} dir={sortDir} onSort={onSort} className="text-right" />
+            <SortTh label="Acq." sortKey="acq" current={sortKey} dir={sortDir} onSort={onSort} className="text-right" />
+            <SortTh label="P/L" sortKey="pl" current={sortKey} dir={sortDir} onSort={onSort} className="text-right" />
             <th className="px-3 py-2 text-right font-medium">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y">
-          {sorted.map(entry => (
+          {entries.map(entry => (
             <CollectionRow
               key={entry.id}
               entry={entry}
@@ -1449,6 +1416,8 @@ export function CollectionPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('by-set')
   const [filters, setFilters] = useState<Filters>(BLANK_FILTERS)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [sortKey, setSortKey] = useState(prefs.cardSortDefault === 'identifier' ? 'identifier' : 'card')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<CollectionEntry | null>(null)
@@ -1493,6 +1462,8 @@ export function CollectionPage() {
     if (filters.hasHybridMana) params.set('filter.hasHybridMana', 'true')
     params.set('page', String(page))
     params.set('pageSize', String(PAGE_SIZE))
+    params.set('sort', sortKey)
+    params.set('sortDir', sortDir)
     const res = await fetch(`/api/collection?${params}`)
     if (res.ok) {
       const data = await res.json()
@@ -1511,18 +1482,29 @@ export function CollectionPage() {
     })
   }, [])
 
-  useEffect(() => { setPage(1) }, [filters])
+  useEffect(() => { setPage(1) }, [filters, sortKey, sortDir])
 
   useEffect(() => {
     setLoading(true)
     Promise.all([loadCompletion(), loadEntries()])
       .finally(() => setLoading(false))
-  }, [filters, page, prefs.setCompletionRegularOnly])
+  }, [filters, page, prefs.setCompletionRegularOnly, sortKey, sortDir])
 
   const handleSave = useCallback(() => {
     loadCompletion()
     loadEntries()
-  }, [filters, page, prefs.setCompletionRegularOnly])
+  }, [filters, page, prefs.setCompletionRegularOnly, sortKey, sortDir])
+
+  const handleSort = useCallback((key: string) => {
+    setSortKey(prev => {
+      if (prev === key) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        return prev
+      }
+      setSortDir('asc')
+      return key
+    })
+  }, [])
 
   const handleRegularOnlyChange = useCallback((v: boolean) => {
     void patchPrefs({ setCompletionRegularOnly: v }).catch(() => {})
@@ -1733,7 +1715,9 @@ export function CollectionPage() {
               onDelete={setDeleteEntry}
               onAdjustQty={adjustQuantity}
               onDetail={setDetailId}
-              defaultSortKey={prefs.cardSortDefault === 'identifier' ? 'identifier' : 'card'}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
             />
             <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
           </>

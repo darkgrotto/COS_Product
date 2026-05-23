@@ -453,19 +453,14 @@ export function SerializedPage() {
     })
   }, [])
 
-  const sorted = useMemo(() => [...entries].sort((a, b) => {
-    let cmp = 0
-    if (sortKey === 'card') cmp = (a.cardName ?? a.cardIdentifier).localeCompare(b.cardName ?? b.cardIdentifier)
-    else if (sortKey === 'identifier') cmp = a.cardIdentifier.localeCompare(b.cardIdentifier)
-    return sortDir === 'asc' ? cmp : -cmp
-  }), [entries, sortKey, sortDir])
-
   async function load() {
     const params = new URLSearchParams()
     if (filters.treatment) params.set('filter.treatment', filters.treatment)
     if (filters.condition) params.set('filter.condition', filters.condition)
     params.set('page', String(page))
     params.set('pageSize', String(PAGE_SIZE))
+    params.set('sort', sortKey)
+    params.set('sortDir', sortDir)
     const res = await fetch(`/api/serialized?${params}`, { credentials: 'include' })
     if (res.ok) {
       const data = await res.json()
@@ -480,14 +475,14 @@ export function SerializedPage() {
       .then(setTreatments)
   }, [])
 
-  useEffect(() => { setPage(1) }, [filters])
+  useEffect(() => { setPage(1) }, [filters, sortKey, sortDir])
 
   useEffect(() => {
     setLoading(true)
     load().finally(() => setLoading(false))
-  }, [filters, page])
+  }, [filters, page, sortKey, sortDir])
 
-  const handleSave = useCallback(() => { load() }, [filters, page])
+  const handleSave = useCallback(() => { load() }, [filters, page, sortKey, sortDir])
 
   async function handleDelete() {
     if (!deleteEntry) return
@@ -595,7 +590,7 @@ export function SerializedPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {sorted.map(entry => {
+              {entries.map(entry => {
                 const pl = entry.marketValue != null ? entry.marketValue - entry.acquisitionPrice : null
                 const isSelected = selected.has(entry.id)
                 return (

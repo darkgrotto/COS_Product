@@ -40,12 +40,19 @@ public class SlabsController : ControllerBase
     private bool IsAdmin =>
         User.IsInRole("Admin");
 
+    private static readonly HashSet<string> AllowedSortKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "card", "identifier",
+    };
+
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] Guid? userId,
         [FromQuery] CollectionFilter filter,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 100,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? sortDir = null,
         CancellationToken ct = default)
     {
         if (userId.HasValue && !IsAdmin)
@@ -54,8 +61,11 @@ public class SlabsController : ControllerBase
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 500) pageSize = 100;
 
+        var resolvedSort = sort != null && AllowedSortKeys.Contains(sort) ? sort.ToLowerInvariant() : null;
+        var resolvedDir = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc";
+
         var targetUserId = userId.HasValue ? userId.Value : CurrentUserId;
-        var (entries, total) = await _slabs.GetByUserPagedAsync(targetUserId, filter, page, pageSize, ct);
+        var (entries, total) = await _slabs.GetByUserPagedAsync(targetUserId, filter, resolvedSort, resolvedDir, page, pageSize, ct);
 
         var identifiers = entries.Select(e => e.CardIdentifier).Distinct().ToList();
         var summaries = await _cards.GetSummaryByIdentifiersAsync(identifiers, ct);

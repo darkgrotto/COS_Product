@@ -19,16 +19,50 @@ public class SlabRepository : ISlabRepository
         BuildFilteredQuery(userId, filter).ToListAsync(ct);
 
     public async Task<(List<SlabEntry> Items, int Total)> GetByUserPagedAsync(
-        Guid userId, CollectionFilter? filter, int page, int pageSize, CancellationToken ct = default)
+        Guid userId, CollectionFilter? filter, string? sort, string? sortDir,
+        int page, int pageSize, CancellationToken ct = default)
     {
-        var query = filter != null && HasFilters(filter)
-            ? BuildFilteredQuery(userId, filter)
-            : _db.SlabEntries.Where(e => e.UserId == userId);
+        // LEFT JOIN cards so sort/filter can reference card fields without dropping orphans.
+        var joined =
+            from e in _db.SlabEntries.Where(x => x.UserId == userId)
+            join c in _db.Cards on e.CardIdentifier equals c.Identifier into cards
+            from c in cards.DefaultIfEmpty()
+            select new { e, c };
 
-        var total = await query.CountAsync(ct);
-        var items = await query
-            .OrderByDescending(e => e.CreatedAt)
-            .ThenByDescending(e => e.Id)
+        if (filter != null && HasFilters(filter))
+        {
+            if (!string.IsNullOrEmpty(filter.SetCode))
+                joined = joined.Where(x => x.c != null && x.c.SetCode == filter.SetCode.ToLowerInvariant());
+            if (!string.IsNullOrEmpty(filter.Treatment))
+                joined = joined.Where(x => x.e.TreatmentKey == filter.Treatment);
+            if (!string.IsNullOrEmpty(filter.Condition) &&
+                Enum.TryParse<CardCondition>(filter.Condition, true, out var cond))
+                joined = joined.Where(x => x.e.Condition == cond);
+            if (filter.Autographed.HasValue)
+                joined = joined.Where(x => x.e.Autographed == filter.Autographed.Value);
+            if (!string.IsNullOrEmpty(filter.GradingAgency))
+                joined = joined.Where(x => x.e.GradingAgencyCode == filter.GradingAgency.ToLowerInvariant());
+        }
+
+        var total = await joined.CountAsync(ct);
+
+        var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+
+        // Sort keys mirror what the UI exposes (Slabs.tsx: card, identifier).
+        var ordered = (sort?.ToLowerInvariant()) switch
+        {
+            "card" => desc
+                ? joined.OrderByDescending(x => x.c != null ? x.c.Name : x.e.CardIdentifier)
+                : joined.OrderBy(x => x.c != null ? x.c.Name : x.e.CardIdentifier),
+            "identifier" => desc
+                ? joined.OrderByDescending(x => x.e.CardIdentifier)
+                : joined.OrderBy(x => x.e.CardIdentifier),
+            _ => joined.OrderByDescending(x => x.e.CreatedAt),
+        };
+
+        var items = await ordered
+            .ThenByDescending(x => x.e.Id)
+            .Select(x => x.e)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
