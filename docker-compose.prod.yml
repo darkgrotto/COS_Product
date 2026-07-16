@@ -1,0 +1,122 @@
+# Production compose. Pulls a pre-built image from a container registry.
+# No ports are exposed for Postgres - only the app is reachable from outside
+# the Compose network.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Environment variables are injected by the deployment platform (systemd
+# EnvironmentFile, cloud secret manager, CI/CD pipeline, etc.) - there is
+# no env_file reference here by design.
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/darkgrotto/countorsell:latest}
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      # DB_HOST points at the Compose-internal service name. Compose DNS
+      # resolves "postgres" to the container IP on the shared network.
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-countorsell}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      PORT: ${PORT:-3000}
+      INSTANCE_NAME: ${INSTANCE_NAME:-CountOrSell}
+      UPDATE_CHECK_TIME: ${UPDATE_CHECK_TIME:-04:00}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * 0}
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-4}
+      # Container-internal paths - these match the directories created
+      # in the Dockerfile and should not normally be overridden.
+      ImageStore__BasePath: /app/data/images
+      BACKUP_LOCAL_PATH: /app/data/backups
+      BLOB_BACKUP_CONNECTION: ${BLOB_BACKUP_CONNECTION:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      DEMO_MODE: ${DEMO_MODE:-}
+      DEMO_EXPIRES_AT: ${DEMO_EXPIRES_AT:-}
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # curl is installed in the runtime image specifically for this check.
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-3000}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-countorsell}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    # No ports exposed - Postgres is only reachable from the app service
+    # over the Compose network. This prevents accidental external access
+    # to the database in production.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
+
+  backup:
+    # Uses the same Postgres client version as the database to avoid
+    # pg_dump version-mismatch errors.
+    image: postgres:16-alpine
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-countorsell}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-4}
+    volumes:
+      - backup_data:/backups
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Alpine does not ship crond in the postgres image. A shell sleep loop
+    # is the simplest scheduler that needs no extra packages and logs
+    # directly to stdout for docker logs.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "$$(date -u +'%Y-%m-%dT%H:%M:%SZ') [backup] Scheduler started (every 6 hours)"
+        while true; do
+          /usr/local/bin/backup.sh
+          sleep 21600
+        done
+    restart: always
+
+  watchtower:
+    image: containrrr/watchtower
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: ${AUTO_UPDATE_INTERVAL:-21600}
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_STOPPED: "false"
+      WATCHTOWER_ROLLING_RESTART: "true"
+      WATCHTOWER_TIMEOUT: 60s
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: always
+
+volumes:
+  postgres_data:
+    name: cos_postgres_data
+  app_data:
+    name: cos_app_data
+  backup_data:
+    name: cos_backup_data

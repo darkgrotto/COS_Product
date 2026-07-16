@@ -54,6 +54,10 @@ export function invalidateCsrfToken(): void {
   cachedToken = null
 }
 
+export function rawFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return (originalFetch ?? window.fetch.bind(window))(input, init)
+}
+
 export function installCsrfFetch(): void {
   if (originalFetch) return // already installed
   originalFetch = window.fetch.bind(window)

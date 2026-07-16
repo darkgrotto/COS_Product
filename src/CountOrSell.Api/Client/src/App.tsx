@@ -5,9 +5,11 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { PreferencesProvider } from '@/contexts/PreferencesContext'
 import { ToastProvider } from '@/contexts/ToastContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { SetupGuard } from '@/components/SetupGuard'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AdminRoute } from '@/components/AdminRoute'
 import { AppShell } from '@/components/layout/AppShell'
+import { SetupPage } from '@/pages/Setup'
 import { LoginPage } from '@/pages/Login'
 import { InviteAcceptPage } from '@/pages/InviteAccept'
 import { DashboardPage } from '@/pages/Dashboard'
@@ -46,8 +48,10 @@ function App() {
         <ToastProvider>
         <BrowserRouter>
           <ErrorBoundary>
+          <SetupGuard>
           <Routes>
             {/* Public routes */}
+            <Route path="/setup" element={<SetupPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/invite/:token" element={<InviteAcceptPage />} />
 
@@ -97,6 +101,7 @@ function App() {
               </Route>
             </Route>
           </Routes>
+          </SetupGuard>
           </ErrorBoundary>
         </BrowserRouter>
         </ToastProvider>

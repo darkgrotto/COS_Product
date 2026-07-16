@@ -18,12 +18,24 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+dotenv.net.DotEnv.Load(new dotenv.net.DotEnvOptions(ignoreExceptions: true));
+
 var builder = WebApplication.CreateBuilder(args);
+
+// PORT env var drives Kestrel's listen address. ConfigureKestrel has the highest
+// priority - it overrides ASPNETCORE_URLS, ASPNETCORE_HTTP_PORTS, and UseUrls,
+// so the base Docker image's ASPNETCORE_HTTP_PORTS=8080 cannot conflict.
+// ASPNETCORE_URLS still wins if someone explicitly sets it (checked first).
+if (Environment.GetEnvironmentVariable("ASPNETCORE_URLS") is null)
+{
+    var port = int.Parse(Environment.GetEnvironmentVariable("PORT") ?? "3000");
+    builder.WebHost.ConfigureKestrel(options => options.ListenAnyIP(port));
+}
 
 // Trust X-Forwarded-Proto / X-Forwarded-For from the reverse proxy in front of
 // Kestrel (nginx for Docker; App Service / App Runner / Cloud Run for cloud
 // deployments). Without this the app sees every request as plain http, which
-// makes antiforgery's Secure cookie throw, breaks redirect_uri scheme matching
+// means SameAsRequest cookies won't carry Secure, breaks redirect_uri scheme matching
 // on OAuth, and yields the proxy's IP in audit logs instead of the client's.
 // KnownProxies/KnownNetworks are cleared because the proxy address is not
 // predictable inside container networks.
@@ -42,7 +54,7 @@ builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
     options.Cookie.SameSite = SameSiteMode.Strict;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     options.Cookie.HttpOnly = true;
 });
 
@@ -66,17 +78,33 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromHours(4);
 });
 
-// Database. Resolved once at startup; downstream services read from IConfiguration
-// rather than re-resolving with their own fallback chain.
-var connectionString =
-    builder.Configuration.GetConnectionString("Default") is { Length: > 0 } cs
-        ? cs
-        : Environment.GetEnvironmentVariable("POSTGRES_CONNECTION");
+// Database. Resolved once at startup from (in priority order):
+// 1. ConnectionStrings:Default from appsettings
+// 2. POSTGRES_CONNECTION env var (full connection string)
+// 3. Individual env vars: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+// The resolved string is stored back into IConfiguration so downstream services
+// (BackupService, RestoreService, etc.) read it via GetConnectionString("Default")
+// without re-resolving.
+var connectionString = ResolveConnectionString(builder.Configuration);
 
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException(
-        "Database connection string is not configured. Set POSTGRES_CONNECTION " +
-        "(env var) or ConnectionStrings:Default (configuration) before starting the API.");
+        "Database connection string is not configured. Set DB_USER and DB_PASSWORD " +
+        "(env vars), POSTGRES_CONNECTION (full connection string), or " +
+        "ConnectionStrings:Default (configuration) before starting the API.");
+
+var inMemoryOverrides = new Dictionary<string, string?>
+{
+    ["ConnectionStrings:Default"] = connectionString
+};
+
+if (string.IsNullOrEmpty(builder.Configuration["SETUP_TOKEN"]))
+{
+    inMemoryOverrides["SETUP_TOKEN"] = Convert.ToBase64String(
+        System.Security.Cryptography.RandomNumberGenerator.GetBytes(24));
+}
+
+builder.Configuration.AddInMemoryCollection(inMemoryOverrides);
 
 // DbContextOptions registered as Singleton so the singleton IDbContextFactory
 // can consume it; AppDbContext itself stays Scoped.
@@ -210,7 +238,7 @@ var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefault
     .AddCookie(options =>
     {
         options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         options.Cookie.SameSite = SameSiteMode.Strict;
         options.LoginPath = "/api/auth/login";
         options.Events.OnRedirectToLogin = ctx =>
@@ -363,4 +391,24 @@ app.MapFallbackToFile("index.html");
 
 app.Run();
 
-public partial class Program { }
+public partial class Program
+{
+    internal static string? ResolveConnectionString(IConfiguration config)
+    {
+        if (config.GetConnectionString("Default") is { Length: > 0 } cs)
+            return cs;
+
+        if (config["POSTGRES_CONNECTION"] is { Length: > 0 } envCs)
+            return envCs;
+
+        var user = config["DB_USER"];
+        var pass = config["DB_PASSWORD"];
+        if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
+            return null;
+
+        var host = config["DB_HOST"] ?? "localhost";
+        var port = config["DB_PORT"] ?? "5432";
+        var name = config["DB_NAME"] ?? "countorsell";
+        return $"Host={host};Port={port};Database={name};Username={user};Password={pass}";
+    }
+}

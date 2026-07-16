@@ -18,8 +18,8 @@ public class BackupDestinationFactory : IBackupDestinationFactory
         {
             "local" => new LocalFileBackupDestination(
                 opts.TryGetValue("path", out var p) ? p
-                    : Environment.GetEnvironmentVariable("BACKUP_LOCAL_PATH")
-                      ?? "/app/data/backups",
+                    : _config["BACKUP_LOCAL_PATH"]
+                      ?? Path.Combine(AppContext.BaseDirectory, "backups"),
                 config.Label),
             "azure-blob" => new AzureBlobBackupDestination(
                 opts.TryGetValue("connectionString", out var cs) ? cs

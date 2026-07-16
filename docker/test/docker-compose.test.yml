@@ -27,16 +27,21 @@ services:
       db:
         condition: service_healthy
     environment:
-      POSTGRES_CONNECTION: "Host=db;Database=countorsell_test;Username=countorsell;Password=testpassword"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: countorsell_test
+      DB_USER: countorsell
+      DB_PASSWORD: testpassword
+      PORT: "3000"
       INSTANCE_NAME: "Health Check Test"
       UPDATE_CHECK_TIME: "03:00"
       BACKUP_SCHEDULE: "0 3 * * 0"
       BACKUP_RETENTION: "4"
       ASPNETCORE_ENVIRONMENT: "Production"
     ports:
-      - "8080:8080"
+      - "3000:3000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 10s
       timeout: 5s
       retries: 10

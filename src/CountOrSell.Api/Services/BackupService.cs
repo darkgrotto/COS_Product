@@ -133,12 +133,9 @@ public class BackupService : IBackupService
         DateTime timestamp,
         CancellationToken ct)
     {
-        var connectionString =
-            _config.GetConnectionString("Default")
-            ?? Environment.GetEnvironmentVariable("POSTGRES_CONNECTION")
+        var connectionString = _config.GetConnectionString("Default")
             ?? throw new InvalidOperationException(
-                "Database connection string is not configured. Set POSTGRES_CONNECTION " +
-                "(env var) or ConnectionStrings:Default (configuration).");
+                "Database connection string is not configured.");
 
         var parsed = ParseConnectionString(connectionString);
         var tableArgs = string.Join(" ", BackupScope.Tables.Select(t => $"--table={t}"));
