@@ -60,8 +60,13 @@ COPY --from=build /app/publish .
 USER appuser
 
 ENV ImageStore__BasePath=/app/data/images
+ENV BACKUP_LOCAL_PATH=/app/data/backups
+ENV PORT=3000
+# Clear the base image's ASPNETCORE_HTTP_PORTS=8080 so it cannot conflict
+# with the PORT-driven Kestrel configuration in Program.cs.
+ENV ASPNETCORE_HTTP_PORTS=
 
-EXPOSE 8080
+EXPOSE 3000
 
 # Self-contained binary - no dotnet runtime invocation needed.
 ENTRYPOINT ["./CountOrSell.Api"]

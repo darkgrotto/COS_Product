@@ -7,13 +7,18 @@ services:
     image: ${REGISTRY}/countorsell:latest
     container_name: cos-app
     environment:
-      - POSTGRES_CONNECTION=Host=cos-postgres;Database=countorsell;Username=${DB_USER};Password=${DB_PASSWORD}
+      - DB_HOST=cos-postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-countorsell}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
       - INSTANCE_NAME=${INSTANCE_NAME}
       - UPDATE_CHECK_TIME=${UPDATE_CHECK_TIME}
       - BACKUP_SCHEDULE=${BACKUP_SCHEDULE}
       - BACKUP_RETENTION=${BACKUP_RETENTION}
       - BLOB_BACKUP_CONNECTION=${BLOB_BACKUP_CONNECTION}
       - ImageStore__BasePath=/app/data/images
+      - BACKUP_LOCAL_PATH=/app/data/backups
     volumes:
       - countorsell_app_data:/app/data
     depends_on:
@@ -25,13 +30,13 @@ services:
     image: postgres:16-alpine
     container_name: cos-postgres
     environment:
-      - POSTGRES_DB=countorsell
+      - POSTGRES_DB=${DB_NAME:-countorsell}
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
       - countorsell_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d countorsell"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5

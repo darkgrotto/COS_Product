@@ -22,14 +22,19 @@ public class SetupController : ControllerBase
         _config = config;
     }
 
+    [HttpGet("status")]
+    [IgnoreAntiforgeryToken]
+    public async Task<IActionResult> Status(CancellationToken ct)
+    {
+        var needsSetup = !await _users.AnyAsync(ct);
+        return Ok(new { needsSetup });
+    }
+
     /// <summary>
-    /// Called once by the first-run wizard after deployment to create the initial accounts.
-    /// Requires a SETUP_TOKEN environment variable to be set; the wizard sends the matching
-    /// value in the request body. Returns 404 when no token is configured, 401 on mismatch,
-    /// and 409 if any users already exist.
+    /// Called once to create the initial accounts. Requires the SETUP_TOKEN
+    /// (auto-generated at startup if not configured; printed to container logs).
+    /// Returns 409 if any users already exist.
     /// </summary>
-    // Called by the first-run wizard before any user (or anti-forgery cookie) exists.
-    // Authentication for this endpoint is the SETUP_TOKEN constant-time check below.
     [HttpPost("initialize")]
     [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Initialize(
@@ -38,7 +43,7 @@ public class SetupController : ControllerBase
     {
         var configuredToken = _config["SETUP_TOKEN"];
         if (string.IsNullOrEmpty(configuredToken))
-            return NotFound();
+            return StatusCode(500, new { error = "Setup token is not available. Restart the application." });
 
         if (!CryptographicEquals(request.SetupToken, configuredToken))
             return Unauthorized(new { error = "Invalid setup token." });
@@ -104,7 +109,7 @@ public class SetupController : ControllerBase
 }
 
 public sealed record SetupInitializeRequest(
-    string SetupToken,
+    string? SetupToken,
     string AdminUsername,
     string AdminPassword,
     string GeneralUserUsername,

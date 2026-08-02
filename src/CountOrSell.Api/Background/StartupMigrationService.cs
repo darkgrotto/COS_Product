@@ -11,15 +11,18 @@ public class StartupMigrationService : IHostedService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<StartupMigrationService> _logger;
     private readonly IHostApplicationLifetime _lifetime;
+    private readonly IConfiguration _config;
 
     public StartupMigrationService(
         IServiceScopeFactory scopeFactory,
         ILogger<StartupMigrationService> logger,
-        IHostApplicationLifetime lifetime)
+        IHostApplicationLifetime lifetime,
+        IConfiguration config)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _lifetime = lifetime;
+        _config = config;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -39,6 +42,7 @@ public class StartupMigrationService : IHostedService
                 if (!pendingMigrations.Any())
                 {
                     _logger.LogInformation("No pending database migrations");
+                    LogSetupTokenIfNeeded(db);
                     return;
                 }
 
@@ -85,6 +89,7 @@ public class StartupMigrationService : IHostedService
                     // or explicitly fail; it must not be abandoned mid-flight by a timeout.
                     await db.Database.MigrateAsync(CancellationToken.None);
                     _logger.LogInformation("Startup migrations applied successfully");
+                    LogSetupTokenIfNeeded(db);
                 }
                 catch (Exception ex)
                 {
@@ -143,6 +148,24 @@ public class StartupMigrationService : IHostedService
         {
             _logger.LogError(ex, "Startup migration check failed unexpectedly");
             // Do not abort startup for unexpected errors - let the app try to start
+        }
+    }
+
+    private void LogSetupTokenIfNeeded(AppDbContext db)
+    {
+        try
+        {
+            if (!db.Users.Any())
+            {
+                _logger.LogWarning(
+                    "No user accounts exist. Complete first-run setup at /setup " +
+                    "with this token: {SetupToken}",
+                    _config["SETUP_TOKEN"]);
+            }
+        }
+        catch
+        {
+            // Users table not yet available - will be logged on next restart
         }
     }
 

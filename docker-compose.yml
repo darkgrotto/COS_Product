@@ -1,0 +1,65 @@
+# Local development compose. Builds from the local Dockerfile and exposes
+# both the app and Postgres ports to the host for direct access from IDEs,
+# database tools, and the Vite dev server proxy.
+#
+# Usage:
+#   cp .env.example .env   # then fill in DB_USER and DB_PASSWORD
+#   docker compose up --build
+#
+# Compose automatically loads .env for variable interpolation (the ${...}
+# references below). The app container receives only the variables listed
+# in its environment block - no raw .env dump that could inject stale
+# wizard values like PORT=8443.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cos-app-dev
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-countorsell}
+      DB_USER: ${DB_USER:?Set DB_USER in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      PORT: ${PORT:-3000}
+      INSTANCE_NAME: ${INSTANCE_NAME:-CountOrSell}
+      UPDATE_CHECK_TIME: ${UPDATE_CHECK_TIME:-04:00}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * 0}
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-4}
+      ImageStore__BasePath: /app/data/images
+      BACKUP_LOCAL_PATH: /app/data/backups
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: cos-postgres-dev
+    environment:
+      POSTGRES_DB: ${DB_NAME:-countorsell}
+      POSTGRES_USER: ${DB_USER:?Set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: on-failure
+
+volumes:
+  postgres_data:
+    name: cos_dev_postgres_data
+  app_data:
+    name: cos_dev_app_data

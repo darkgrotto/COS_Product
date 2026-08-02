@@ -27,10 +27,15 @@
     <PackageReference Include="Google.Cloud.Run.V2" Version="2.5.0" />
     <PackageReference Include="Google.Cloud.Storage.V1" Version="4.10.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.10" />
+    <PackageReference Include="dotenv.net" Version="3.2.1" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../CountOrSell.Domain/CountOrSell.Domain.csproj" />
     <ProjectReference Include="../CountOrSell.Data/CountOrSell.Data.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Remove="appsettings.Development.json" />
+    <None Include="appsettings.Development.json" />
   </ItemGroup>
   <!-- GHSA-rxmq-m78w-7wmc: ICO DoS in ImageSharp - suppressed; we reject ICO and validate magic bytes before decoding -->
   <ItemGroup>

@@ -17,14 +17,13 @@ public class TcgPlayerService : ITcgPlayerService
     }
 
     public bool IsConfigured =>
-        !string.IsNullOrWhiteSpace(_configuration["TCGPLAYER_API_KEY"] ??
-        Environment.GetEnvironmentVariable("TCGPLAYER_API_KEY"));
+        !string.IsNullOrWhiteSpace(_configuration["TCGPLAYER_API_KEY"]);
 
     public async Task<decimal?> GetMarketValueAsync(string cardIdentifier, CancellationToken ct = default)
     {
         if (!IsConfigured) return null;
 
-        var apiKey = _configuration["TCGPLAYER_API_KEY"] ?? Environment.GetEnvironmentVariable("TCGPLAYER_API_KEY");
+        var apiKey = _configuration["TCGPLAYER_API_KEY"];
 
         try
         {

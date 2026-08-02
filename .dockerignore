@@ -2,9 +2,11 @@
 infrastructure/
 .github/
 
-# Generated Docker Compose files and certificates - not needed in image
+# Generated Docker Compose files, certificates, and scripts - not needed in image
 docker/compose/
 docker/certs/
+docker-compose*.yml
+scripts/
 
 # Local configuration and secrets - must never be in any image layer
 .env
