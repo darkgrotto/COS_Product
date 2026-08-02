@@ -3,6 +3,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { execSync } from 'child_process'
 
+// import.meta.dirname (Node 20.11+) replaces __dirname, which Vite 8's native
+// config loader no longer supports.
+const rootDir = import.meta.dirname
+
 function getGitCommit(): string {
   try {
     return execSync('git rev-parse --short HEAD').toString().trim()
@@ -15,7 +19,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(rootDir, './src'),
     },
   },
   define: {
