@@ -2,6 +2,12 @@ name: PR Build and Test
 on:
   pull_request:
     branches: [main]
+
+# Least-privilege default for GITHUB_TOKEN. This workflow only checks out the
+# repo and builds/tests - it needs read access to contents and nothing else.
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
