@@ -126,7 +126,7 @@ Select and configure the primary backup destination. One destination is required
 | GCP Storage | GCS bucket name |
 | Local file export | Local directory path (default: `./backups`) |
 
-Note: Azure Blob, AWS S3, and GCP Storage backup destination implementations are stubs pending SDK integration. Local file export is fully implemented.
+All four destination types (Azure Blob, AWS S3, GCP Storage, local file export) are fully implemented and exercised by integration tests. See [docs/configuration.md](configuration.md) for the per-destination configuration fields and authentication options.
 
 ### Step 12 - Backup schedule
 
@@ -169,6 +169,31 @@ The wizard runs the deployment:
 ### Step 17 - Random daily update check time generation
 
 The wizard generates a random time (HH:MM format) for the daily content update check. This randomization spreads load across all instances. The value is stored as `UPDATE_CHECK_TIME` in the `.env` file.
+
+---
+
+## 2b. Browser-Based First-Run Setup (without the wizard)
+
+When a container is started directly (for example `docker compose -f docker-compose.prod.yml up -d`) rather than through the wizard, the initial admin and general-user accounts are created from a browser instead of wizard steps 8-10.
+
+How it works:
+
+1. On first start, migrations run and the application detects that no user accounts exist. It generates a one-time `SETUP_TOKEN` (192-bit, cryptographically random) unless one was supplied via the environment, and logs it:
+
+   ```
+   No user accounts exist. Complete first-run setup at /setup with this token: <token>
+   ```
+
+   Retrieve it with `docker logs <app-container>`.
+
+2. Any route redirects to `/setup` until the first account exists. Open the instance URL, enter the setup token, and create the admin account and one general-user account (both **minimum 15 characters**, same rules as wizard steps 9-10).
+
+3. On success you are redirected to `/login`. The `/setup` flow is closed permanently once any user exists - `POST /api/setup/initialize` returns 409 thereafter.
+
+Notes:
+- The token is compared in constant time and is only ever surfaced to the container logs, so log access is the trust boundary for first-run setup.
+- To pin the token yourself, set `SETUP_TOKEN` in the environment before first start.
+- OAuth, additional users, and additional backup destinations are configured post-setup exactly as with the wizard (Section 3).
 
 ---
 

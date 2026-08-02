@@ -55,7 +55,7 @@ services:
       DEMO_EXPIRES_AT: "2026-04-01T18:00:00Z"
       UPDATE_CHECK_TIME: "03:00"
     ports:
-      - "8080:8080"
+      - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,7 +66,7 @@ volumes:
 
 Adjust `DEMO_EXPIRES_AT` to the desired expiry time, or omit it entirely if no countdown clock is needed.
 
-The demo does not require the nginx reverse proxy or the backup service - HTTP on port 8080 is sufficient for a demo environment.
+The demo does not require the nginx reverse proxy or the backup service - HTTP on port 3000 (the container's internal `PORT`) is sufficient for a demo environment.
 
 ---
 

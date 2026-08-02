@@ -19,6 +19,7 @@ CountOrSell is a self-hostable web application for tracking Magic: The Gathering
 - **Local and OAuth authentication** - local accounts plus Google, Microsoft, and GitHub OAuth (configured post-setup)
 - **Two-role model** - Admin and GeneralUser, with a protected built-in local admin account
 - **Self-enrollment** - configurable post-setup, off by default
+- **Responsive UI** - works on desktop and mobile: the navigation collapses to a drawer and data tables reflow to cards on small screens
 
 ## Deployment Options
 
@@ -45,6 +46,8 @@ Run the first-run wizard to configure and deploy:
 dotnet run --project src/CountOrSell.Wizard
 ```
 
+Alternatively, a container started directly (without the wizard) walks you through creating the initial accounts in the browser on first run - see [Browser-Based First-Run Setup](docs/setup.md#2b-browser-based-first-run-setup-without-the-wizard).
+
 ## Documentation
 
 | Document | Description |
@@ -58,7 +61,9 @@ dotnet run --project src/CountOrSell.Wizard
 | [docs/backup-restore.md](docs/backup-restore.md) | Backup scope, types, format, destinations, restore workflow |
 | [docs/deployment/docker.md](docs/deployment/docker.md) | Docker Compose deployment, generated files, update procedure |
 | [docs/deployment/cloud.md](docs/deployment/cloud.md) | Azure, AWS, and GCP deployment via Terraform and GitHub Actions |
+| [docs/deployment/demo.md](docs/deployment/demo.md) | Running a public demo instance (demo mode, seed data) |
 | [docs/api-reference.md](docs/api-reference.md) | All API endpoints grouped by controller |
+| [docs/roadmap.md](docs/roadmap.md) | Deferred work and future approaches |
 
 ## Development
 
@@ -75,14 +80,16 @@ dotnet build src/CountOrSell.sln --configuration Release
 dotnet test src/CountOrSell.sln --configuration Release
 ```
 
-**Build the client:**
+**Build the client:** (Node 20.19+ or 22+, required by Vite 8)
 ```
 cd src/CountOrSell.Api/Client
 npm install
 npm run build
 ```
 
-A local PostgreSQL instance is required to run the API locally. Set the `POSTGRES_CONNECTION` environment variable or configure it in `appsettings.Development.json`.
+The built client output under `src/CountOrSell.Api/wwwroot` is tracked in git; rebuild and commit it when frontend dependencies, `vite.config.ts`, or client source change. (The production Docker image rebuilds the client itself.)
+
+A local PostgreSQL instance is required to run the API locally. Provide credentials with `DB_USER` and `DB_PASSWORD` (with optional `DB_HOST`/`DB_PORT`/`DB_NAME`), a full `POSTGRES_CONNECTION` string, or `ConnectionStrings:Default` in `appsettings.Development.json`. See [docs/configuration.md](docs/configuration.md#database-connection) for the resolution order.
 
 ## License
 
