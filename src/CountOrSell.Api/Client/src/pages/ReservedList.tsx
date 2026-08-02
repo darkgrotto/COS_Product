@@ -341,7 +341,7 @@ export function ReservedListPage() {
             </div>
           ) : (
             <div className="rounded-md border overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm card-table">
                 <thead>
                   <tr className="border-b bg-muted/50 text-muted-foreground">
                     <th className="px-3 py-2 w-8">
@@ -382,14 +382,14 @@ export function ReservedListPage() {
                             onError={ev => { (ev.target as HTMLImageElement).style.display = 'none' }}
                           />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2" data-label="Card">
                           <div className="font-medium leading-tight">{e.cardName ?? e.cardIdentifier}</div>
                           <div className="text-xs text-muted-foreground font-mono">{e.cardIdentifier}</div>
                         </td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{treatmentLabel}</td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{e.condition}</td>
-                        <td className="px-3 py-2 text-center tabular-nums">{e.quantity}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{fmt(e.acquisitionPrice)}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground" data-label="Treatment">{treatmentLabel}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground" data-label="Condition">{e.condition}</td>
+                        <td className="px-3 py-2 text-center tabular-nums" data-label="Qty">{e.quantity}</td>
+                        <td className="px-3 py-2 text-right tabular-nums" data-label="Acq. Price">{fmt(e.acquisitionPrice)}</td>
                       </tr>
                     )
                   })}
@@ -405,7 +405,7 @@ export function ReservedListPage() {
       ) : (
         // Catalog view - single row per card
         <div className="rounded-md border overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm card-table">
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground">
                 <th className="px-3 py-2 w-10"></th>
@@ -439,18 +439,18 @@ export function ReservedListPage() {
                         onError={ev => { (ev.target as HTMLImageElement).style.display = 'none' }}
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" data-label="Card">
                       <div className="font-medium leading-tight">{c.name}</div>
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap" data-label="ID">
                       {c.identifier.toUpperCase()}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs">{c.setCode.toUpperCase()}</td>
-                    <td className="px-3 py-2 text-muted-foreground text-xs max-w-36 truncate">
+                    <td className="px-3 py-2 font-mono text-xs" data-label="Set">{c.setCode.toUpperCase()}</td>
+                    <td className="px-3 py-2 text-muted-foreground text-xs max-w-36 truncate" data-label="Type">
                       {c.cardType || '-'}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmt(c.currentMarketValue)}</td>
-                    <td className="px-3 py-2 text-center">
+                    <td className="px-3 py-2 text-right tabular-nums" data-label="Market">{fmt(c.currentMarketValue)}</td>
+                    <td className="px-3 py-2 text-center" data-label="Owned">
                       {c.ownedQuantity > 0 ? (
                         <Badge variant="secondary" className="tabular-nums">
                           {c.ownedQuantity}

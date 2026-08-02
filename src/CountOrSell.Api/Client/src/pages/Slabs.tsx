@@ -269,7 +269,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Grading Agency</Label>
               <Select value={form.gradingAgency} onValueChange={v => setForm(f => ({ ...f, gradingAgency: v }))}>
@@ -294,7 +294,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
               onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Treatment</Label>
               <Select value={form.treatment} onValueChange={v => setForm(f => ({ ...f, treatment: v }))}>
@@ -315,7 +315,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Serial # <span className="text-muted-foreground text-xs">(optional)</span></Label>
               <Input type="number" min={1} placeholder="e.g. 42"
@@ -330,7 +330,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Autographed</Label>
               <div className="flex items-center h-10">
@@ -342,7 +342,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Acquisition Date</Label>
               <Input type="date" value={form.acquisitionDate}
@@ -607,7 +607,7 @@ export function SlabsPage() {
         </p>
       ) : (
         <div className="rounded-md border overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm card-table">
             <thead className="border-b bg-muted/40">
               <tr>
                 <th className="px-3 py-2 w-8">
@@ -651,7 +651,7 @@ export function SlabsPage() {
                         aria-label="Select row"
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" data-label="Card">
                       <div className="flex items-center gap-2">
                         <img
                           src={`/api/images/cards/${(entry.setCode ?? '').toLowerCase()}/${entry.cardIdentifier.toLowerCase()}.jpg`}
@@ -670,14 +670,14 @@ export function SlabsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap" data-label="ID">
                       {entry.cardIdentifier.toUpperCase()}
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground">{entry.setCode ?? '-'}</td>
-                    <td className="px-3 py-2">{treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}</td>
-                    <td className="px-3 py-2 font-medium">{entry.gradingAgencyCode}</td>
-                    <td className="px-3 py-2 font-medium">{entry.grade}</td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 text-muted-foreground" data-label="Set">{entry.setCode ?? '-'}</td>
+                    <td className="px-3 py-2" data-label="Treatment">{treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}</td>
+                    <td className="px-3 py-2 font-medium" data-label="Agency">{entry.gradingAgencyCode}</td>
+                    <td className="px-3 py-2 font-medium" data-label="Grade">{entry.grade}</td>
+                    <td className="px-3 py-2" data-label="Certificate">
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-muted-foreground font-mono">{entry.certificateNumber}</span>
                         {certLink ? (
@@ -689,7 +689,7 @@ export function SlabsPage() {
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                    <td className="px-3 py-2 text-center tabular-nums text-muted-foreground" data-label="Serial">
                       {entry.serialNumber != null ? (
                         <>
                           <span className="font-medium text-foreground">{entry.serialNumber}</span>
@@ -697,9 +697,9 @@ export function SlabsPage() {
                         </>
                       ) : '-'}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.marketValue)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.acquisitionPrice)}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${plColor(pl)}`}>
+                    <td className="px-3 py-2 text-right tabular-nums" data-label="Market">{fmt(entry.marketValue)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums" data-label="Acq.">{fmt(entry.acquisitionPrice)}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${plColor(pl)}`} data-label="P/L">
                       {pl != null ? `${pl >= 0 ? '+' : ''}${fmt(pl)}` : '-'}
                     </td>
                     <td className="px-3 py-2 text-right">

@@ -64,12 +64,13 @@ const adminNav: NavItem[] = [
   { to: '/about', label: 'About', icon: Info },
 ]
 
-function NavItem({ item }: { item: NavItem }) {
+function NavItem({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   const Icon = item.icon
   return (
     <NavLink
       to={item.to}
       end={false}
+      onClick={onNavigate}
       className={({ isActive }) =>
         cn(
           'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
@@ -85,7 +86,9 @@ function NavItem({ item }: { item: NavItem }) {
   )
 }
 
-export function Sidebar() {
+// Inner sidebar UI (branding, nav, user menu). Shared by the desktop rail and
+// the mobile drawer. onNavigate closes the drawer when a link is tapped.
+export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth()
   const { instanceName } = useBranding()
   const { prefs, patchPrefs } = usePreferences()
@@ -99,20 +102,20 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="w-56 shrink-0 border-r bg-background flex flex-col">
+      <div className="flex h-full flex-col">
         <div className="p-4 border-b">
           <span className="font-semibold text-sm tracking-tight">{instanceName}</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {navItems.map(item => (
-            <NavItem key={item.to} item={item} />
+            <NavItem key={item.to} item={item} onNavigate={onNavigate} />
           ))}
 
           {!isAdmin && (
             <>
               <Separator className="my-2" />
-              <NavItem item={{ to: '/about', label: 'About', icon: Info }} />
+              <NavItem item={{ to: '/about', label: 'About', icon: Info }} onNavigate={onNavigate} />
             </>
           )}
         </nav>
@@ -150,7 +153,7 @@ export function Sidebar() {
                 <ArrowUpAZ className="h-4 w-4 mr-2" />
                 Card sort: {prefs.cardSortDefault === 'name' ? 'Name' : 'ID'}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => patchPrefs({ navLayout: 'top' })}>
+              <DropdownMenuItem onClick={() => { onNavigate?.(); patchPrefs({ navLayout: 'top' }) }}>
                 <PanelTop className="h-4 w-4 mr-2" />
                 Switch to Top Nav
               </DropdownMenuItem>
@@ -162,10 +165,20 @@ export function Sidebar() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </aside>
+      </div>
 
       <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
       <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </>
+  )
+}
+
+// Desktop rail: static sidebar, hidden below the md breakpoint where the mobile
+// drawer (MobileNav) takes over.
+export function Sidebar() {
+  return (
+    <aside className="hidden md:flex w-56 shrink-0 border-r bg-background flex-col">
+      <SidebarContent />
+    </aside>
   )
 }

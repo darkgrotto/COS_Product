@@ -341,7 +341,7 @@ function SetBreakdownSection({
       </div>
 
       <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm max-sm:min-w-max">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground">
               <SortTh label="Set" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
@@ -446,7 +446,7 @@ function DecadeSection({ completion }: { completion: SetCompletion[] }) {
         By Decade
       </h2>
       <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm max-sm:min-w-max">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground">
               <th className="px-4 py-2 text-left">Decade</th>
@@ -563,7 +563,7 @@ function TopCardsSection({
       ) : (
         <>
           <div className="rounded-md border overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm max-sm:min-w-max">
               <thead>
                 <tr className="border-b bg-muted/50 text-muted-foreground">
                   <th className="px-4 py-2 text-left w-8">#</th>
@@ -842,7 +842,7 @@ export function MetricsPage() {
                 By Type
               </h2>
               <div className="rounded-md border overflow-hidden">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm max-sm:min-w-max">
                   <thead>
                     <tr className="border-b bg-muted/50 text-muted-foreground">
                       <th className="px-4 py-2 text-left">Type</th>

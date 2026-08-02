@@ -465,7 +465,7 @@ export function WishlistPage() {
             </div>
           )}
           <div className="rounded-md border overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm card-table">
               <thead>
                 <tr className="border-b bg-muted/50 text-muted-foreground">
                   <th className="px-3 py-2 w-8">
@@ -506,13 +506,13 @@ export function WishlistPage() {
                             aria-label={`Select ${e.cardName ?? e.cardIdentifier}`}
                           />
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-2.5" data-label="Card">
                           <div className="font-medium">{e.cardName ?? e.cardIdentifier}</div>
                         </td>
-                        <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                        <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground whitespace-nowrap" data-label="ID">
                           {e.cardIdentifier.toUpperCase()}
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-2.5" data-label="Set">
                           {e.setCode ? (
                             <div className="flex items-center gap-1.5">
                               <SetSymbol setCode={e.setCode} className="text-sm" />
@@ -520,16 +520,16 @@ export function WishlistPage() {
                             </div>
                           ) : '-'}
                         </td>
-                        <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                        <td className="px-3 py-2.5 text-xs text-muted-foreground" data-label="Treatment">
                           {treatmentLabel}
                         </td>
-                        <td className="px-3 py-2.5 text-muted-foreground text-xs max-w-36 truncate">
+                        <td className="px-3 py-2.5 text-muted-foreground text-xs max-w-36 truncate" data-label="Type">
                           {e.cardType ?? '-'}
                         </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums">
+                        <td className="px-3 py-2.5 text-right tabular-nums" data-label="Market">
                           {fmt(e.marketValue)}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-xs text-muted-foreground">
+                        <td className="px-3 py-2.5 text-right text-xs text-muted-foreground" data-label="Added">
                           {new Date(e.createdAt).toLocaleDateString()}
                         </td>
                         <td className="px-3 py-2.5 text-right">

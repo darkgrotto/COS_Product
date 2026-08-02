@@ -416,7 +416,7 @@ function EntryDialog({
               <p className="text-xs text-muted-foreground">{form.cardIdentifier}</p>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Treatment</Label>
               <Select value={form.treatment} onValueChange={v => setForm(f => ({ ...f, treatment: v }))}>
@@ -440,7 +440,7 @@ function EntryDialog({
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Quantity</Label>
               <Input type="number" min={1} value={form.quantity}
@@ -456,7 +456,7 @@ function EntryDialog({
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Acquisition Date</Label>
               <Input type="date" value={form.acquisitionDate}
@@ -618,7 +618,7 @@ function BulkAddDialog({
                 <p className="text-xs text-muted-foreground">{selectedSet.totalCards} cards in set</p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label>Treatment</Label>
                 <Select value={treatment} onValueChange={setTreatment}>
@@ -642,7 +642,7 @@ function BulkAddDialog({
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label>Acquisition Date</Label>
                 <Input type="date" value={acquisitionDate}
@@ -947,7 +947,7 @@ function SetGroupedView({
         </button>
       </div>
       <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm max-sm:min-w-max">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground">
               <SortTh label="Set" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
@@ -1153,7 +1153,7 @@ function CardsTable({
 
   return (
     <div className="rounded-md border overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm max-sm:min-w-max">
         <thead className="border-b bg-muted/40 text-left">
           <tr>
             <th className="px-3 py-2 w-8">

@@ -57,3 +57,55 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Responsive card-table: below the sm breakpoint (640px), a raw <table> tagged
+ * with .card-table reflows so each row becomes a stacked card and each cell
+ * shows its column name from data-label. Cells without a data-label (checkbox,
+ * actions) render right-aligned with no label. Used by the collection-family
+ * tables (Serialized, Wishlist, Slabs, Sealed Product, Reserved List).
+ */
+@media (max-width: 639px) {
+  table.card-table thead {
+    display: none;
+  }
+  table.card-table,
+  table.card-table tbody,
+  table.card-table tr,
+  table.card-table td {
+    display: block;
+    width: 100%;
+  }
+  table.card-table tr {
+    margin-bottom: 0.75rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    padding: 0.25rem 0.75rem;
+  }
+  table.card-table tr:last-child {
+    margin-bottom: 0;
+  }
+  table.card-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    text-align: right;
+    padding: 0.5rem 0;
+    border: 0;
+  }
+  table.card-table td::before {
+    content: attr(data-label);
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: hsl(var(--muted-foreground));
+    white-space: nowrap;
+  }
+  table.card-table td[data-label=""]::before,
+  table.card-table td:not([data-label])::before {
+    content: none;
+  }
+}
