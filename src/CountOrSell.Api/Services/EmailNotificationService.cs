@@ -17,8 +17,10 @@ public class EmailNotificationService : IEmailNotificationService
 
     public Task SendInvitationAsync(string toEmail, string inviteUrl, CancellationToken ct)
     {
-        // Stub: email notification implementation is provider-specific and not yet implemented
-        _logger.LogInformation("Invitation email stub - To: {Email}, Url: {Url}", toEmail, inviteUrl);
+        // Stub: email notification implementation is provider-specific and not yet implemented.
+        // Deliberately do not log the recipient address (PII) or inviteUrl (it carries the
+        // single-use invitation token, a secret). Log only that an invitation was prepared.
+        _logger.LogInformation("Invitation email stub - invitation prepared (recipient and URL omitted)");
         return Task.CompletedTask;
     }
 }
