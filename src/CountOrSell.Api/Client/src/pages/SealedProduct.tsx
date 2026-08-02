@@ -885,7 +885,7 @@ export function SealedProductPage() {
         </p>
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm card-table">
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground">
                 <th className="px-3 py-2 w-8">
@@ -932,7 +932,7 @@ export function SealedProductPage() {
                         onError={ev => { (ev.target as HTMLImageElement).style.display = 'none' }}
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" data-label="Product">
                       <button
                         type="button"
                         className="font-medium hover:underline text-left"
@@ -942,7 +942,7 @@ export function SealedProductPage() {
                       </button>
                       <div className="text-xs text-muted-foreground">{e.productIdentifier}</div>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" data-label="Category">
                       {e.categoryDisplayName && (
                         <div>{e.categoryDisplayName}</div>
                       )}
@@ -950,8 +950,8 @@ export function SealedProductPage() {
                         <div className="text-xs text-muted-foreground">{e.subTypeDisplayName}</div>
                       )}
                     </td>
-                    <td className="px-3 py-2">{e.condition}</td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" data-label="Condition">{e.condition}</td>
+                    <td className="px-3 py-2" data-label="Qty">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           className="p-0.5 hover:bg-muted rounded"
@@ -970,9 +970,9 @@ export function SealedProductPage() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right">{fmt(mv)}</td>
-                    <td className="px-3 py-2 text-right">{fmt(e.acquisitionPrice)}</td>
-                    <td className={`px-3 py-2 text-right ${plColor(pl)}`}>
+                    <td className="px-3 py-2 text-right" data-label="Market">{fmt(mv)}</td>
+                    <td className="px-3 py-2 text-right" data-label="Paid">{fmt(e.acquisitionPrice)}</td>
+                    <td className={`px-3 py-2 text-right ${plColor(pl)}`} data-label="P/L">
                       {pl != null ? `${pl >= 0 ? '+' : ''}${fmt(pl)}` : '-'}
                     </td>
                     <td className="px-3 py-2">

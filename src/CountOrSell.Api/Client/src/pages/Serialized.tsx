@@ -565,7 +565,7 @@ export function SerializedPage() {
         </p>
       ) : (
         <div className="rounded-md border overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm card-table">
             <thead className="border-b bg-muted/40">
               <tr>
                 <th className="px-3 py-2 w-8">
@@ -604,7 +604,7 @@ export function SerializedPage() {
                         aria-label="Select row"
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" data-label="Card">
                       <div className="flex items-center gap-2">
                         <img
                           src={`/api/images/cards/${(entry.setCode ?? '').toLowerCase()}/${entry.cardIdentifier.toLowerCase()}.jpg`}
@@ -629,19 +629,19 @@ export function SerializedPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap" data-label="ID">
                       {entry.cardIdentifier.toUpperCase()}
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground">{entry.setCode ?? '-'}</td>
-                    <td className="px-3 py-2">{treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}</td>
-                    <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                    <td className="px-3 py-2 text-muted-foreground" data-label="Set">{entry.setCode ?? '-'}</td>
+                    <td className="px-3 py-2" data-label="Treatment">{treatmentMap[entry.treatmentKey] ?? entry.treatmentKey}</td>
+                    <td className="px-3 py-2 text-center tabular-nums text-muted-foreground" data-label="Serial">
                       <span className="font-medium text-foreground">{entry.serialNumber}</span>
                       <span className="text-xs"> / {entry.printRunTotal}</span>
                     </td>
-                    <td className="px-3 py-2">{entry.condition}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.marketValue)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmt(entry.acquisitionPrice)}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${plColor(pl)}`}>
+                    <td className="px-3 py-2" data-label="Condition">{entry.condition}</td>
+                    <td className="px-3 py-2 text-right tabular-nums" data-label="Market">{fmt(entry.marketValue)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums" data-label="Acq.">{fmt(entry.acquisitionPrice)}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${plColor(pl)}`} data-label="P/L">
                       {pl != null ? `${pl >= 0 ? '+' : ''}${fmt(pl)}` : '-'}
                     </td>
                     <td className="px-3 py-2 text-right">

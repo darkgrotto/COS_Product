@@ -235,7 +235,7 @@ function SetListView({
       </div>
 
       <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm max-sm:min-w-max">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground">
               <SortTh label="Code" sortKey="code" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
@@ -548,7 +548,7 @@ function CardListView({
         <p className="text-sm text-muted-foreground py-8 text-center">Loading cards...</p>
       ) : (
         <div className="rounded-md border overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm max-sm:min-w-max">
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground">
                 <th className="px-3 py-2 w-8">

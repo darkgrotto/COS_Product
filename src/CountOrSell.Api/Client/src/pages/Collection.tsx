@@ -947,7 +947,7 @@ function SetGroupedView({
         </button>
       </div>
       <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm max-sm:min-w-max">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground">
               <SortTh label="Set" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} className="text-left" />
@@ -1153,7 +1153,7 @@ function CardsTable({
 
   return (
     <div className="rounded-md border overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm max-sm:min-w-max">
         <thead className="border-b bg-muted/40 text-left">
           <tr>
             <th className="px-3 py-2 w-8">
