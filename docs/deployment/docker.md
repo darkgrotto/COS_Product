@@ -39,10 +39,10 @@ The wizard generates three files during Step 15. **Do not edit these files manua
 The managed Compose file. Defines all four services, their environment variables, health checks, volumes, and restart policies. Environment variable values are read from `.env` at startup.
 
 Key properties:
-- `app` service reads `POSTGRES_CONNECTION`, `INSTANCE_NAME`, `UPDATE_CHECK_TIME`, `BACKUP_SCHEDULE`, `BACKUP_RETENTION`
+- `app` service reads `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` (or a full `POSTGRES_CONNECTION`), `PORT`, `INSTANCE_NAME`, `UPDATE_CHECK_TIME`, `BACKUP_SCHEDULE`, `BACKUP_RETENTION`
 - `postgres` service uses a named volume `countorsell_postgres_data` for data persistence
 - `reverse-proxy` service mounts `docker/compose/nginx.conf` and `docker/certs/` (read-only)
-- `backup` service reads `POSTGRES_CONNECTION`, `BACKUP_SCHEDULE`, `BACKUP_RETENTION`, `BLOB_BACKUP_CONNECTION`
+- `backup` service reads the same `DB_*` variables plus `BACKUP_SCHEDULE`, `BACKUP_RETENTION`, `BLOB_BACKUP_CONNECTION`
 
 ### `docker/scripts/update.sh`
 
@@ -57,11 +57,15 @@ INSTANCE_NAME=my-instance
 UPDATE_CHECK_TIME=14:37
 BACKUP_SCHEDULE=0 2 * * 0
 BACKUP_RETENTION=4
+DB_NAME=countorsell
 DB_USER=countorsell
+DB_PASSWORD=<generated>
 REGISTRY=registry.example.com
 PORT=443
 BLOB_BACKUP_CONNECTION=./backups
 ```
+
+`DB_HOST` and `DB_PORT` default to the internal `postgres` service and `5432` and are set in the Compose file, not `.env`. `PORT` here is the external port the reverse proxy listens on; the `app` container listens internally on `3000`.
 
 ---
 
@@ -69,7 +73,7 @@ BLOB_BACKUP_CONNECTION=./backups
 
 A self-signed certificate is generated during wizard Step 6 and placed in `docker/certs/`. The nginx reverse proxy (`reverse-proxy` service) serves HTTPS using this certificate.
 
-The nginx configuration is mounted read-only from `docker/compose/nginx.conf`. It proxies HTTPS requests to the `app` service on port 8080.
+The nginx configuration is mounted read-only from `docker/compose/nginx.conf`. It proxies HTTPS requests to the `app` service on port 3000 (the container's internal `PORT`).
 
 For production use, replace the self-signed certificate with a trusted certificate by replacing the files in `docker/certs/` and re-running the wizard to regenerate the Compose file if the certificate paths change.
 

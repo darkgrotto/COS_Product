@@ -83,7 +83,9 @@ No Docker socket access occurs from within any container. The update script is r
 
 ### Cloud deployments (Azure, AWS, GCP)
 
-Application version updates on cloud deployments are performed through the deployment infrastructure (Terraform + GitHub Actions). The UI notifies the admin that an update is available; the update itself is triggered through the cloud provider's native mechanism by pushing a new image and triggering a redeploy.
+The UI notifies the admin that an update is available. An admin can trigger the redeploy in-app via `POST /api/updates/deploy` (Admin-only, demo-locked), which calls the provider-specific `ICloudDeploymentService` - Azure App Service, AWS App Runner, or GCP Cloud Run - using the deployment's managed identity to update the image tag and restart the service. No Docker socket or long-lived credentials are involved.
+
+The image is currently pulled from `ghcr.io/darkgrotto/countorsell` on all providers. Private-registry support (e.g. Azure Container Registry) is a planned follow-up - see [roadmap.md](roadmap.md#configurable-image-registry).
 
 ---
 
