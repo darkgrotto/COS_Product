@@ -8,12 +8,15 @@
 # Environment variables are injected by the deployment platform (systemd
 # EnvironmentFile, cloud secret manager, CI/CD pipeline, etc.) - there is
 # no env_file reference here by design.
+#
+# Application version updates are operator-driven and socket-free: the admin
+# is notified in-app of a new release and runs docker/scripts/update.sh
+# (docker compose pull && up -d) on the host. No container mounts the Docker
+# socket - see CLAUDE.md "No Docker socket access from within any container".
 
 services:
   app:
     image: ${APP_IMAGE:-ghcr.io/darkgrotto/countorsell:latest}
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     environment:
       # DB_HOST points at the Compose-internal service name. Compose DNS
       # resolves "postgres" to the container IP on the shared network.
@@ -98,19 +101,6 @@ services:
           /usr/local/bin/backup.sh
           sleep 21600
         done
-    restart: always
-
-  watchtower:
-    image: containrrr/watchtower
-    environment:
-      WATCHTOWER_LABEL_ENABLE: "true"
-      WATCHTOWER_POLL_INTERVAL: ${AUTO_UPDATE_INTERVAL:-21600}
-      WATCHTOWER_CLEANUP: "true"
-      WATCHTOWER_INCLUDE_STOPPED: "false"
-      WATCHTOWER_ROLLING_RESTART: "true"
-      WATCHTOWER_TIMEOUT: 60s
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     restart: always
 
 volumes:
