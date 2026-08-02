@@ -269,7 +269,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Grading Agency</Label>
               <Select value={form.gradingAgency} onValueChange={v => setForm(f => ({ ...f, gradingAgency: v }))}>
@@ -294,7 +294,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
               onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Treatment</Label>
               <Select value={form.treatment} onValueChange={v => setForm(f => ({ ...f, treatment: v }))}>
@@ -315,7 +315,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Serial # <span className="text-muted-foreground text-xs">(optional)</span></Label>
               <Input type="number" min={1} placeholder="e.g. 42"
@@ -330,7 +330,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Autographed</Label>
               <div className="flex items-center h-10">
@@ -342,7 +342,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label>Acquisition Date</Label>
               <Input type="date" value={form.acquisitionDate}
