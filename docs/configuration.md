@@ -41,13 +41,16 @@ The resolved value is written back into configuration so backup and restore serv
 | `OAUTH_GOOGLE_CLIENT_SECRET` | Google OAuth client secret | None | No |
 | `OAUTH_MICROSOFT_CLIENT_ID` | Microsoft OAuth client ID | None | No |
 | `OAUTH_MICROSOFT_CLIENT_SECRET` | Microsoft OAuth client secret | None | No |
+| `OAUTH_MICROSOFTENTRA_CLIENT_ID` | Microsoft Entra ID OAuth client ID | None | No |
+| `OAUTH_MICROSOFTENTRA_CLIENT_SECRET` | Microsoft Entra ID OAuth client secret | None | No |
+| `OAUTH_MICROSOFTENTRA_TENANT_ID` | Entra tenant: a tenant GUID, `common`, `organizations`, or `consumers` | None | No |
 | `OAUTH_GITHUB_CLIENT_ID` | GitHub OAuth client ID | None | No |
 | `OAUTH_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | None | No |
 | `TCGPLAYER_API_KEY` | TCGPlayer API key for direct price queries | None | No |
 | `DEMO_MODE` | Set to `true` to activate demo mode. Detected at startup; never changes at runtime | `false` | No |
 | `DEMO_EXPIRES_AT` | ISO 8601 datetime for the demo countdown clock (e.g. `2026-04-01T18:00:00Z`). Only used when `DEMO_MODE=true` | None | No |
 
-The application reads OAuth credentials from configuration keys `OAuth:Google:ClientId`, `OAuth:Google:ClientSecret`, `OAuth:Microsoft:ClientId`, `OAuth:Microsoft:ClientSecret`, `OAuth:GitHub:ClientId`, and `OAuth:GitHub:ClientSecret`. These can be set via environment variables using the ASP.NET Core double-underscore convention (e.g., `OAuth__Google__ClientId`).
+The application reads OAuth credentials from configuration keys `OAuth:Google:ClientId`, `OAuth:Google:ClientSecret`, `OAuth:Microsoft:ClientId`, `OAuth:Microsoft:ClientSecret`, `OAuth:MicrosoftEntra:ClientId`, `OAuth:MicrosoftEntra:ClientSecret`, `OAuth:MicrosoftEntra:TenantId`, `OAuth:GitHub:ClientId`, and `OAuth:GitHub:ClientSecret`. The flat `OAUTH_*` environment variables above are aliases for these keys; the double-underscore convention (e.g., `OAuth__Google__ClientId`) also works and wins over the alias when both are set. Credentials saved through the admin UI are stored in `app_settings` and are overridden by either environment form.
 
 ---
 
@@ -166,13 +169,17 @@ All destination endpoints require Admin authentication.
 
 ## 4. OAuth Provider Configuration
 
-OAuth providers are configured post-setup. Each provider must be registered as an OAuth application in the provider's developer console to obtain a client ID and secret. Providers are only registered with ASP.NET Core authentication if both the client ID and secret are present in configuration.
+OAuth providers are configured post-setup. Each provider must be registered as an OAuth application in the provider's developer console to obtain a client ID and secret. Providers are only registered with ASP.NET Core authentication if both the client ID and secret are present in configuration (plus the tenant ID for Entra). A restart is required after changing provider credentials.
+
+The redirect URI registered with the provider is the ASP.NET authentication middleware path (`/signin-<provider>`), not an `/api` route.
+
+**Sign-in behavior:** an OAuth identity signs in only when an application user is already linked to it. Unknown identities are rejected with a login-page error and an admin notification is raised so the admin can review the attempt. To grant access: create or invite the user, have them sign in, then link the OAuth account from their profile dialog (Connected Account section). There is no automatic account creation and no automatic linking by email address.
 
 ### Google
 
 1. Go to https://console.cloud.google.com/apis/credentials
 2. Create an OAuth 2.0 Client ID (Web application type)
-3. Add the callback URL: `https://<your-instance>/api/auth/oauth/google/callback`
+3. Add the authorized redirect URI: `https://<your-instance>/signin-google`
 
 Configuration keys:
 ```
@@ -180,13 +187,13 @@ OAuth:Google:ClientId
 OAuth:Google:ClientSecret
 ```
 
-### Microsoft
+### Microsoft (personal accounts)
 
-Supports personal Microsoft accounts (Live) and organizational accounts (Entra ID). The standard Microsoft account OAuth flow handles both.
+Covers personal Microsoft accounts (Live). For work or school accounts, configure Microsoft Entra ID below.
 
 1. Go to https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps
-2. Register a new application
-3. Add the redirect URI: `https://<your-instance>/api/auth/oauth/microsoft/callback`
+2. Register a new application (personal Microsoft accounts audience)
+3. Add the redirect URI: `https://<your-instance>/signin-microsoft`
 
 Configuration keys:
 ```
@@ -194,10 +201,25 @@ OAuth:Microsoft:ClientId
 OAuth:Microsoft:ClientSecret
 ```
 
+### Microsoft Entra ID (work and school accounts)
+
+1. Go to https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps
+2. Register a new application with the appropriate directory audience
+3. Add the redirect URI: `https://<your-instance>/signin-microsoft-entra`
+
+Configuration keys:
+```
+OAuth:MicrosoftEntra:ClientId
+OAuth:MicrosoftEntra:ClientSecret
+OAuth:MicrosoftEntra:TenantId
+```
+
+`TenantId` selects the directory: a specific tenant GUID for single-tenant, `common` for any tenant plus personal accounts, `organizations` for any tenant, or `consumers` for personal accounts only.
+
 ### GitHub
 
 1. Go to https://github.com/settings/developers and create a new OAuth App
-2. Set the callback URL to: `https://<your-instance>/api/auth/oauth/github/callback`
+2. Set the authorization callback URL to: `https://<your-instance>/signin-github`
 
 Configuration keys:
 ```

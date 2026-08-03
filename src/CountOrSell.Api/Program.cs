@@ -104,6 +104,31 @@ if (string.IsNullOrEmpty(builder.Configuration["SETUP_TOKEN"]))
         System.Security.Cryptography.RandomNumberGenerator.GetBytes(24));
 }
 
+// The documented flat OAUTH_* env vars alias the hierarchical OAuth:* keys the
+// auth handlers read. An explicit OAuth:* value (env var double-underscore form
+// or appsettings) wins over its alias. Resolved before the app_settings DB
+// source is inserted, so env aliases still override admin-UI-saved values.
+var oauthEnvAliases = new (string EnvKey, string ConfigKey)[]
+{
+    ("OAUTH_GOOGLE_CLIENT_ID", "OAuth:Google:ClientId"),
+    ("OAUTH_GOOGLE_CLIENT_SECRET", "OAuth:Google:ClientSecret"),
+    ("OAUTH_MICROSOFT_CLIENT_ID", "OAuth:Microsoft:ClientId"),
+    ("OAUTH_MICROSOFT_CLIENT_SECRET", "OAuth:Microsoft:ClientSecret"),
+    ("OAUTH_MICROSOFTENTRA_CLIENT_ID", "OAuth:MicrosoftEntra:ClientId"),
+    ("OAUTH_MICROSOFTENTRA_CLIENT_SECRET", "OAuth:MicrosoftEntra:ClientSecret"),
+    ("OAUTH_MICROSOFTENTRA_TENANT_ID", "OAuth:MicrosoftEntra:TenantId"),
+    ("OAUTH_GITHUB_CLIENT_ID", "OAuth:GitHub:ClientId"),
+    ("OAUTH_GITHUB_CLIENT_SECRET", "OAuth:GitHub:ClientSecret"),
+};
+foreach (var (envKey, configKey) in oauthEnvAliases)
+{
+    if (!string.IsNullOrWhiteSpace(builder.Configuration[envKey])
+        && string.IsNullOrWhiteSpace(builder.Configuration[configKey]))
+    {
+        inMemoryOverrides[configKey] = builder.Configuration[envKey];
+    }
+}
+
 builder.Configuration.AddInMemoryCollection(inMemoryOverrides);
 
 // DbContextOptions registered as Singleton so the singleton IDbContextFactory
@@ -251,6 +276,28 @@ var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefault
             ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
             return Task.CompletedTask;
         };
+    })
+    // Intermediate cookie the OAuth/OIDC handlers sign the external principal
+    // into (SignInScheme below). Bare [Authorize] authenticates only against
+    // the main cookie scheme, so this ticket grants no application access;
+    // the callback endpoint exchanges it for the main cookie only after the
+    // external identity maps to an active application user.
+    .AddCookie(OAuthProviders.ExternalScheme, options =>
+    {
+        options.Cookie.Name = "CountOrSell.External";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        // Lax, not Strict: the callback redirect chain is initiated by the
+        // provider (cross-site), and Strict would drop the cookie on the
+        // top-level GET back into the app.
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
+        options.SlidingExpiration = false;
+        options.Events.OnRedirectToLogin = ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
     });
 
 // OAuth providers - only registered if configured
@@ -262,6 +309,7 @@ if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(goo
     {
         options.ClientId = googleClientId;
         options.ClientSecret = googleClientSecret;
+        options.SignInScheme = OAuthProviders.ExternalScheme;
     });
 }
 
@@ -273,6 +321,7 @@ if (!string.IsNullOrWhiteSpace(msClientId) && !string.IsNullOrWhiteSpace(msClien
     {
         options.ClientId = msClientId;
         options.ClientSecret = msClientSecret;
+        options.SignInScheme = OAuthProviders.ExternalScheme;
     });
 }
 
@@ -295,6 +344,7 @@ if (!string.IsNullOrWhiteSpace(entraClientId)
         options.ResponseType = "code";
         options.SaveTokens = true;
         options.CallbackPath = "/signin-microsoft-entra";
+        options.SignInScheme = OAuthProviders.ExternalScheme;
         options.Scope.Clear();
         options.Scope.Add("openid");
         options.Scope.Add("profile");
@@ -310,6 +360,7 @@ if (!string.IsNullOrWhiteSpace(ghClientId) && !string.IsNullOrWhiteSpace(ghClien
     {
         options.ClientId = ghClientId;
         options.ClientSecret = ghClientSecret;
+        options.SignInScheme = OAuthProviders.ExternalScheme;
     });
 }
 

@@ -10,6 +10,9 @@ export interface AuthUser {
   role: UserRole
   isBuiltinAdmin: boolean
   hasAvatar: boolean
+  authType?: string | null
+  oauthProvider?: string | null
+  canUnlinkOAuth?: boolean
 }
 
 interface AuthContextValue {
