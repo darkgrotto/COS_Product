@@ -16,12 +16,15 @@ public class SettingsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
     private readonly IAuditLogger _audit;
+    private readonly DbAppSettingsReloader _settingsReloader;
 
-    public SettingsController(AppDbContext db, IConfiguration config, IAuditLogger audit)
+    public SettingsController(
+        AppDbContext db, IConfiguration config, IAuditLogger audit, DbAppSettingsReloader settingsReloader)
     {
         _db = db;
         _config = config;
         _audit = audit;
+        _settingsReloader = settingsReloader;
     }
 
     private string ActorName => User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
@@ -127,6 +130,7 @@ public class SettingsController : ControllerBase
 
         await UpsertSettingAsync("tcgplayer_api_key", request.ApiKey.Trim(), ct);
         await _db.SaveChangesAsync(ct);
+        _settingsReloader.Reload();
         return Ok();
     }
 
@@ -137,6 +141,7 @@ public class SettingsController : ControllerBase
         if (setting != null)
             _db.AppSettings.Remove(setting);
         await _db.SaveChangesAsync(ct);
+        _settingsReloader.Reload();
         return Ok();
     }
 
@@ -209,6 +214,7 @@ public class SettingsController : ControllerBase
         }
 
         await _db.SaveChangesAsync(ct);
+        _settingsReloader.Reload();
         return Ok();
     }
 
@@ -229,6 +235,7 @@ public class SettingsController : ControllerBase
         }
 
         await _db.SaveChangesAsync(ct);
+        _settingsReloader.Reload();
         return Ok();
     }
 
