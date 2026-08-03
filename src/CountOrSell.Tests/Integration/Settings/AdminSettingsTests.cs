@@ -28,7 +28,10 @@ public class AdminSettingsTests : IClassFixture<PostgreSqlFixture>
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
             new[] { new Claim(ClaimTypes.Name, "testadmin"), new Claim(ClaimTypes.Role, "Admin") },
             "Test"));
-        return new SettingsController(db, new ConfigurationBuilder().Build(), new Mock<IAuditLogger>().Object)
+        // An unattached reloader: Reload() is a no-op until a config provider attaches.
+        return new SettingsController(
+            db, new ConfigurationBuilder().Build(), new Mock<IAuditLogger>().Object,
+            new CountOrSell.Api.DbAppSettingsReloader())
         {
             ControllerContext = new ControllerContext
             {

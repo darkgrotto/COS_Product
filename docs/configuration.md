@@ -169,7 +169,7 @@ All destination endpoints require Admin authentication.
 
 ## 4. OAuth Provider Configuration
 
-OAuth providers are configured post-setup. Each provider must be registered as an OAuth application in the provider's developer console to obtain a client ID and secret. Providers are only registered with ASP.NET Core authentication if both the client ID and secret are present in configuration (plus the tenant ID for Entra). A restart is required after changing provider credentials.
+OAuth providers are configured post-setup. Each provider must be registered as an OAuth application in the provider's developer console to obtain a client ID and secret. A provider is offered for sign-in only when both the client ID and secret are present in configuration (plus the tenant ID for Entra). Credentials saved through the admin UI take effect immediately - no restart. Credentials supplied via environment variables still require a restart, since the process environment is read at startup.
 
 The redirect URI registered with the provider is the ASP.NET authentication middleware path (`/signin-<provider>`), not an `/api` route.
 

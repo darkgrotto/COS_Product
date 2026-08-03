@@ -142,10 +142,17 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 
 // Merge admin-managed settings from the app_settings table into IConfiguration.
 // Inserted at index 0 so env vars and appsettings still override DB values.
-// Auth handlers (Google / Microsoft / Entra / GitHub) read from IConfiguration
-// at startup, so changes saved via the admin UI take effect on next restart.
-builder.Configuration.Sources.Insert(0,
-    new DbAppSettingsConfigurationSource { ConnectionString = connectionString });
+// The settings endpoints call DbAppSettingsReloader.Reload() after saving, which
+// re-reads the table and raises the configuration reload token; the OAuth handler
+// options are wired to that token below, so credentials saved via the admin UI
+// take effect immediately - no restart.
+var dbSettingsReloader = new DbAppSettingsReloader();
+builder.Services.AddSingleton(dbSettingsReloader);
+builder.Configuration.Sources.Insert(0, new DbAppSettingsConfigurationSource
+{
+    ConnectionString = connectionString,
+    Reloader = dbSettingsReloader,
+});
 
 // Health checks
 builder.Services.AddHealthChecks()
@@ -300,69 +307,88 @@ var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefault
         };
     });
 
-// OAuth providers - only registered if configured
-var googleClientId = builder.Configuration["OAuth:Google:ClientId"];
-var googleClientSecret = builder.Configuration["OAuth:Google:ClientSecret"];
-if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(googleClientSecret))
+// OAuth providers. All four are registered unconditionally; the option lambdas
+// read credentials from IConfiguration every time the named options are built,
+// and the ConfigurationChangeTokenSource registrations below rebuild them when
+// configuration reloads (i.e. when the admin saves credentials and the settings
+// endpoint triggers DbAppSettingsReloader). Unconfigured providers carry a
+// placeholder credential that satisfies options validation but is never used:
+// challenge endpoints gate on IOAuthConfigService.IsConfigured, and a stray hit
+// on a /signin-* path fails state validation into the RemoteFailure redirect.
+var oauthConfiguration = builder.Configuration;
+
+static string ValueOrPlaceholder(string? value) =>
+    string.IsNullOrWhiteSpace(value) ? "unconfigured" : value;
+
+// Surface provider round-trip failures (user cancelled consent, invalid state,
+// stray callback hits) as a login-page error instead of an unhandled exception.
+static Task RedirectOAuthFailureToLogin(Microsoft.AspNetCore.Authentication.RemoteFailureContext context)
 {
-    authBuilder.AddGoogle(options =>
-    {
-        options.ClientId = googleClientId;
-        options.ClientSecret = googleClientSecret;
-        options.SignInScheme = OAuthProviders.ExternalScheme;
-    });
+    context.Response.Redirect("/login?error=oauth_failed");
+    context.HandleResponse();
+    return Task.CompletedTask;
 }
 
-var msClientId = builder.Configuration["OAuth:Microsoft:ClientId"];
-var msClientSecret = builder.Configuration["OAuth:Microsoft:ClientSecret"];
-if (!string.IsNullOrWhiteSpace(msClientId) && !string.IsNullOrWhiteSpace(msClientSecret))
+authBuilder.AddGoogle(options =>
 {
-    authBuilder.AddMicrosoftAccount(options =>
-    {
-        options.ClientId = msClientId;
-        options.ClientSecret = msClientSecret;
-        options.SignInScheme = OAuthProviders.ExternalScheme;
-    });
-}
+    options.ClientId = ValueOrPlaceholder(oauthConfiguration["OAuth:Google:ClientId"]);
+    options.ClientSecret = ValueOrPlaceholder(oauthConfiguration["OAuth:Google:ClientSecret"]);
+    options.SignInScheme = OAuthProviders.ExternalScheme;
+    options.Events.OnRemoteFailure = RedirectOAuthFailureToLogin;
+});
+
+authBuilder.AddMicrosoftAccount(options =>
+{
+    options.ClientId = ValueOrPlaceholder(oauthConfiguration["OAuth:Microsoft:ClientId"]);
+    options.ClientSecret = ValueOrPlaceholder(oauthConfiguration["OAuth:Microsoft:ClientSecret"]);
+    options.SignInScheme = OAuthProviders.ExternalScheme;
+    options.Events.OnRemoteFailure = RedirectOAuthFailureToLogin;
+});
 
 // Microsoft Entra ID (work / school accounts). Distinct from MicrosoftAccount which
 // only covers consumer (Live) accounts. TenantId selects the directory:
 // a specific GUID for single-tenant, "common" for any tenant + personal,
 // "organizations" for any tenant, "consumers" for personal only.
-var entraClientId = builder.Configuration["OAuth:MicrosoftEntra:ClientId"];
-var entraClientSecret = builder.Configuration["OAuth:MicrosoftEntra:ClientSecret"];
-var entraTenantId = builder.Configuration["OAuth:MicrosoftEntra:TenantId"];
-if (!string.IsNullOrWhiteSpace(entraClientId)
-    && !string.IsNullOrWhiteSpace(entraClientSecret)
-    && !string.IsNullOrWhiteSpace(entraTenantId))
+authBuilder.AddOpenIdConnect("microsoft-entra", "Microsoft (Entra ID)", options =>
 {
-    authBuilder.AddOpenIdConnect("microsoft-entra", "Microsoft (Entra ID)", options =>
-    {
-        options.Authority = $"https://login.microsoftonline.com/{entraTenantId}/v2.0";
-        options.ClientId = entraClientId;
-        options.ClientSecret = entraClientSecret;
-        options.ResponseType = "code";
-        options.SaveTokens = true;
-        options.CallbackPath = "/signin-microsoft-entra";
-        options.SignInScheme = OAuthProviders.ExternalScheme;
-        options.Scope.Clear();
-        options.Scope.Add("openid");
-        options.Scope.Add("profile");
-        options.Scope.Add("email");
-    });
-}
+    var tenantId = oauthConfiguration["OAuth:MicrosoftEntra:TenantId"];
+    options.Authority =
+        $"https://login.microsoftonline.com/{(string.IsNullOrWhiteSpace(tenantId) ? "common" : tenantId)}/v2.0";
+    options.ClientId = ValueOrPlaceholder(oauthConfiguration["OAuth:MicrosoftEntra:ClientId"]);
+    options.ClientSecret = ValueOrPlaceholder(oauthConfiguration["OAuth:MicrosoftEntra:ClientSecret"]);
+    options.ResponseType = "code";
+    options.SaveTokens = true;
+    options.CallbackPath = "/signin-microsoft-entra";
+    options.SignInScheme = OAuthProviders.ExternalScheme;
+    options.Scope.Clear();
+    options.Scope.Add("openid");
+    options.Scope.Add("profile");
+    options.Scope.Add("email");
+    options.Events.OnRemoteFailure = RedirectOAuthFailureToLogin;
+});
 
-var ghClientId = builder.Configuration["OAuth:GitHub:ClientId"];
-var ghClientSecret = builder.Configuration["OAuth:GitHub:ClientSecret"];
-if (!string.IsNullOrWhiteSpace(ghClientId) && !string.IsNullOrWhiteSpace(ghClientSecret))
+authBuilder.AddGitHub(options =>
 {
-    authBuilder.AddGitHub(options =>
-    {
-        options.ClientId = ghClientId;
-        options.ClientSecret = ghClientSecret;
-        options.SignInScheme = OAuthProviders.ExternalScheme;
-    });
-}
+    options.ClientId = ValueOrPlaceholder(oauthConfiguration["OAuth:GitHub:ClientId"]);
+    options.ClientSecret = ValueOrPlaceholder(oauthConfiguration["OAuth:GitHub:ClientSecret"]);
+    options.SignInScheme = OAuthProviders.ExternalScheme;
+    options.Events.OnRemoteFailure = RedirectOAuthFailureToLogin;
+});
+
+// Rebuild each scheme's options when configuration reloads so saved credentials
+// apply to the next request without a restart.
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptionsChangeTokenSource<Microsoft.AspNetCore.Authentication.Google.GoogleOptions>>(
+    new Microsoft.Extensions.Options.ConfigurationChangeTokenSource<Microsoft.AspNetCore.Authentication.Google.GoogleOptions>(
+        Microsoft.AspNetCore.Authentication.Google.GoogleDefaults.AuthenticationScheme, builder.Configuration));
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptionsChangeTokenSource<Microsoft.AspNetCore.Authentication.MicrosoftAccount.MicrosoftAccountOptions>>(
+    new Microsoft.Extensions.Options.ConfigurationChangeTokenSource<Microsoft.AspNetCore.Authentication.MicrosoftAccount.MicrosoftAccountOptions>(
+        Microsoft.AspNetCore.Authentication.MicrosoftAccount.MicrosoftAccountDefaults.AuthenticationScheme, builder.Configuration));
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptionsChangeTokenSource<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>>(
+    new Microsoft.Extensions.Options.ConfigurationChangeTokenSource<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>(
+        "microsoft-entra", builder.Configuration));
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptionsChangeTokenSource<AspNet.Security.OAuth.GitHub.GitHubAuthenticationOptions>>(
+    new Microsoft.Extensions.Options.ConfigurationChangeTokenSource<AspNet.Security.OAuth.GitHub.GitHubAuthenticationOptions>(
+        AspNet.Security.OAuth.GitHub.GitHubAuthenticationDefaults.AuthenticationScheme, builder.Configuration));
 
 builder.Services.AddAuthorization();
 

@@ -61,6 +61,30 @@ public class HeaderDrivenExternalHandler : SignOutAuthenticationHandler<Authenti
         Task.CompletedTask;
 }
 
+/// <summary>
+/// Reloadable in-memory configuration source with the same semantics as the
+/// production DbAppSettingsConfigurationProvider: mutate values, then raise the
+/// reload token. Lets tests verify that OAuth handler options rebuild from
+/// fresh configuration without an app restart.
+/// </summary>
+public sealed class MutableConfigurationSource : Microsoft.Extensions.Configuration.IConfigurationSource
+{
+    public MutableConfigurationProvider Provider { get; } = new();
+
+    public Microsoft.Extensions.Configuration.IConfigurationProvider Build(
+        Microsoft.Extensions.Configuration.IConfigurationBuilder builder) => Provider;
+}
+
+public sealed class MutableConfigurationProvider : Microsoft.Extensions.Configuration.ConfigurationProvider
+{
+    public void SetAndReload(params (string Key, string Value)[] values)
+    {
+        foreach (var (key, value) in values)
+            Data[key] = value;
+        OnReload();
+    }
+}
+
 public class OAuthSignInTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private const string Password = "correct-horse-battery-staple";
@@ -216,6 +240,53 @@ public class OAuthSignInTests : IClassFixture<WebApplicationFactory<Program>>
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var ids = doc.RootElement.EnumerateArray().Select(e => e.GetProperty("id").GetString()).ToList();
         Assert.Contains("github", ids);
+    }
+
+    [Fact]
+    public async Task CredentialsSavedAtRuntime_TakeEffectWithoutRestart()
+    {
+        // Mirrors the admin-UI flow: the app starts with no GitHub credentials,
+        // configuration gains them later and raises the reload token (what
+        // DbAppSettingsReloader.Reload() does after a settings save). The
+        // provider list and the challenge must pick up the new values with no
+        // restart in between.
+        var mutable = new MutableConfigurationSource();
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, config) => config.Add(mutable));
+            builder.ConfigureServices(services =>
+            {
+                var desc = services.SingleOrDefault(
+                    d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
+                if (desc != null) services.Remove(desc);
+                var ctxDesc = services.SingleOrDefault(
+                    d => d.ServiceType == typeof(AppDbContext));
+                if (ctxDesc != null) services.Remove(ctxDesc);
+                services.AddDbContext<AppDbContext>(
+                    opt => opt.UseInMemoryDatabase(nameof(CredentialsSavedAtRuntime_TakeEffectWithoutRestart)),
+                    optionsLifetime: ServiceLifetime.Singleton);
+            });
+        });
+        var client = CreateClient(factory);
+
+        // Not configured yet: hidden from the provider list, challenge rejected.
+        var before = await client.GetAsync("/api/auth/oauth/providers");
+        Assert.DoesNotContain("github", await before.Content.ReadAsStringAsync());
+        var beforeChallenge = await client.GetAsync("/api/auth/oauth/github");
+        Assert.Equal(HttpStatusCode.BadRequest, beforeChallenge.StatusCode);
+
+        mutable.Provider.SetAndReload(
+            ("OAuth:GitHub:ClientId", "runtime-client-id"),
+            ("OAuth:GitHub:ClientSecret", "runtime-client-secret"));
+
+        var after = await client.GetAsync("/api/auth/oauth/providers");
+        Assert.Contains("github", await after.Content.ReadAsStringAsync());
+
+        var challenge = await client.GetAsync("/api/auth/oauth/github");
+        Assert.Equal(HttpStatusCode.Redirect, challenge.StatusCode);
+        var location = challenge.Headers.Location!.ToString();
+        Assert.StartsWith("https://github.com/login/oauth/authorize", location);
+        Assert.Contains("client_id=runtime-client-id", location);
     }
 
     [Fact]

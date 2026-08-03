@@ -4,15 +4,34 @@ using Npgsql;
 namespace CountOrSell.Api;
 
 // Loads admin-managed values from the app_settings table and exposes them as
-// IConfiguration entries during startup. Inserted as the lowest-priority
-// configuration source so env vars and appsettings.json still override DB
-// values (useful for dev and emergency recovery). Read-only; values are
-// captured once at app build and require a restart to refresh.
+// IConfiguration entries. Inserted as the lowest-priority configuration source
+// so env vars and appsettings.json still override DB values (useful for dev
+// and emergency recovery). Values are captured at app build and refreshed when
+// DbAppSettingsReloader.Reload() is called (the settings endpoints trigger it
+// after saving), so admin UI changes take effect without a restart.
 public sealed class DbAppSettingsConfigurationSource : IConfigurationSource
 {
     public required string ConnectionString { get; init; }
-    public IConfigurationProvider Build(IConfigurationBuilder builder) =>
-        new DbAppSettingsConfigurationProvider(ConnectionString);
+    public DbAppSettingsReloader? Reloader { get; init; }
+
+    public IConfigurationProvider Build(IConfigurationBuilder builder)
+    {
+        var provider = new DbAppSettingsConfigurationProvider(ConnectionString);
+        Reloader?.Attach(provider);
+        return provider;
+    }
+}
+
+// DI-visible handle for re-reading app_settings into IConfiguration at
+// runtime. Raising the configuration reload token also rebuilds any options
+// wired to it via ConfigurationChangeTokenSource (the OAuth handler options).
+public sealed class DbAppSettingsReloader
+{
+    private DbAppSettingsConfigurationProvider? _provider;
+
+    internal void Attach(DbAppSettingsConfigurationProvider provider) => _provider = provider;
+
+    public void Reload() => _provider?.Reload();
 }
 
 internal sealed class DbAppSettingsConfigurationProvider : ConfigurationProvider
@@ -22,6 +41,12 @@ internal sealed class DbAppSettingsConfigurationProvider : ConfigurationProvider
     public DbAppSettingsConfigurationProvider(string connectionString)
     {
         _connectionString = connectionString;
+    }
+
+    public void Reload()
+    {
+        Load();
+        OnReload();
     }
 
     public override void Load()
@@ -43,9 +68,10 @@ internal sealed class DbAppSettingsConfigurationProvider : ConfigurationProvider
         }
         catch
         {
-            // First-run, migrations not yet applied, or DB unreachable: leave map empty.
-            // Auth handlers and other startup readers will treat the value as missing,
-            // matching the behavior when no env var is set.
+            // First-run, migrations not yet applied, or DB unreachable: leave the
+            // previous map in place on reload (empty on first load). Auth handlers
+            // and other readers treat missing values like an unset env var.
+            return;
         }
         Data = data;
     }
