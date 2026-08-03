@@ -15,6 +15,10 @@ public class PackageDownloader : IPackageDownloader
 
     public async Task<Stream> DownloadPackageAsync(string downloadUrl, CancellationToken ct)
     {
+        if (!UpdateSource.IsAllowed(downloadUrl))
+            throw new InvalidOperationException(
+                "Update package download URL is not an https URL on the allowed update source.");
+
         _logger.LogInformation("Downloading update package from {Url}", downloadUrl);
         var response = await _httpClient.GetAsync(downloadUrl, ct);
         response.EnsureSuccessStatusCode();

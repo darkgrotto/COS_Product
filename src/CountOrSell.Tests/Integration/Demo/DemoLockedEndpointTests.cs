@@ -95,6 +95,7 @@ public class DemoLockedEndpointTests : IClassFixture<WebApplicationFactory<Progr
         new List<object[]>
         {
             new object[] { HttpMethod.Post, "/api/collection/refresh-price/eoe001" },
+            new object[] { HttpMethod.Post, "/api/cards/eoe001/refresh-price" },
             new object[] { HttpMethod.Get, "/api/wishlist/export/tcgplayer" },
             new object[] { HttpMethod.Post, "/api/wishlist/import" },
             new object[] { HttpMethod.Post, "/api/serialized/import" },

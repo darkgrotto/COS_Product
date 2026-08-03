@@ -578,13 +578,9 @@ public sealed class CollectionImportExportService : ICollectionImportExportServi
         return v.Length == 0 ? null : v;
     }
 
-    static string E(string? v)
-    {
-        if (string.IsNullOrEmpty(v)) return string.Empty;
-        if (v.Contains(',') || v.Contains('"') || v.Contains('\n'))
-            return $"\"{v.Replace("\"", "\"\"")}\"";
-        return v;
-    }
+    // Delegates to the shared escaper so the CSV formula-injection guard (leading
+    // =, +, -, @, tab, CR) is applied consistently across every exporter.
+    static string E(string? v) => ImportCsvHelpers.Escape(v);
 
     // ---- Data helpers -----------------------------------------------------------
 

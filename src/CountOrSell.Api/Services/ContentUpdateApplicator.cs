@@ -193,13 +193,19 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         stream.CopyTo(ms);
         var bytes = ms.ToArray();
 
-        if (checksums.TryGetValue(entryPath, out var expectedChecksum))
+        // Every applied entry must be listed in the signature-verified checksum map.
+        // A missing entry is a hard failure, not a skip - otherwise an attacker who can
+        // influence the package could add extra metadata files not covered by the signed
+        // manifest and inject unverified canonical data.
+        if (!checksums.TryGetValue(entryPath, out var expectedChecksum))
         {
-            if (!_verifier.VerifyFileChecksum(bytes, expectedChecksum))
-            {
-                _logger.LogError("Checksum mismatch for {Path}", entryPath);
-                throw new InvalidDataException($"Checksum mismatch for {entryPath}");
-            }
+            _logger.LogError("No signed checksum for {Path}; refusing to apply unverified entry", entryPath);
+            throw new InvalidDataException($"No signed checksum for package entry {entryPath}");
+        }
+        if (!_verifier.VerifyFileChecksum(bytes, expectedChecksum))
+        {
+            _logger.LogError("Checksum mismatch for {Path}", entryPath);
+            throw new InvalidDataException($"Checksum mismatch for {entryPath}");
         }
 
         var json = System.Text.Encoding.UTF8.GetString(bytes);
@@ -266,9 +272,15 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
 
     private async Task UpsertCardsAsync(List<CardDto> dtos, CancellationToken ct)
     {
-        var existingIds = await _db.Cards.Select(c => c.Identifier).ToListAsync(ct);
+        // Load only the cards referenced by this batch, keyed for O(1) lookup, instead
+        // of pulling every identifier into a List and doing a per-row FindAsync (which
+        // fired one SELECT per card - tens of thousands of round trips on a full apply).
+        var batchIds = dtos.Select(d => d.Identifier).ToList();
+        var existing = await _db.Cards
+            .Where(c => batchIds.Contains(c.Identifier))
+            .ToDictionaryAsync(c => c.Identifier, ct);
         _db.Cards.AddRange(dtos
-            .Where(d => !existingIds.Contains(d.Identifier))
+            .Where(d => !existing.ContainsKey(d.Identifier))
             .Select(d => new Card
             {
                 Identifier = d.Identifier,
@@ -290,10 +302,9 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 UpdatedAt = DateTime.UtcNow
             }));
 
-        foreach (var dto in dtos.Where(d => existingIds.Contains(d.Identifier)))
+        foreach (var dto in dtos.Where(d => existing.ContainsKey(d.Identifier)))
         {
-            var entity = await _db.Cards.FindAsync(new object[] { dto.Identifier }, ct);
-            if (entity != null)
+            var entity = existing[dto.Identifier];
             {
                 entity.SetCode = dto.SetCode;
                 entity.Name = dto.Name;

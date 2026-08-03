@@ -55,6 +55,12 @@ internal static class ImportCsvHelpers
     public static string Escape(string? v)
     {
         if (string.IsNullOrEmpty(v)) return string.Empty;
+        // CSV/spreadsheet formula-injection guard: a value beginning with =, +, -, @,
+        // tab, or CR is interpreted as a live formula by Excel/Sheets. Prefix a single
+        // quote to force text so a stored note like =HYPERLINK(...) cannot execute when
+        // an admin opens an exported collection.
+        if (v[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+            v = "'" + v;
         if (v.Contains(',') || v.Contains('"') || v.Contains('\n'))
             return $"\"{v.Replace("\"", "\"\"")}\"";
         return v;

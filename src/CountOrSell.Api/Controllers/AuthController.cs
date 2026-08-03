@@ -73,6 +73,7 @@ public class AuthController : ControllerBase
     // login from a hostile origin.
     [HttpPost("login")]
     [IgnoreAntiforgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var user = await _localAuth.ValidateCredentialsAsync(request.Username, request.Password, ct);
