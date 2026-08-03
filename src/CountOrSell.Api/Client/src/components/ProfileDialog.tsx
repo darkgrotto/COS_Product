@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePreferences } from '@/contexts/PreferencesContext'
 import {
@@ -19,6 +19,20 @@ interface Props {
   onOpenChange: (open: boolean) => void
 }
 
+interface OAuthProvider {
+  id: string
+  displayName: string
+}
+
+// Fallback display names for a linked provider that is no longer configured
+// (and therefore absent from /api/auth/oauth/providers).
+const PROVIDER_NAMES: Record<string, string> = {
+  google: 'Google',
+  microsoft: 'Microsoft',
+  'microsoft-entra': 'Microsoft (Entra ID)',
+  github: 'GitHub',
+}
+
 export function ProfileDialog({ open, onOpenChange }: Props) {
   const { user, refreshUser } = useAuth()
   const { prefs, patchPrefs } = usePreferences()
@@ -34,6 +48,47 @@ export function ProfileDialog({ open, onOpenChange }: Props) {
 
   // Bust the avatar cache after upload/delete by appending a timestamp
   const [avatarBust, setAvatarBust] = useState(Date.now())
+
+  const [providers, setProviders] = useState<OAuthProvider[]>([])
+  const [oauthError, setOauthError] = useState('')
+  const [oauthWorking, setOauthWorking] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    fetch('/api/auth/oauth/providers', { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : []))
+      .then((data: OAuthProvider[]) => {
+        if (!cancelled) setProviders(data)
+      })
+      .catch(() => { /* section hides when the lookup fails */ })
+    return () => { cancelled = true }
+  }, [open])
+
+  const linkedProviderName = user?.oauthProvider
+    ? (providers.find(p => p.id === user.oauthProvider)?.displayName
+      ?? PROVIDER_NAMES[user.oauthProvider]
+      ?? user.oauthProvider)
+    : null
+
+  async function unlinkOAuth() {
+    setOauthError('')
+    setOauthWorking(true)
+    try {
+      const res = await fetch('/api/auth/oauth/unlink', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setOauthError((data as { error?: string }).error ?? 'Failed to unlink account.')
+      } else {
+        await refreshUser()
+      }
+    } finally {
+      setOauthWorking(false)
+    }
+  }
 
   const initials = user?.username?.slice(0, 2).toUpperCase() ?? '??'
   const avatarSrc = user?.hasAvatar ? `/api/users/me/avatar?t=${avatarBust}` : undefined
@@ -210,6 +265,62 @@ export function ProfileDialog({ open, onOpenChange }: Props) {
               </button>
             </div>
           </div>
+
+          {(user?.oauthProvider || providers.length > 0) && (
+            <>
+              <Separator />
+
+              {/* Connected OAuth account section */}
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Connected Account</p>
+                {user?.oauthProvider ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <p className="text-sm">{linkedProviderName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        You can sign in with this account.
+                      </p>
+                    </div>
+                    {user.canUnlinkOAuth && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={oauthWorking}
+                        onClick={unlinkOAuth}
+                      >
+                        {oauthWorking ? 'Unlinking...' : 'Unlink'}
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Link an account to also sign in with it.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {providers.map(p => (
+                        <Button
+                          key={p.id}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Full-page navigation: linking runs through the
+                            // provider's redirect flow and returns to /dashboard.
+                            window.location.href = `/api/auth/oauth/${encodeURIComponent(p.id)}/link`
+                          }}
+                        >
+                          {p.displayName}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {oauthError && <p className="text-xs text-destructive">{oauthError}</p>}
+              </div>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

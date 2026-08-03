@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { useToast } from '@/contexts/ToastContext'
 
 // ---- Types ------------------------------------------------------------------
 
@@ -195,10 +197,31 @@ function SetCompletionSection({ sets }: { sets: SetCompletion[] }) {
 
 // ---- Main page --------------------------------------------------------------
 
+// Result codes appended by the server-side OAuth account-link callback redirect.
+const OAUTH_LINK_MESSAGES: Record<string, { message: string; variant: 'success' | 'error' }> = {
+  linked: { message: 'OAuth account linked. You can now sign in with it.', variant: 'success' },
+  link_in_use: { message: 'That OAuth account is already linked to another user.', variant: 'error' },
+  link_already_linked: { message: 'Your account already has a different OAuth account linked. Unlink it first.', variant: 'error' },
+  link_failed: { message: 'Linking the OAuth account failed. Please try again.', variant: 'error' },
+}
+
 export function DashboardPage() {
   const [metrics, setMetrics] = useState<MetricsResult | null>(null)
   const [completion, setCompletion] = useState<SetCompletion[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { toast } = useToast()
+
+  useEffect(() => {
+    const code = searchParams.get('oauth')
+    if (!code) return
+    const result = OAUTH_LINK_MESSAGES[code]
+    if (result) toast(result.message, result.variant)
+    setSearchParams(params => {
+      params.delete('oauth')
+      return params
+    }, { replace: true })
+  }, [searchParams, setSearchParams, toast])
 
   useEffect(() => {
     async function load() {

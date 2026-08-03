@@ -25,8 +25,11 @@ Endpoints marked **Demo-locked** return HTTP 403 with `{"error": "This action is
 |--------|------|------|-------------|-------|
 | `POST` | `/api/auth/login` | None | Authenticate with username and password | Body: `{"username": "...", "password": "..."}`. Sets session cookie. Returns `{userId, username, role}` |
 | `POST` | `/api/auth/logout` | None | Invalidate the current session | Clears session cookie |
-| `GET` | `/api/auth/oauth/{provider}` | None | Initiate OAuth login flow for a provider | `provider` values: `google`, `microsoft`, `github`. Returns 400 if provider is not configured |
-| `GET` | `/api/auth/oauth/{provider}/callback` | None | OAuth callback handler | Called by the OAuth provider after authentication. Returns 400 if provider is not configured |
+| `GET` | `/api/auth/oauth/providers` | None | List OAuth providers configured on this instance | Returns `[{id, displayName}]`. Used by the login page to render sign-in buttons |
+| `GET` | `/api/auth/oauth/{provider}` | None | Initiate OAuth sign-in for a provider | `provider` values: `google`, `microsoft`, `microsoft-entra`, `github`. Returns 400 if provider is not configured |
+| `GET` | `/api/auth/oauth/{provider}/link` | User | Initiate linking an OAuth identity to the signed-in account | Same provider values. Completes at the callback; result reported via `/dashboard?oauth=...` redirect |
+| `GET` | `/api/auth/oauth/{provider}/callback` | None | OAuth callback handler | Reached via redirect after the provider round-trip. Signs in a user whose account is linked to the external identity; unknown identities are rejected and an admin notification is raised. Redirects to `/dashboard` on success, `/login?error=...` on failure |
+| `POST` | `/api/auth/oauth/unlink` | User | Detach the linked OAuth identity from the signed-in account | Returns 400 if nothing is linked or the account has no password (would lose its only sign-in method) |
 
 ---
 
