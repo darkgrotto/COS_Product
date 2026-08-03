@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { BrandingProvider } from '@/contexts/BrandingContext'
 import { DemoProvider } from '@/contexts/DemoContext'
@@ -9,7 +10,8 @@ import { SetupGuard } from '@/components/SetupGuard'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AdminRoute } from '@/components/AdminRoute'
 import { AppShell } from '@/components/layout/AppShell'
-import { SetupPage } from '@/pages/Setup'
+
+// Core general-user pages are eagerly imported (they are the primary experience).
 import { LoginPage } from '@/pages/Login'
 import { InviteAcceptPage } from '@/pages/InviteAccept'
 import { DashboardPage } from '@/pages/Dashboard'
@@ -22,22 +24,35 @@ import { WishlistPage } from '@/pages/Wishlist'
 import { ReservedListPage } from '@/pages/ReservedList'
 import { MetricsPage } from '@/pages/Metrics'
 import { AboutPage } from '@/pages/About'
-import { UpdatesPage } from '@/pages/admin/Updates'
-import { UsersPage } from '@/pages/admin/Users'
-import { BackupsPage } from '@/pages/admin/Backups'
-import { SettingsPage } from '@/pages/admin/Settings'
-import { AdminLayout } from '@/pages/admin/AdminLayout'
-import { AdminDashboard } from '@/pages/admin/AdminDashboard'
-import { ContentBrowser } from '@/pages/admin/ContentBrowser'
-import { AdminContentCards } from '@/pages/admin/AdminContentCards'
-import { AdminContentSealed } from '@/pages/admin/AdminContentSealed'
-import { AdminContentUsers } from '@/pages/admin/AdminContentUsers'
-import { OperationsHub } from '@/pages/admin/OperationsHub'
-import { NotificationsPanel } from '@/pages/admin/NotificationsPanel'
-import { LogViewer } from '@/pages/admin/LogViewer'
-import { AdministrationHub } from '@/pages/admin/AdministrationHub'
-import { LogForwarding } from '@/pages/admin/LogForwarding'
-import { DataManagementPage } from '@/pages/admin/DataManagement'
+
+// First-run setup and the entire admin subtree are code-split: general users never
+// reach these routes, so they are not pulled into the main bundle. Named exports are
+// mapped to the default export React.lazy expects.
+const SetupPage = lazy(() => import('@/pages/Setup').then(m => ({ default: m.SetupPage })))
+const UpdatesPage = lazy(() => import('@/pages/admin/Updates').then(m => ({ default: m.UpdatesPage })))
+const UsersPage = lazy(() => import('@/pages/admin/Users').then(m => ({ default: m.UsersPage })))
+const BackupsPage = lazy(() => import('@/pages/admin/Backups').then(m => ({ default: m.BackupsPage })))
+const SettingsPage = lazy(() => import('@/pages/admin/Settings').then(m => ({ default: m.SettingsPage })))
+const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
+const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
+const ContentBrowser = lazy(() => import('@/pages/admin/ContentBrowser').then(m => ({ default: m.ContentBrowser })))
+const AdminContentCards = lazy(() => import('@/pages/admin/AdminContentCards').then(m => ({ default: m.AdminContentCards })))
+const AdminContentSealed = lazy(() => import('@/pages/admin/AdminContentSealed').then(m => ({ default: m.AdminContentSealed })))
+const AdminContentUsers = lazy(() => import('@/pages/admin/AdminContentUsers').then(m => ({ default: m.AdminContentUsers })))
+const OperationsHub = lazy(() => import('@/pages/admin/OperationsHub').then(m => ({ default: m.OperationsHub })))
+const NotificationsPanel = lazy(() => import('@/pages/admin/NotificationsPanel').then(m => ({ default: m.NotificationsPanel })))
+const LogViewer = lazy(() => import('@/pages/admin/LogViewer').then(m => ({ default: m.LogViewer })))
+const AdministrationHub = lazy(() => import('@/pages/admin/AdministrationHub').then(m => ({ default: m.AdministrationHub })))
+const LogForwarding = lazy(() => import('@/pages/admin/LogForwarding').then(m => ({ default: m.LogForwarding })))
+const DataManagementPage = lazy(() => import('@/pages/admin/DataManagement').then(m => ({ default: m.DataManagementPage })))
+
+function RouteFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-muted-foreground text-sm">Loading...</p>
+    </div>
+  )
+}
 
 function App() {
   return (
@@ -49,6 +64,7 @@ function App() {
         <BrowserRouter>
           <ErrorBoundary>
           <SetupGuard>
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public routes */}
             <Route path="/setup" element={<SetupPage />} />
@@ -101,6 +117,7 @@ function App() {
               </Route>
             </Route>
           </Routes>
+          </Suspense>
           </SetupGuard>
           </ErrorBoundary>
         </BrowserRouter>

@@ -12,11 +12,14 @@ public class CollectionRepository : ICollectionRepository
     public Task<CollectionEntry?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         _db.CollectionEntries.FirstOrDefaultAsync(e => e.Id == id, ct);
 
+    // Read-only paths (list display, export, account-removal export) use AsNoTracking:
+    // none of the returned entities are mutated, so change-tracker snapshots are pure
+    // overhead - significant on the full-collection export (tens of thousands of rows).
     public Task<List<CollectionEntry>> GetByUserAsync(Guid userId, CancellationToken ct = default) =>
-        _db.CollectionEntries.Where(e => e.UserId == userId).ToListAsync(ct);
+        _db.CollectionEntries.AsNoTracking().Where(e => e.UserId == userId).ToListAsync(ct);
 
     public Task<List<CollectionEntry>> GetByUserFilteredAsync(Guid userId, CollectionFilter filter, CancellationToken ct = default) =>
-        BuildFilteredQuery(userId, filter).ToListAsync(ct);
+        BuildFilteredQuery(userId, filter).AsNoTracking().ToListAsync(ct);
 
     public async Task<(List<CollectionEntry> Items, int Total)> GetByUserPagedAsync(
         Guid userId, CollectionFilter? filter, string? sort, string? sortDir,
@@ -132,6 +135,7 @@ public class CollectionRepository : ICollectionRepository
             .Select(x => x.Entry)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .AsNoTracking()
             .ToListAsync(ct);
         return (items, total);
     }

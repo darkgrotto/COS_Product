@@ -41,6 +41,13 @@ public class UpdateManifestClient : IUpdateManifestClient
     public async Task<SignedPackageManifest?> FetchSignedPackageManifestAsync(
         string manifestUrl, CancellationToken ct)
     {
+        if (!UpdateSource.IsAllowed(manifestUrl))
+        {
+            _logger.LogWarning(
+                "Rejected per-package manifest URL not on the allowed update source: {Url}", manifestUrl);
+            return null;
+        }
+
         byte[] manifestBytes;
         try
         {

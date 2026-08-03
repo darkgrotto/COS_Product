@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-CU3EbJiN.js";var t=e();function n(){return(0,t.jsxs)(`div`,{children:[(0,t.jsx)(`h2`,{className:`text-lg font-semibold mb-4`,children:`Log Forwarding`}),(0,t.jsx)(`p`,{className:`text-sm text-muted-foreground`,children:`Log forwarding configuration is not yet available in this release.`})]})}export{n as LogForwarding};

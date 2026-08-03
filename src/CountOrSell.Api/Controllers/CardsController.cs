@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CountOrSell.Api.Filters;
 using CountOrSell.Data;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Services;
@@ -166,7 +167,11 @@ public class CardsController : ControllerBase
         return Ok(identifiers);
     }
 
+    // Mutates the shared canonical Card price and consumes the instance TCGPlayer key,
+    // so it is demo-locked to match the sibling POST /api/collection/refresh-price and
+    // prevent demo visitors from burning the key or altering shared reference data.
     [HttpPost("{identifier}/refresh-price")]
+    [DemoLocked]
     public async Task<IActionResult> RefreshPrice(string identifier, CancellationToken ct)
     {
         if (!_tcgPlayer.IsConfigured)

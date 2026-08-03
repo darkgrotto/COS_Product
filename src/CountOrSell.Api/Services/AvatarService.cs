@@ -9,6 +9,9 @@ public class AvatarService : IAvatarService
 {
     private const int MaxDimension = 200;
     private const int MaxUploadBytes = 5 * 1024 * 1024; // 5 MB
+    // Reject source images above this pixel count before decoding. A 5 MB deflate
+    // stream can expand to a multi-gigapixel bitmap, so the header is inspected first.
+    private const long MaxSourcePixels = 40_000_000; // 40 megapixels
     private readonly IImageStore _imageStore;
 
     // Permitted MIME types and their required magic bytes (offset 0)
@@ -59,6 +62,12 @@ public class AvatarService : IAvatarService
         // Decode, resize, and re-encode as JPEG
         try
         {
+            // Inspect the header before a full decode and reject oversized images so a
+            // small compressed file cannot expand to a gigapixel bitmap (decode bomb).
+            var info = Image.Identify(data);
+            if ((long)info.Width * info.Height > MaxSourcePixels)
+                return (null, "Image dimensions are too large.");
+
             using var image = Image.Load(data);
             if (image.Width > MaxDimension || image.Height > MaxDimension)
             {

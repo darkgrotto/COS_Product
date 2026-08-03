@@ -37,6 +37,7 @@ public class SetupController : ControllerBase
     /// </summary>
     [HttpPost("initialize")]
     [IgnoreAntiforgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     public async Task<IActionResult> Initialize(
         [FromBody] SetupInitializeRequest request,
         CancellationToken ct)
