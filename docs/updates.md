@@ -201,21 +201,20 @@ at an internal address such as a cloud metadata endpoint.
 |--------------|--------|
 | `www.countorsell.com` | The website manifest and the signing JWKS |
 | `packages.countorsell.com` | `package.zip`, per-package `manifest.json`, `manifest.json.sig`, and image blobs |
-| `cosadminstoreprod.blob.core.windows.net` | The same package files, transitionally - see below |
 
-The Backend publishes packages to object storage and the website manifest links them directly
-rather than proxying them through the site, so a deployment needs outbound HTTPS to both the
-website host and whichever package host the manifest currently names. A URL on any other host is
-rejected and the update reports "Found a package but could not fetch its manifest or signature."
+A deployment needs outbound HTTPS to both hosts. A URL on any other host is rejected and the
+update reports "Found a package but could not fetch its manifest or signature."
 
-`packages.countorsell.com` is a stable hostname the Backend owns, so the storage account behind
-it can move without a Product release. Until it is in DNS and the website manifest emits it, the
-manifest still links the storage account directly, so both hosts are allowlisted. Once the
-manifest has migrated, the storage host entry can be dropped from `UpdateSource`.
+`packages.countorsell.com` is a stable hostname the Backend owns, fronting the object storage it
+publishes packages to. That indirection is the point: the storage account behind it can be moved
+without a Product release, because no account name is pinned in Product source. The storage
+account host was allowlisted transitionally while the manifest still linked it directly, and is
+no longer accepted - every manifest entry has been served through the stable hostname since
+2026-09-07.
 
-Package hosts are never substituted for one another - each URL is fetched from the host it was
-published on, because a CNAME's target can require its own `Host` header. The only rewrite is
-apex to `www`.
+Package URLs are never rewritten to a different host - each is fetched from the host it was
+published on, because a fronting hostname's origin can require its own `Host` header. The only
+rewrite is apex to `www`.
 
 The base URL for per-file image fetches is the directory portion of the package `manifest_url`
 that was actually fetched, so image fetches stay on the allowed source too.
