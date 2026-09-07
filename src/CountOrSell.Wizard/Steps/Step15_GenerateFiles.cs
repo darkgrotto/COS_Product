@@ -39,10 +39,7 @@ public static class Step15_GenerateFiles
         var content = TerraformApplyGenerator.Generate(config);
         File.WriteAllText(scriptPath, content);
 
-        if (!OperatingSystem.IsWindows())
-        {
-            System.Diagnostics.Process.Start("chmod", $"+x \"{scriptPath}\"");
-        }
+        MakeExecutable(scriptPath);
 
         Console.WriteLine($"Generated: {scriptPath}");
         Console.WriteLine("Terraform files are in the infrastructure/ directory.");
@@ -68,11 +65,7 @@ public static class Step15_GenerateFiles
         var updateShPath = Path.Combine(scriptsDir, "update.sh");
         File.WriteAllText(updateShPath, updateShContent);
 
-        // Make executable on non-Windows
-        if (!OperatingSystem.IsWindows())
-        {
-            System.Diagnostics.Process.Start("chmod", $"+x \"{updateShPath}\"");
-        }
+        MakeExecutable(updateShPath);
 
         Console.WriteLine($"Generated: {updateShPath}");
     }
@@ -144,5 +137,26 @@ public static class Step15_GenerateFiles
             dir = dir.Parent;
         }
         return AppContext.BaseDirectory;
+    }
+
+    // Sets the execute bit directly rather than spawning chmod. The previous
+    // Process.Start("chmod", ...) was never awaited, so the wizard could report the script
+    // as generated - and exit - before chmod had run, intermittently leaving a script the
+    // user cannot execute. No-op on Windows, which has no execute bit.
+    private static void MakeExecutable(string path)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        try
+        {
+            File.SetUnixFileMode(path,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: could not make {path} executable: {ex.Message}");
+            Console.WriteLine($"         Run: chmod +x \"{path}\"");
+        }
     }
 }
