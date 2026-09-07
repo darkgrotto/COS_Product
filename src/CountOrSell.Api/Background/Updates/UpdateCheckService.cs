@@ -238,12 +238,13 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                     "updates", CancellationToken.None);
 
                 result = new UpdateCheckResult(true,
-                    $"Content updated (package from {appliedDate}), but {images.Missing:N0} of "
-                    + $"{images.Listed:N0} images are missing - {images.Explain()}.");
+                    $"Content updated - {PackageTypeLabel.For(packageManifest.PackageType)} from {appliedDate} - "
+                    + $"but {images.Missing:N0} of {images.Listed:N0} images are missing - {images.Explain()}.");
                 return result;
             }
 
-            result = new UpdateCheckResult(true, $"Content updated (package from {appliedDate}).");
+            result = new UpdateCheckResult(true,
+                $"Content updated - {PackageTypeLabel.For(packageManifest.PackageType)} from {appliedDate}.");
             return result;
         }
         catch (Exception ex)
@@ -385,12 +386,12 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                     images.Saved, images.Listed);
 
                 return new UpdateCheckResult(true,
-                    $"Redownload complete: {what} for {scopeLabel} (package from {appliedDate}), but "
+                    $"Redownload complete: {what} for {scopeLabel} ({PackageTypeLabel.For(packageManifest.PackageType)} from {appliedDate}), but "
                     + $"{images.Missing:N0} of {images.Listed:N0} images are still missing - {images.Explain()}.");
             }
 
             return new UpdateCheckResult(true,
-                $"Redownload complete: {what} for {scopeLabel} (package from {appliedDate}).");
+                $"Redownload complete: {what} for {scopeLabel} ({PackageTypeLabel.For(packageManifest.PackageType)} from {appliedDate}).");
         }
         catch (Exception ex)
         {

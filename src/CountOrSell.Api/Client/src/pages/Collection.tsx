@@ -42,6 +42,9 @@ interface CollectionEntry {
   acquisitionDate: string
   acquisitionPrice: number
   notes: string | null
+  // The card is no longer in the canonical catalog. The entry is the user's own data and
+  // is kept regardless; this only lets the row say so.
+  retiredFromCatalog?: boolean
 }
 
 interface SetCompletion {
@@ -1066,6 +1069,15 @@ const CollectionRow = memo(function CollectionRow({
             </button>
             {entry.autographed && (
               <Badge variant="outline" className="ml-1.5 text-xs py-0">Auto</Badge>
+            )}
+            {entry.retiredFromCatalog && (
+              <Badge
+                variant="outline"
+                className="ml-1.5 text-xs py-0 text-muted-foreground"
+                title="This card is no longer in the catalog. Your entry is kept."
+              >
+                Not in catalog
+              </Badge>
             )}
           </div>
         </div>

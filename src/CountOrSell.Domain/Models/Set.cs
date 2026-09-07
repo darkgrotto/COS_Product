@@ -11,4 +11,10 @@ public class Set
     public string? SetType { get; set; }
     public bool Digital { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    // Set when a full package no longer lists this record but a user still holds it.
+    // Retired records stay out of catalog surfaces (search, browse, set completion) yet
+    // remain resolvable, so a user's entry keeps its name, set and treatment instead of
+    // becoming an unreadable identifier. Cleared if the record reappears in a later full.
+    public DateTime? RetiredAt { get; set; }
 }

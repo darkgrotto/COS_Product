@@ -94,7 +94,7 @@ public class CollectionController : ControllerBase
                           tPrices.TryGetValue(e.TreatmentKey, out var tp)
                 ? tp
                 : summary.MarketValue;
-            return MapEntry(e, summary.Name, mv, summary.SetCode, summary.OracleRulingUrl);
+            return MapEntry(e, summary.Name, mv, summary.SetCode, summary.OracleRulingUrl, summary.RetiredFromCatalog);
         });
 
         return Ok(new { items, total, page, pageSize });
@@ -535,7 +535,8 @@ public class CollectionController : ControllerBase
         string? cardName = null,
         decimal? marketValue = null,
         string? setCode = null,
-        string? oracleRulingUrl = null) => new
+        string? oracleRulingUrl = null,
+        bool retiredFromCatalog = false) => new
     {
         e.Id,
         e.UserId,
@@ -552,7 +553,10 @@ public class CollectionController : ControllerBase
         e.Notes,
         e.CreatedAt,
         e.UpdatedAt,
-        OracleRulingUrl = oracleRulingUrl
+        OracleRulingUrl = oracleRulingUrl,
+        // The card is no longer in the canonical catalog; the entry is the user's own data
+        // and is kept regardless.
+        RetiredFromCatalog = retiredFromCatalog
     };
     // Null when the card may be recorded in this treatment; a BadRequest body when it may not.
     // Only cards whose treatments arrived in an update package are constrained - see
