@@ -352,9 +352,10 @@ Per-package manifest format:
 }
 ```
 
-ZIP file structure (package.zip):
+ZIP file structure (package.zip). The ZIP carries metadata only - images are NOT in it:
 ```
 manifest.json
+manifest.json.sig
 metadata/
   treatments.json          - array of {treatment_id, normalized_name, display_name, sort_order}
   taxonomy.json            - {version, categories:[{slug, display_name, sort_order, sub_types:[{slug, display_name, sort_order},...]}]}
@@ -364,18 +365,29 @@ metadata/
                              mana_cost, cmc, type_line, oracle_text, colors, color_identity,
                              keywords, layout, rarity, scryfall_id, oracle_ruling_uri,
                              is_reserved, treatments, image_path}
-                             Note: image_path is nullable; present only when image exists in package.
+                             Note: image_path is nullable; present only when the package
+                             publishes an image blob for the card.
                              treatments is an array of normalized_name strings.
     pricing.json           - array of {card_id, treatment, price_usd, captured_at}
                              treatment is normalized_name; price_usd nullable; captured_at ISO 8601 UTC.
   sealed/{product_id}.json - {product_id, set_code, name, category_slug, sub_type_slug,
                              front_image_blob_name, supplemental_image_blob_name}
                              set_code, category_slug, sub_type_slug are all nullable.
-images/
+```
+
+Images are published as loose blobs alongside the ZIP, at the package base URL (the directory
+holding manifest.json), NOT inside the ZIP:
+```
+{package_base_url}/images/
   sets/{set_code}/{card_id}.jpg
   sealed/{product_id}.jpg
   sealed/{product_id}_s.jpg
 ```
+They are enumerated from the `images/` keys in the manifest `checksums` map and fetched one file
+per request (up to 10 concurrent), each verified against its checksum. Image failures are
+non-fatal and happen outside the apply transaction. A full package is currently ~2,850 metadata
+files in the ZIP plus ~98,000 individual image fetches, so anything fronting the package origin
+is sized by image count, not by ZIP size.
 
 Package types: "full" (complete snapshot, base_full_version is null), "delta" (incremental from base_full_version, contains only changed files). Deltas are cumulative from their base_full_version; sequential application not required. Backend retains 3 full versions at all times. No separate schema packages - schema version is a metadata field only; schema migrations run on startup. slabs content type is always present in manifests with version 0.0.0 and record_count 0 (placeholder only - no slab data is ever shipped).
 

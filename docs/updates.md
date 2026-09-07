@@ -22,18 +22,28 @@ links are served from the Backend's package storage origin. See Section 8 for bo
 
 Content updates deliver new and updated canonical reference data. The Product never applies layer logic - it always receives fully resolved flat data.
 
-**Contents of a content update package (ZIP archive):**
-- `treatments.json` - treatment reference table (key, display name, sort order)
-- `sets.json` - set reference data (code, name, total card count, release date)
-- `cards.json` - card reference data (identifier, set code, name, color, card type, current market value)
-- `sealed_products.json` - sealed product reference data (identifier, set code, name)
-- `images/` directory - card and sealed product images (best-effort; image save failures are logged but do not fail the update)
+**Contents of a content update package (ZIP archive).** The ZIP carries metadata only:
+- `manifest.json` and `manifest.json.sig` - the per-package manifest and its detached signature
+- `metadata/treatments.json` - treatment reference table (id, normalized name, display name, sort order)
+- `metadata/taxonomy.json` - sealed product category and sub-type reference tables
+- `metadata/sets/{set_code}/set.json` - set reference data
+- `metadata/sets/{set_code}/cards.json` - card reference data for that set
+- `metadata/sets/{set_code}/pricing.json` - per-treatment pricing for that set
+- `metadata/sealed/{product_id}.json` - one file per sealed product
+
+**Images are not in the ZIP.** They are published as loose blobs at the package base URL (the
+directory holding `manifest.json`) and fetched individually - one request per image, up to 10
+concurrent - after the database transaction commits. Each is verified against its `checksums`
+entry before being stored. Image failures are best-effort: they are logged and do not fail the
+update. A full package is currently around 2,850 metadata files plus roughly 98,000 image
+fetches, which is what sizes any CDN or proxy in front of the package origin.
 
 **Application behavior:**
 1. Download the package ZIP from the URL in the manifest
 2. Verify the SHA-256 checksum (see Section 7)
-3. Apply all data changes in a single database transaction (treatments, sets, cards, sealed products)
+3. Apply all data changes in a single database transaction (treatments, taxonomy, sets, cards, pricing, sealed products)
 4. Record the new content version in the `update_versions` table
+5. Fetch and store images outside the transaction, best-effort
 5. Save images outside the transaction (best-effort, failures logged and skipped)
 
 If the database transaction fails, it is rolled back entirely. No partial updates are committed.
