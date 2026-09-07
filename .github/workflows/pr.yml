@@ -9,6 +9,26 @@ permissions:
   contents: read
 
 jobs:
+  # Builds the client outside Docker, on the Node version declared in .nvmrc.
+  # The Docker build already compiles the frontend, but only ever on the image's
+  # own Node, so nothing previously exercised the toolchain a contributor uses
+  # locally - or checked that .nvmrc, engines and the Dockerfile agree.
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: src/CountOrSell.Api/Client/package-lock.json
+      - name: Install (locked tree, engine-strict)
+        working-directory: src/CountOrSell.Api/Client
+        run: npm ci
+      - name: Build
+        working-directory: src/CountOrSell.Api/Client
+        run: npm run build
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
