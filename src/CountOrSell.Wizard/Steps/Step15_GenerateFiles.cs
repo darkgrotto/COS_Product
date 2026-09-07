@@ -89,11 +89,11 @@ public static class Step15_GenerateFiles
             EnvLine("DB_NAME", "countorsell"),
             EnvLine("DB_USER", config.DbAdminUsername),
             EnvLine("DB_PASSWORD", config.DbAdminPassword),
-            // Defaulted rather than left blank: an empty REGISTRY expands to a leading
-            // slash and Docker rejects the reference outright.
-            EnvLine("REGISTRY", string.IsNullOrWhiteSpace(config.DockerRegistry)
-                ? "ghcr.io/darkgrotto"
-                : config.DockerRegistry),
+            // The full image reference, not a registry prefix: the Step 3 prompt collects
+            // the whole repository path, so composing it with a separate image name would
+            // yield ".../countorsell/countorsell". Defaulted rather than left blank,
+            // because an empty value produces a reference Docker rejects outright.
+            EnvLine("APP_IMAGE", BuildAppImage(config)),
             EnvLine("PORT", config.Port.ToString()),
             EnvLine("BLOB_BACKUP_CONNECTION", config.BackupConnectionString),
             EnvLine("SETUP_TOKEN", config.SetupToken)
@@ -158,5 +158,15 @@ public static class Step15_GenerateFiles
             Console.WriteLine($"Warning: could not make {path} executable: {ex.Message}");
             Console.WriteLine($"         Run: chmod +x \"{path}\"");
         }
+    }
+
+    // Full image reference from the registry path and tag collected in Step 3.
+    private static string BuildAppImage(WizardConfig config)
+    {
+        var repo = string.IsNullOrWhiteSpace(config.DockerRegistry)
+            ? "ghcr.io/darkgrotto/countorsell"
+            : config.DockerRegistry.TrimEnd('/');
+        var tag = string.IsNullOrWhiteSpace(config.DockerImageTag) ? "latest" : config.DockerImageTag;
+        return $"{repo}:{tag}";
     }
 }

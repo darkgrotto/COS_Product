@@ -44,7 +44,13 @@ public static class Step16_Deploy
         Console.WriteLine("Starting Docker Compose services...");
         Console.WriteLine("Running: docker compose up -d");
 
-        var exitCode = await RunCommandAsync("docker", $"compose -f \"{composePath}\" up -d");
+        // Compose resolves .env from the Compose file's own directory, but the wizard writes
+        // it to the deployment root. Without pointing at it every variable expands blank and
+        // the stack comes up with an empty database password.
+        var envPath = Path.Combine(FindRepoRoot(), ".env");
+        var envArg = File.Exists(envPath) ? $"--env-file \"{envPath}\" " : string.Empty;
+
+        var exitCode = await RunCommandAsync("docker", $"compose {envArg}-f \"{composePath}\" up -d");
 
         if (exitCode == 0)
         {
