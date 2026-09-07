@@ -90,6 +90,31 @@ public class DockerComposeGeneratorTests
             DockerComposeGenerator.Generate(Config()).ReplaceLineEndings("\n"));
     }
 
+    [Fact]
+    public void Pins_The_App_Listen_Port_Rather_Than_Inheriting_It()
+    {
+        // PORT means the published HTTPS port in .env and Kestrel's listen port to the app.
+        // Letting the .env value reach the app would leave nginx proxying to the wrong port.
+        Assert.Contains("- PORT=3000", DockerComposeGenerator.Generate(Config()));
+    }
+
+    [Fact]
+    public void Nginx_Proxies_To_The_Port_The_App_Actually_Listens_On()
+    {
+        // These two files drifted: nginx.conf still targeted 8080 - the base image's
+        // ASPNETCORE_HTTP_PORTS, which the Dockerfile clears - long after the app moved to
+        // 3000, so every request through the proxy returned 502. Nothing connected them.
+        var yaml = DockerComposeGenerator.Generate(Config());
+        var appPort = System.Text.RegularExpressions.Regex.Match(yaml, @"- PORT=(\d+)").Groups[1].Value;
+        Assert.False(string.IsNullOrEmpty(appPort), "app service does not pin PORT");
+
+        var nginxConf = File.ReadAllText(Path.Combine(RepoRoot(), "docker", "compose", "nginx.conf"));
+        var upstream = System.Text.RegularExpressions.Regex.Match(nginxConf, @"proxy_pass\s+http://app:(\d+)").Groups[1].Value;
+        Assert.False(string.IsNullOrEmpty(upstream), "nginx.conf has no app upstream");
+
+        Assert.Equal(appPort, upstream);
+    }
+
     internal static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
