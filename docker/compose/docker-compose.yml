@@ -4,7 +4,9 @@ name: CountOrSell
 
 services:
   app:
-    image: ${REGISTRY}/countorsell:latest
+    # Defaulted so an unset or empty REGISTRY cannot expand to "/countorsell:latest",
+    # which Docker rejects as an invalid reference format rather than falling back.
+    image: ${REGISTRY:-ghcr.io/darkgrotto}/countorsell:latest
     container_name: cos-app
     environment:
       - DB_HOST=cos-postgres
