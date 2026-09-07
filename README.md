@@ -80,12 +80,16 @@ dotnet build src/CountOrSell.sln --configuration Release
 dotnet test src/CountOrSell.sln --configuration Release
 ```
 
-**Build the client:** (Node 20.19+ or 22+, required by Vite 8)
+**Build the client:** (Node 24, matching the Docker image build)
 ```
 cd src/CountOrSell.Api/Client
-npm install
+npm ci
 npm run build
 ```
+Use Node 24 specifically. The bundler embeds content hashes in the output filenames, so
+building on a different major produces a completely different set of files - a large diff
+that looks like a real change but is not. `npm ci` installs the locked tree, the same way
+the image build does; `npm install` can drift from `package-lock.json`.
 
 The built client output under `src/CountOrSell.Api/wwwroot` is tracked in git; rebuild and commit it when frontend dependencies, `vite.config.ts`, or client source change. (The production Docker image rebuilds the client itself.)
 

@@ -1,6 +1,6 @@
 # Stage 1: Build frontend
 # Run on the build platform (native, not emulated) - JS output is architecture-independent.
-FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
+FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend
 WORKDIR /client
 # Copy the manifest and the lockfile together so npm ci installs the exact
 # pinned tree. npm install would re-resolve semver ranges on every build,
