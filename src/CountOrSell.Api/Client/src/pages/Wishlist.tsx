@@ -56,7 +56,15 @@ function AddToWishlistDialog({
   const [searching, setSearching] = useState(false)
   const [adding, setAdding] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const [treatmentKey, setTreatmentKey] = useState('regular')
+  // Defaults to whatever the reference table sorts first rather than a named treatment,
+  // so the default follows the package rather than this build.
+  const [treatmentKey, setTreatmentKey] = useState('')
+
+  useEffect(() => {
+    if (treatmentKey === '' && treatments.length > 0) {
+      setTreatmentKey(sortTreatments(treatments)[0].key)
+    }
+  }, [treatments, treatmentKey])
 
   useEffect(() => {
     const trimmed = query.trim()

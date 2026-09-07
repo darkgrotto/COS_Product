@@ -53,8 +53,8 @@ function BulkAddToCollectionDialog({
   onClose: () => void
   onDone: (result: BulkAddResult) => void
 }) {
-  const regularKey = treatments.find(t => t.key === 'regular')?.key ?? treatments[0]?.key ?? 'regular'
-  const [treatmentKey, setTreatmentKey] = useState(regularKey)
+  const defaultTreatmentKey = sortTreatments(treatments)[0]?.key ?? ''
+  const [treatmentKey, setTreatmentKey] = useState(defaultTreatmentKey)
   const [condition, setCondition] = useState<string>('NM')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')

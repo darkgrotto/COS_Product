@@ -91,11 +91,13 @@ function fmtPl(v: number | null | undefined) {
   return `${sign}$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function formatTreatmentKey(key: string): string {
-  return key
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+// Display names come from the treatments reference table shipped in the update package.
+// Title-casing the key happened to match the current names, but it is a guess: a display
+// name the Backend ships that is not just the hyphenated key title-cased would render
+// wrong. Falls back to the raw key so a treatment this build has never seen still shows
+// something rather than blank.
+function treatmentLabel(key: string, treatments: Treatment[]): string {
+  return treatments.find(t => t.key === key)?.displayName ?? key
 }
 
 function plColor(v: number | null | undefined) {
@@ -493,13 +495,19 @@ function TopCardsSection({
   isAdmin,
   selectedUserId,
   filters,
+  treatments,
 }: {
   metric: 'value' | 'frequency'
   title: string
   isAdmin: boolean
   selectedUserId: string
   filters: Filters
+  treatments: Treatment[]
 }) {
+  // The treatment listed first by the reference table's sort_order is the baseline
+  // printing, so it is left unlabelled; anything else is called out. Derived rather
+  // than assuming a particular key is the plain one.
+  const baseTreatmentKey = sortTreatments(treatments)[0]?.key ?? ''
   const [limit, setLimit] = useState<25 | 50 | 100>(25)
   const [offset, setOffset] = useState(0)
   const [data, setData] = useState<TopCardsResponse | null>(null)
@@ -582,8 +590,8 @@ function TopCardsSection({
                       <div className="font-medium leading-tight">{c.cardName}</div>
                       <div className="text-xs text-muted-foreground font-mono">
                         {c.cardIdentifier}
-                        {c.treatmentKey && c.treatmentKey !== 'regular' && (
-                          <span className="ml-2 italic">{formatTreatmentKey(c.treatmentKey)}</span>
+                        {c.treatmentKey && c.treatmentKey !== baseTreatmentKey && (
+                          <span className="ml-2 italic">{treatmentLabel(c.treatmentKey, treatments)}</span>
                         )}
                       </div>
                     </td>
@@ -903,6 +911,7 @@ export function MetricsPage() {
                 isAdmin={isAdmin}
                 selectedUserId={selectedUserId}
                 filters={filters}
+                treatments={treatments}
               />
               <TopCardsSection
                 metric="frequency"
@@ -910,6 +919,7 @@ export function MetricsPage() {
                 isAdmin={isAdmin}
                 selectedUserId={selectedUserId}
                 filters={filters}
+                treatments={treatments}
               />
             </>
           )}

@@ -157,7 +157,7 @@ function EntryDialog({ open, onOpenChange, treatments, initial, onSave }: {
   const isEdit = !!initial
   const blank = (): EntryForm => ({
     cardIdentifier: '', cardName: '',
-    treatment: treatments[0]?.key ?? 'regular',
+    treatment: treatments[0]?.key ?? '',
     serialNumber: '', printRunTotal: '',
     condition: 'NM', autographed: false,
     acquisitionDate: '', acquisitionPrice: '', notes: '',
