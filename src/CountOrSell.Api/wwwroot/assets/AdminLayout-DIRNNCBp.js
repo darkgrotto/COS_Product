@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-CU3EbJiN.js";import{it as t,nt as n,rt as r}from"./index-BMCjx1xU.js";var i=e();function a(){let{pathname:e}=t();return e===`/admin`||e===`/admin/`?(0,i.jsx)(n,{to:`/admin/dashboard`,replace:!0}):(0,i.jsx)(r,{})}export{a as AdminLayout};
