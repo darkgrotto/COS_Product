@@ -13,6 +13,10 @@ services:
     image: ${APP_IMAGE:-ghcr.io/darkgrotto/countorsell:latest}
     container_name: cos-app
     environment:
+      # Kestrel's listen port, which nginx proxies to. Pinned rather than inherited:
+      # PORT in .env is the published HTTPS port, a different thing with the same name,
+      # and letting that reach the app would leave nginx proxying to the wrong port.
+      - PORT=3000
       - DB_HOST=cos-postgres
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:-countorsell}
