@@ -2,8 +2,12 @@
 # Run on the build platform (native, not emulated) - JS output is architecture-independent.
 FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 WORKDIR /client
-COPY src/CountOrSell.Api/Client/package.json ./
-RUN npm install
+# Copy the manifest and the lockfile together so npm ci installs the exact
+# pinned tree. npm install would re-resolve semver ranges on every build,
+# making images non-reproducible and silently ignoring lockfile-only updates
+# (which is all a dependabot bump changes).
+COPY src/CountOrSell.Api/Client/package.json src/CountOrSell.Api/Client/package-lock.json ./
+RUN npm ci
 COPY src/CountOrSell.Api/Client/ ./
 ARG VITE_GIT_COMMIT
 ARG VITE_BUILD_TAG
