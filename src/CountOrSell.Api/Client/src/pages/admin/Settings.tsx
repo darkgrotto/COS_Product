@@ -133,7 +133,7 @@ function ConfigureOAuthDialog({
               <p className="text-xs text-muted-foreground mt-1">
                 Use a directory GUID for single-tenant, or one of the well-known
                 values to allow accounts from any tenant or personal Microsoft
-                accounts. Restart required for changes to take effect.
+                accounts. Changes take effect immediately.
               </p>
             </div>
           )}
@@ -465,7 +465,7 @@ export function SettingsPage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Required for per-card TCGPlayer price refresh. Key is stored securely and never displayed in full.
-                Restart required for changes to take effect.
+                Changes take effect immediately.
               </p>
             </div>
           </Section>
