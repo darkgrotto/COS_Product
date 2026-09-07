@@ -36,12 +36,9 @@ public class UpdateSourceTests
     [Theory]
     // The website itself.
     [InlineData("https://www.countorsell.com/updates/manifest.json")]
-    // The stable package hostname the manifest is migrating to.
+    // The stable package hostname every manifest entry is served through.
     [InlineData("https://packages.countorsell.com/publish-a/20260513-190155-32fb03/manifest.json")]
     [InlineData("https://packages.countorsell.com/publish-a/20260513-190155-32fb03/package.zip")]
-    // The storage origin the website manifest still points package URLs at today.
-    [InlineData("https://cosadminstoreprod.blob.core.windows.net/publish-a/20260513-190155-32fb03/manifest.json")]
-    [InlineData("https://cosadminstoreprod.blob.core.windows.net/publish-b/20260419-163118-265cfc/package.zip")]
     public void Allows_The_Canonical_Update_Hosts_Unchanged(string url)
     {
         Assert.True(TryResolve(url, out var resolved));
@@ -77,7 +74,11 @@ public class UpdateSourceTests
     [InlineData("https://packages.countorsell.com.evil.test/publish-a/manifest.json")]
     [InlineData("https://evil-packages.countorsell.com.evil.test/publish-a/manifest.json")]
     [InlineData("https://wwwcountorsell.com/updates/manifest.json")]
-    // A different storage account on the same blob service.
+    // Azure blob storage generally, including the account packages used to be served from
+    // directly - allowlisted transitionally until the manifest moved to the stable hostname,
+    // and deliberately not accepted any more. Nothing pins a storage account name now.
+    [InlineData("https://cosadminstoreprod.blob.core.windows.net/publish-a/20260513-190155-32fb03/manifest.json")]
+    [InlineData("https://cosadminstoreprod.blob.core.windows.net/publish-b/20260419-163118-265cfc/package.zip")]
     [InlineData("https://evilstore.blob.core.windows.net/publish-a/manifest.json")]
     [InlineData("https://cosadminstoreprod.blob.core.windows.net.evil.test/manifest.json")]
     // Non-https schemes, including ones that are not network fetches at all.
@@ -96,18 +97,14 @@ public class UpdateSourceTests
     }
 
     [Fact]
-    public void Does_Not_Rewrite_Between_Package_Hosts()
+    public void Does_Not_Rewrite_The_Package_Host()
     {
-        // packages.countorsell.com and the storage origin are distinct origins; a CNAME's
-        // target can require its own Host header, so each is fetched as it was published.
-        const string storage =
-            "https://cosadminstoreprod.blob.core.windows.net/publish-a/pkg/manifest.json";
-        Assert.True(TryResolve(storage, out var resolvedStorage));
-        Assert.Equal(storage, resolvedStorage);
-
+        // Only the apex is ever rewritten. A package URL is fetched from the host it was
+        // published on - a fronting hostname's origin can require its own Host header, so
+        // substituting one host for another would break the request.
         const string packages = "https://packages.countorsell.com/publish-a/pkg/manifest.json";
-        Assert.True(TryResolve(packages, out var resolvedPackages));
-        Assert.Equal(packages, resolvedPackages);
+        Assert.True(TryResolve(packages, out var resolved));
+        Assert.Equal(packages, resolved);
     }
 
     [Fact]
@@ -119,9 +116,6 @@ public class UpdateSourceTests
     }
 
     [Theory]
-    [InlineData(
-        "https://cosadminstoreprod.blob.core.windows.net/publish-a/20260513-190155-32fb03/manifest.json",
-        "https://cosadminstoreprod.blob.core.windows.net/publish-a/20260513-190155-32fb03/")]
     [InlineData(
         "https://www.countorsell.com/updates/manifest.json",
         "https://www.countorsell.com/updates/")]
@@ -141,7 +135,7 @@ public class UpdateSourceTests
     {
         // Image paths are appended to this base, so anything after the path must not survive.
         Assert.Equal(
-            "https://cosadminstoreprod.blob.core.windows.net/publish-a/pkg/",
-            BaseUrlOf("https://cosadminstoreprod.blob.core.windows.net/publish-a/pkg/manifest.json?sv=token#frag"));
+            "https://packages.countorsell.com/publish-a/pkg/",
+            BaseUrlOf("https://packages.countorsell.com/publish-a/pkg/manifest.json?sv=token#frag"));
     }
 }

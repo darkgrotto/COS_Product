@@ -19,17 +19,13 @@ internal static class UpdateSource
     private const string ApexHost = "countorsell.com";
 
     // Stable hostname for published packages (package.zip, per-package manifest.json and its
-    // .sig, and image blobs). Owned by the Backend as a CNAME so the storage account behind it
-    // can move without a Product release - which is the whole reason it exists.
+    // .sig, and image blobs). Fronts the Backend's object storage, so the storage account
+    // behind it can move without a Product release - which is the whole reason it exists.
+    // The storage account host it replaced was allowlisted transitionally and is no longer
+    // accepted: every manifest entry has been served through this hostname since 2026-09-07.
     private const string PackageHost = "packages.countorsell.com";
 
-    // The storage account the Backend publishes from today, before PackageHost is in DNS and
-    // emitted by the website manifest. Transitional: drop this entry once the manifest links
-    // packages through PackageHost, and deployments will no longer be pinned to an account name.
-    private const string LegacyPackageStorageHost = "cosadminstoreprod.blob.core.windows.net";
-
-    private static readonly string[] AllowedHosts =
-        [SiteHost, PackageHost, LegacyPackageStorageHost];
+    private static readonly string[] AllowedHosts = [SiteHost, PackageHost];
 
     // The one URL the update system starts from. Hardcoded on purpose - the update source is
     // not configurable - and kept here so the allowed host is stated in exactly one place.
