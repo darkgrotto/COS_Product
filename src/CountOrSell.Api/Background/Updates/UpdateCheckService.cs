@@ -167,11 +167,10 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             // Download the package ZIP
             var packageStream = await downloader.DownloadPackageAsync(packageRef.DownloadUrl, ct);
 
-            // Derive the base URL for fetching image blobs (directory above manifest.json)
-            var lastSlash = packageRef.ManifestUrl.LastIndexOf('/');
-            var packageBaseUrl = lastSlash >= 0
-                ? packageRef.ManifestUrl[..(lastSlash + 1)]
-                : packageRef.ManifestUrl;
+            // Base URL for fetching image blobs (directory above manifest.json). Taken from
+            // the URL the manifest was actually fetched from, which has been resolved against
+            // the allowed update source - never re-derived from the raw manifest field.
+            var packageBaseUrl = signed.BaseUrl;
 
             // Apply the content update. Use CancellationToken.None so that an HTTP request
             // timeout cancelling ct cannot interrupt the transaction mid-apply; the DB
@@ -207,12 +206,8 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                         }
                         else
                         {
-                            var fullLastSlash = fullRef.ManifestUrl.LastIndexOf('/');
-                            var fullBaseUrl = fullLastSlash >= 0
-                                ? fullRef.ManifestUrl[..(fullLastSlash + 1)]
-                                : fullRef.ManifestUrl;
                             await applicator.ApplyImagesOnlyAsync(
-                                fullBaseUrl, fullSigned.Parsed, CancellationToken.None);
+                                fullSigned.BaseUrl, fullSigned.Parsed, CancellationToken.None);
                         }
                     }
                 }
@@ -291,10 +286,7 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             var packageManifest = signed.Parsed;
 
-            var lastSlash = packageRef.ManifestUrl.LastIndexOf('/');
-            var packageBaseUrl = lastSlash >= 0
-                ? packageRef.ManifestUrl[..(lastSlash + 1)]
-                : packageRef.ManifestUrl;
+            var packageBaseUrl = signed.BaseUrl;
 
             var includesImages = options.ContentType == "all" || options.ContentType == "images";
             var includesMetadata = options.ContentType == "all" || options.ContentType == "metadata";

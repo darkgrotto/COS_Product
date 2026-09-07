@@ -6,7 +6,9 @@
 
 All canonical content (cards, sets, treatments, sealed products, images) comes from countorsell.com. The Product instance polls a manifest once daily at a randomly generated time, checks for new content, and applies updates automatically when available.
 
-The update source is always `countorsell.com`. This is not configurable.
+The update source is always `countorsell.com`. This is not configurable. The website manifest is
+served from the `www` host (`https://www.countorsell.com/updates/manifest.json`) and the packages it
+links are served from the Backend's package storage origin. See Section 8 for both hosts.
 
 | Update type | Applies automatically | Requires admin approval |
 |------------|----------------------|------------------------|
@@ -121,40 +123,111 @@ The `PackageVerifier` computes a SHA-256 hash of the downloaded package stream a
 
 ## 8. Manifest Format
 
-The manifest is fetched from `https://countorsell.com/updates/manifest.json`. The update source is not configurable.
+Manifests come in two levels. The Product fetches the website manifest from the hardcoded
+`https://www.countorsell.com/updates/manifest.json`, and that manifest points at a per-package
+manifest for each published package. The update source is not configurable.
+
+Only the `www` host is served - the apex `countorsell.com` is not a routed hostname at the CDN
+edge and answers Cloudflare error 1016. An apex URL appearing in a manifest is rewritten to the
+`www` host before it is fetched.
+
+### Website manifest
 
 ```json
 {
-  "content": {
-    "version": "2026-03-08",
-    "downloadUrl": "https://countorsell.com/updates/content-2026-03-08.zip",
-    "zipSha256": "abc123...",
-    "minimumProductSchemaVersion": 1
+  "schema_version": "1.0.0",
+  "generated_at": "<ISO 8601>",
+  "minimum_product_version": "1.0.0",
+  "content_versions": {
+    "cards": { "version": "1.2.0" },
+    "sets": { "version": "1.1.0" },
+    "sealed_products": { "version": "1.0.0" },
+    "treatments": { "version": "1.0.0" },
+    "images": { "version": "1.1.0" },
+    "taxonomy": { "version": "1.0.0" }
   },
-  "schema": {
-    "version": "2",
-    "description": "Adds grading agency table",
-    "downloadUrl": "https://countorsell.com/updates/schema-v2.zip",
-    "zipSha256": "def456..."
-  },
-  "application": {
-    "version": "1.1.0"
-  }
+  "packages": [
+    {
+      "package_id": "20260513-190155-32fb03",
+      "package_type": "full",
+      "download_url": "https://<package-storage-origin>/publish-a/20260513-190155-32fb03/package.zip",
+      "manifest_url": "https://<package-storage-origin>/publish-a/20260513-190155-32fb03/manifest.json",
+      "base_full_version": null,
+      "generated_at": "<ISO 8601>"
+    }
+  ]
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `content.version` | string | Content package version identifier |
-| `content.downloadUrl` | string | URL to download the content ZIP |
-| `content.zipSha256` | string | Expected SHA-256 hex digest of the content ZIP |
-| `content.minimumProductSchemaVersion` | integer | Minimum schema version required to apply this content package |
-| `schema` | object | Present only when a schema update is available; absent otherwise |
-| `schema.version` | string | Target schema version |
-| `schema.description` | string | Human-readable description shown to admin before approval |
-| `schema.downloadUrl` | string | URL to download the schema migration ZIP |
-| `schema.zipSha256` | string | Expected SHA-256 hex digest of the schema ZIP |
-| `application` | object | Present only when a new application version is available; absent otherwise |
-| `application.version` | string | Latest released application version |
+| `schema_version` | string | Schema version the packages are authored against |
+| `generated_at` | string | ISO 8601 timestamp the manifest was generated |
+| `minimum_product_version` | string | Minimum application version required to apply these packages |
+| `content_versions` | object | Current published version per content type |
+| `packages[].package_id` | string | Package identifier |
+| `packages[].package_type` | string | `full` or `delta` |
+| `packages[].download_url` | string | URL of the package ZIP |
+| `packages[].manifest_url` | string | URL of the per-package manifest |
+| `packages[].base_full_version` | string or null | Base full version a delta applies to; null for full packages |
+| `packages[].generated_at` | string | ISO 8601 timestamp; the Product selects the most recent package |
 
-If `schema` is absent, no schema update is pending. If `application` is absent, no new application version is available.
+### Package URLs and the allowed source
+
+`download_url` and `manifest_url` are read from the website manifest, which is not signed, so
+both are validated against a fixed two-host allowlist (`UpdateSource`) before any outbound
+request is made. This is an SSRF guard: without it, a poisoned manifest could point the server
+at an internal address such as a cloud metadata endpoint.
+
+| Allowed host | Serves |
+|--------------|--------|
+| `www.countorsell.com` | The website manifest and the signing JWKS |
+| `packages.countorsell.com` | `package.zip`, per-package `manifest.json`, `manifest.json.sig`, and image blobs |
+| `cosadminstoreprod.blob.core.windows.net` | The same package files, transitionally - see below |
+
+The Backend publishes packages to object storage and the website manifest links them directly
+rather than proxying them through the site, so a deployment needs outbound HTTPS to both the
+website host and whichever package host the manifest currently names. A URL on any other host is
+rejected and the update reports "Found a package but could not fetch its manifest or signature."
+
+`packages.countorsell.com` is a stable hostname the Backend owns, so the storage account behind
+it can move without a Product release. Until it is in DNS and the website manifest emits it, the
+manifest still links the storage account directly, so both hosts are allowlisted. Once the
+manifest has migrated, the storage host entry can be dropped from `UpdateSource`.
+
+Package hosts are never substituted for one another - each URL is fetched from the host it was
+published on, because a CNAME's target can require its own `Host` header. The only rewrite is
+apex to `www`.
+
+The base URL for per-file image fetches is the directory portion of the package `manifest_url`
+that was actually fetched, so image fetches stay on the allowed source too.
+
+### Per-package manifest
+
+Each package manifest carries the content versions and per-file SHA-256 checksums for that
+package, and is served alongside a detached signature at `<manifest_url>.sig`. The signature is
+verified against the JWKS at `https://www.countorsell.com/.well-known/cos-pubkey.json` before
+any field in the manifest is used. See Section 7 for checksum verification.
+
+```json
+{
+  "package_type": "full",
+  "generated_at": "<ISO 8601>",
+  "base_full_version": null,
+  "schema_version": "1.0.0",
+  "content_versions": {
+    "cards": { "version": "1.2.0", "record_count": 123 },
+    "sets": { "version": "1.1.0", "record_count": 42 },
+    "slabs": { "version": "0.0.0", "record_count": 0 }
+  },
+  "retained_full_versions": ["1.0.0"],
+  "checksums": {
+    "metadata/treatments.json": "sha256:<hex_lowercase>",
+    "images/sets/eoe/eoe019.jpg": "sha256:<hex_lowercase>"
+  }
+}
+```
+
+Schema updates are not shipped as separate packages. `schema_version` is a metadata field only;
+migrations run on startup (Section 3). Application version availability is not part of the
+manifest either - it is read from the GitHub releases API (Section 4).
