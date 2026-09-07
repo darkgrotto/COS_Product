@@ -26,6 +26,12 @@ src/**/obj/
 **/node_modules/
 src/CountOrSell.Api/Client/dist/
 
+# The tracked client bundles are a convenience for running outside Docker. The image
+# always builds them fresh in the frontend stage, and the backend stage copies that
+# output over src/, so shipping the committed copy too just leaves stale chunks behind
+# with no reference from index.html - one orphan per bundle whose content hash moved.
+src/CountOrSell.Api/wwwroot/
+
 # Local test and developer files
 docker/test/
 
