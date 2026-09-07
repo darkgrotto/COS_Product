@@ -31,12 +31,20 @@ Content updates deliver new and updated canonical reference data. The Product ne
 - `metadata/sets/{set_code}/pricing.json` - per-treatment pricing for that set
 - `metadata/sealed/{product_id}.json` - one file per sealed product
 
-**Images are not in the ZIP.** They are published as loose blobs at the package base URL (the
-directory holding `manifest.json`) and fetched individually - one request per image, up to 10
-concurrent - after the database transaction commits. Each is verified against its `checksums`
-entry before being stored. Image failures are best-effort: they are logged and do not fail the
-update. A full package is currently around 2,850 metadata files plus roughly 98,000 image
-fetches, which is what sizes any CDN or proxy in front of the package origin.
+**Images may be bundled in the ZIP or published alongside it.** The Product reads an image from
+the ZIP when the entry is present, and falls back to fetching that one file over HTTP from the
+package base URL when it is not, so a package may bundle all, some, or none of its images. Both
+paths verify each image against its `checksums` entry before storing it, and both run after the
+database transaction commits. Image failures are best-effort: they are logged and do not fail the
+update.
+
+Which images to store is always decided from the `images/` keys in the signed manifest, never
+from the ZIP entry list, so a package cannot introduce a path the manifest does not cover.
+
+The Backend currently publishes images alongside the ZIP rather than inside it. A full package
+lists around 98,000 images against 2,850 metadata files, so a full install costs roughly 98,000
+HTTP requests - which is what sizes any CDN or proxy in front of the package origin, far more
+than the ZIP itself does. Bundling the images collapses that to a single download.
 
 **Application behavior:**
 1. Download the package ZIP from the URL in the manifest

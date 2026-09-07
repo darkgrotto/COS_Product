@@ -178,8 +178,10 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
 
         if (treatments != null) _treatmentValidator.Invalidate();
 
-        // Fetch and save images outside the transaction - best effort, non-fatal
-        await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
+        // Fetch and save images outside the transaction - best effort, non-fatal.
+        // The archive is still open here, so images bundled in the package are taken from
+        // it rather than re-fetched one HTTP request per file.
+        await FetchAndSaveImagesAsync(archive, packageBaseUrl, packageManifest.Checksums, ct);
     }
 
     private T? ReadAndVerifyJson<T>(
@@ -412,7 +414,9 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
     public async Task ApplyImagesOnlyAsync(
         string packageBaseUrl, PackageManifest packageManifest, CancellationToken ct)
     {
-        await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
+        // No archive here: this path deliberately avoids downloading the package ZIP,
+        // so every image is fetched individually.
+        await FetchAndSaveImagesAsync(null, packageBaseUrl, packageManifest.Checksums, ct);
     }
 
     public async Task ApplyMetadataOnlyAsync(
@@ -511,13 +515,30 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             .Where(kv => kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .ToDictionary(kv => kv.Key, kv => kv.Value);
 
-        await FetchAndSaveImagesAsync(packageBaseUrl, scopedChecksums, ct);
+        // No archive here: image-only redownload does not fetch the ZIP.
+        await FetchAndSaveImagesAsync(null, packageBaseUrl, scopedChecksums, ct);
     }
 
-    // Fetches image blobs individually from the package base URL and saves them to the image store.
-    // Images are listed as manifest checksum keys (prefix "images/"). Up to 10 concurrent fetches.
+    // Per-image ceiling. The manifest is signature-verified, so this is defence in depth
+    // rather than the primary control: it stops a malformed or hostile package from
+    // expanding a single entry until the process runs out of memory.
+    private const int MaxImageBytes = 24 * 1024 * 1024;
+
+    // Saves the images a manifest lists under the "images/" prefix.
+    //
+    // Images bundled in the package ZIP are read straight out of it; anything not bundled
+    // falls back to one HTTP request per file against the package base URL. Packages have
+    // historically shipped images as loose blobs alongside the ZIP - a full package is
+    // around 98,000 of them - so the fallback is the path most packages still take, and a
+    // package may legitimately mix the two.
+    //
+    // Best-effort throughout: a failed image is logged and counted, never fatal to the
+    // update, matching the documented behaviour.
     private async Task FetchAndSaveImagesAsync(
-        string packageBaseUrl, Dictionary<string, string> checksums, CancellationToken ct)
+        ZipArchive? archive,
+        string packageBaseUrl,
+        Dictionary<string, string> checksums,
+        CancellationToken ct)
     {
         var imagePaths = checksums.Keys
             .Where(k => k.StartsWith("images/", StringComparison.OrdinalIgnoreCase))
@@ -534,71 +555,141 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         var baseUrl = packageBaseUrl.TrimEnd('/') + "/";
         var http = _httpClientFactory.CreateClient("ImageFetch");
         var semaphore = new SemaphoreSlim(10, 10);
-        int saved = 0, skippedChecksum = 0, failed = 0, rejected = 0;
+        int saved = 0, fromPackage = 0, skippedChecksum = 0, failed = 0, rejected = 0, oversize = 0;
         var savedLock = new object();
 
-        var tasks = imagePaths.Select(async imagePath =>
+        // Reject manifest keys that don't match the documented shape before they are used to
+        // construct a filesystem path, an HTTP URL, or a ZIP entry lookup.
+        var pending = new List<(string Key, string Normalized)>(imagePaths.Count);
+        foreach (var imagePath in imagePaths)
         {
-            await semaphore.WaitAsync(ct);
+            var normalized = imagePath.ToLowerInvariant();
+            if (!ImageKeyRegex.IsMatch(normalized))
+            {
+                _logger.LogWarning(
+                    "Rejecting manifest image key with unexpected shape: {Path}", imagePath);
+                rejected++;
+                continue;
+            }
+            pending.Add((imagePath, normalized));
+        }
+
+        // Verify against the signed checksum and write to the store. Owns the semaphore slot
+        // it is handed, so every caller must acquire before invoking it.
+        async Task ProcessAsync(string manifestKey, string storePath, byte[] bytes)
+        {
             try
             {
-                // Reject manifest keys that don't match the documented shape before they
-                // are used to construct either a filesystem path or an HTTP URL.
-                var normalized = imagePath.ToLowerInvariant();
-                if (!ImageKeyRegex.IsMatch(normalized))
-                {
-                    _logger.LogWarning(
-                        "Rejecting manifest image key with unexpected shape: {Path}", imagePath);
-                    lock (savedLock) rejected++;
-                    return;
-                }
-
-                var storePath = normalized.Substring("images/".Length);
-                var imageUrl = baseUrl + normalized;
-
-                byte[] bytes;
-                try
-                {
-                    bytes = await http.GetByteArrayAsync(imageUrl, ct);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to fetch image {Url}", imageUrl);
-                    lock (savedLock) failed++;
-                    return;
-                }
-
-                if (checksums.TryGetValue(imagePath, out var expectedChecksum)
+                if (checksums.TryGetValue(manifestKey, out var expectedChecksum)
                     && !_verifier.VerifyFileChecksum(bytes, expectedChecksum))
                 {
-                    _logger.LogWarning("Checksum mismatch for image {Path}, skipping", imagePath);
+                    _logger.LogWarning("Checksum mismatch for image {Path}, skipping", manifestKey);
                     lock (savedLock) skippedChecksum++;
                     return;
                 }
 
-                try
-                {
-                    await _imageStore.SaveImageAsync(storePath, bytes, ct);
-                    lock (savedLock) saved++;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to save image {Path}", storePath);
-                    lock (savedLock) failed++;
-                }
+                await _imageStore.SaveImageAsync(storePath, bytes, ct);
+                lock (savedLock) saved++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save image {Path}", storePath);
+                lock (savedLock) failed++;
             }
             finally
             {
                 semaphore.Release();
             }
-        });
+        }
+
+        var tasks = new List<Task>();
+        var needsHttp = new List<(string Key, string Normalized)>();
+
+        // ZipArchive is not thread-safe, so bundled entries are read on this loop and only
+        // the verify-and-store half runs concurrently. The semaphore is taken before the
+        // read so the number of decompressed images held in memory stays bounded.
+        foreach (var (key, normalized) in pending)
+        {
+            var entry = archive?.GetEntry(normalized) ?? archive?.GetEntry(key);
+            if (entry == null)
+            {
+                needsHttp.Add((key, normalized));
+                continue;
+            }
+
+            await semaphore.WaitAsync(ct);
+
+            byte[] bytes;
+            try
+            {
+                bytes = ReadEntryBytes(entry, MaxImageBytes);
+            }
+            catch (InvalidDataException ex)
+            {
+                _logger.LogWarning(ex, "Refusing oversized bundled image {Path}", normalized);
+                lock (savedLock) oversize++;
+                semaphore.Release();
+                continue;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to read bundled image {Path}", normalized);
+                lock (savedLock) failed++;
+                semaphore.Release();
+                continue;
+            }
+
+            lock (savedLock) fromPackage++;
+            tasks.Add(ProcessAsync(key, normalized["images/".Length..], bytes));
+        }
+
+        tasks.AddRange(needsHttp.Select(async item =>
+        {
+            await semaphore.WaitAsync(ct);
+
+            var imageUrl = baseUrl + item.Normalized;
+            byte[] bytes;
+            try
+            {
+                bytes = await http.GetByteArrayAsync(imageUrl, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to fetch image {Url}", imageUrl);
+                lock (savedLock) failed++;
+                semaphore.Release();
+                return;
+            }
+
+            await ProcessAsync(item.Key, item.Normalized["images/".Length..], bytes);
+        }));
 
         await Task.WhenAll(tasks);
 
         _logger.LogInformation(
-            "FetchAndSaveImagesAsync complete: {Saved} saved, {Skipped} skipped (checksum), {Rejected} rejected (bad path), {Failed} failed",
-            saved, skippedChecksum, rejected, failed);
+            "FetchAndSaveImagesAsync complete: {Saved} saved ({FromPackage} from package, {Fetched} fetched), "
+            + "{Skipped} skipped (checksum), {Rejected} rejected (bad path), {Oversize} rejected (too large), {Failed} failed",
+            saved, fromPackage, needsHttp.Count, skippedChecksum, rejected, oversize, failed);
 
         if (saved > 0) _imageStats?.Invalidate();
+    }
+
+    // Reads a bundled entry, refusing anything over the cap. The declared entry length is
+    // only a hint - the ZIP central directory can understate it - so the copy itself is
+    // bounded rather than trusting Length up front.
+    private static byte[] ReadEntryBytes(ZipArchiveEntry entry, int maxBytes)
+    {
+        using var stream = entry.Open();
+        using var ms = new MemoryStream();
+        var buffer = new byte[81920];
+        int read;
+        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            if (ms.Length + read > maxBytes)
+                throw new InvalidDataException(
+                    $"Bundled image {entry.FullName} exceeds the {maxBytes} byte limit.");
+            ms.Write(buffer, 0, read);
+        }
+        return ms.ToArray();
     }
 }

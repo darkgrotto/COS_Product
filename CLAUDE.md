@@ -352,7 +352,8 @@ Per-package manifest format:
 }
 ```
 
-ZIP file structure (package.zip). The ZIP carries metadata only - images are NOT in it:
+ZIP file structure (package.zip). Images may be bundled in the ZIP or published alongside it;
+the Backend currently ships them alongside, so a published ZIP is metadata only:
 ```
 manifest.json
 manifest.json.sig
@@ -375,19 +376,25 @@ metadata/
                              set_code, category_slug, sub_type_slug are all nullable.
 ```
 
-Images are published as loose blobs alongside the ZIP, at the package base URL (the directory
-holding manifest.json), NOT inside the ZIP:
+Images live under an `images/` tree, either inside the ZIP or as loose blobs at the package base
+URL (the directory holding manifest.json). The Product reads an image from the ZIP when the entry
+is present and falls back to fetching that one file over HTTP when it is not, so a package may
+bundle all, some, or none of its images:
 ```
 {package_base_url}/images/
   sets/{set_code}/{card_id}.jpg
   sealed/{product_id}.jpg
   sealed/{product_id}_s.jpg
 ```
-They are enumerated from the `images/` keys in the manifest `checksums` map and fetched one file
-per request (up to 10 concurrent), each verified against its checksum. Image failures are
-non-fatal and happen outside the apply transaction. A full package is currently ~2,850 metadata
-files in the ZIP plus ~98,000 individual image fetches, so anything fronting the package origin
-is sized by image count, not by ZIP size.
+They are enumerated from the `images/` keys in the manifest `checksums` map - never from the ZIP
+entry list, so a package cannot introduce a path the signed manifest does not cover - and each is
+verified against its checksum before being stored. Image handling is best-effort and runs outside
+the apply transaction: a failed image is logged and counted, never fatal.
+
+A full package lists ~98,000 images against ~2,850 metadata files. While the Backend publishes
+them loose, that is ~98,000 HTTP requests per full install, so anything fronting the package
+origin is sized by image count rather than ZIP size. Bundling them collapses that to a single
+download; the Product side is in place, the Backend change is not.
 
 Package types: "full" (complete snapshot, base_full_version is null), "delta" (incremental from base_full_version, contains only changed files). Deltas are cumulative from their base_full_version; sequential application not required. Backend retains 3 full versions at all times. No separate schema packages - schema version is a metadata field only; schema migrations run on startup. slabs content type is always present in manifests with version 0.0.0 and record_count 0 (placeholder only - no slab data is ever shipped).
 

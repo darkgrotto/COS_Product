@@ -15,6 +15,8 @@ namespace CountOrSell.Tests.Integration.Updates;
 //   metadata/sets/{set_code}/set.json
 //   metadata/sets/{set_code}/cards.json
 //   metadata/sealed/{product_id}.json
+//   images/... (optional - real packages have historically shipped images as loose
+//               blobs alongside the ZIP, so bundling them is opt-in here too)
 internal static class PackageBuilder
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -28,7 +30,9 @@ internal static class PackageBuilder
         List<SetDto>? sets = null,
         List<CardDto>? cards = null,
         TaxonomyDto? taxonomy = null,
-        List<SealedProductDto>? sealedProducts = null)
+        List<SealedProductDto>? sealedProducts = null,
+        Dictionary<string, byte[]>? bundledImages = null,
+        Dictionary<string, byte[]>? unbundledImages = null)
     {
         var entries = new Dictionary<string, byte[]>();
 
@@ -57,10 +61,20 @@ internal static class PackageBuilder
             foreach (var product in sealedProducts)
                 entries[$"metadata/sealed/{product.Identifier}.json"] = Serialize(product);
 
+        if (bundledImages != null)
+            foreach (var (path, data) in bundledImages)
+                entries[path] = data;
+
         // Build checksums
         var checksums = entries.ToDictionary(
             kvp => kvp.Key,
             kvp => "sha256:" + ComputeSha256(kvp.Value));
+
+        // Listed in the manifest but absent from the ZIP - the applicator must fall back to
+        // fetching these over HTTP from the package base URL.
+        if (unbundledImages != null)
+            foreach (var (path, data) in unbundledImages)
+                checksums[path] = "sha256:" + ComputeSha256(data);
 
         var packageManifest = new PackageManifest
         {
