@@ -6,7 +6,8 @@ WORKDIR /client
 # pinned tree. npm install would re-resolve semver ranges on every build,
 # making images non-reproducible and silently ignoring lockfile-only updates
 # (which is all a dependabot bump changes).
-COPY src/CountOrSell.Api/Client/package.json src/CountOrSell.Api/Client/package-lock.json ./
+COPY src/CountOrSell.Api/Client/package.json src/CountOrSell.Api/Client/package-lock.json \
+     src/CountOrSell.Api/Client/.npmrc ./
 RUN npm ci
 COPY src/CountOrSell.Api/Client/ ./
 ARG VITE_GIT_COMMIT
