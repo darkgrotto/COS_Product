@@ -278,6 +278,14 @@ public class CollectionRepository : ICollectionRepository
         return entries.Count;
     }
 
+    public async Task<List<string>> GetCardIdentifiersByIdsAsync(
+        IEnumerable<Guid> ids, Guid userId, CancellationToken ct = default) =>
+        await _db.CollectionEntries
+            .Where(e => ids.Contains(e.Id) && e.UserId == userId)
+            .Select(e => e.CardIdentifier)
+            .Distinct()
+            .ToListAsync(ct);
+
     public async Task<int> BulkSetTreatmentAsync(IEnumerable<Guid> ids, Guid userId, string treatment, CancellationToken ct = default)
     {
         var idList = ids.ToList();

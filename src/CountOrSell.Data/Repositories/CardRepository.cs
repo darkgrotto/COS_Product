@@ -87,6 +87,16 @@ public class CardRepository : ICardRepository
             c => new CardSummary(c.Name, c.CurrentMarketValue, c.SetCode, c.OracleRulingUrl));
     }
 
+    public async Task<Dictionary<string, string>> GetValidTreatmentsByIdentifiersAsync(
+        IEnumerable<string> identifiers, CancellationToken ct = default)
+    {
+        var list = await _db.Cards
+            .Where(c => identifiers.Contains(c.Identifier) && c.ValidTreatments != null)
+            .Select(c => new { c.Identifier, c.ValidTreatments })
+            .ToListAsync(ct);
+        return list.ToDictionary(c => c.Identifier, c => c.ValidTreatments!);
+    }
+
     public Task<Card?> GetRandomWithFlavorTextAsync(CancellationToken ct = default) =>
         _db.Cards
             .Where(c => c.FlavorText != null)

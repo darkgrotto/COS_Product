@@ -14,4 +14,8 @@ public interface ICardRepository
     Task<Dictionary<string, CardSummary>> GetSummaryByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
     Task<Card?> GetRandomWithFlavorTextAsync(CancellationToken ct = default);
     Task<Dictionary<string, Dictionary<string, decimal?>>> GetPricesByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
+
+    // Comma-joined valid_treatments per identifier. Cards with no recorded treatments are
+    // omitted, so an absent key means unconstrained rather than "no treatments allowed".
+    Task<Dictionary<string, string>> GetValidTreatmentsByIdentifiersAsync(IEnumerable<string> identifiers, CancellationToken ct = default);
 }
