@@ -7,7 +7,8 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # write, not read: the last step creates the GitHub Release for this tag.
+      contents: write
       packages: write
     steps:
       - uses: actions/checkout@v4
@@ -51,3 +52,28 @@ jobs:
           build-args: |
             VITE_GIT_COMMIT=${{ github.sha }}
             VITE_BUILD_TAG=${{ steps.version.outputs.full }}
+
+      # A tag alone does not create a Release, and AppVersionService reads the release API
+      # (api.github.com/.../releases/latest) to decide whether an update is available. Doing
+      # this by hand was a step that silently no-ops when forgotten: the images publish, so
+      # the release looks complete, while no instance is ever told an update exists.
+      #
+      # Runs last so a release is never announced for an image that failed to publish.
+      # Uses the runner's preinstalled gh rather than a third-party action: there is no
+      # dependabot.yml here, so an action pin would never be updated.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists - leaving it unchanged."
+            exit 0
+          fi
+          # --latest is what points releases/latest at this tag, which is the exact field
+          # the in-app update check reads.
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --generate-notes \
+            --latest

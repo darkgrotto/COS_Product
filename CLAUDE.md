@@ -555,7 +555,7 @@ GCP_SERVICE_NAME=
 - Registry: ghcr.io/darkgrotto/countorsell
 - Tags: `:latest` (most recent stable), `:X.Y.Z` (specific version), `:X.Y` (latest patch for minor), `:X` (latest minor for major), `:dev` (built from every push to main, unstable, not for production)
 - Architectures: linux/amd64, linux/arm64
-- Version tags created manually by pushing a git tag in format vX.Y.Z (e.g. v1.2.3)
+- Version tags created manually by pushing a git tag in format vX.Y.Z (e.g. v1.2.3). Bump `<Version>` in `CountOrSell.Api.csproj` in a commit first - `ProductVersion.Current` reads it via `AssemblyInformationalVersion`, so tagging without it ships an image whose app reports the previous version and immediately believes itself out of date. Pushing the tag runs `release-image.yml`, which builds linux/amd64 + linux/arm64, pushes `X.Y.Z`/`X.Y`/`X`/`latest`, and then creates the GitHub Release. The Release is not optional: `AppVersionService` reads `releases/latest` from the GitHub API, so a tag without one publishes images that no instance is ever told about. The trigger pattern is `v[0-9]+.[0-9]+.[0-9]+` - a pre-release suffix such as `v1.2.0-rc1` matches nothing and silently builds nothing.
 - **Claude Code must never create git tags**
 
 ### Build Commands
