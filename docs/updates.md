@@ -35,8 +35,16 @@ Content updates deliver new and updated canonical reference data. The Product ne
 directory holding `manifest.json`) and fetched individually - one request per image, up to 10
 concurrent - after the database transaction commits. Each is verified against its `checksums`
 entry before being stored. Image failures are best-effort: they are logged and do not fail the
-update. A full package is currently around 2,850 metadata files plus roughly 98,000 image
+update. A full package is currently around 2,850 metadata files plus roughly 101,000 image
 fetches, which is what sizes any CDN or proxy in front of the package origin.
+
+Because image failures are non-fatal, an update can finish with an incomplete image set. That
+is reported rather than passing as plain success: the update result names how many images are
+missing and why, and an admin notification is raised. Rate limiting (HTTP 429) is called out
+separately from other failures, because it means the request budget in front of the package
+origin was exhausted - an operator-side fix - rather than a problem with the package. The
+missing images can be retrieved afterwards with a targeted image redownload, which reports its
+own shortfall the same way.
 
 **Application behavior:**
 1. Download the package ZIP from the URL in the manifest
