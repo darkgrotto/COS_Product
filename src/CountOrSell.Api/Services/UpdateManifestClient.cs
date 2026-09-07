@@ -25,8 +25,7 @@ public class UpdateManifestClient : IUpdateManifestClient
     {
         try
         {
-            var response = await _httpClient.GetAsync(
-                "https://www.countorsell.com/updates/manifest.json", ct);
+            var response = await _httpClient.GetAsync(UpdateSource.ManifestUrl, ct);
             response.EnsureSuccessStatusCode();
             var json = await response.Content.ReadAsStringAsync(ct);
             return JsonSerializer.Deserialize<UpdateManifest>(json, JsonOptions);
@@ -41,7 +40,7 @@ public class UpdateManifestClient : IUpdateManifestClient
     public async Task<SignedPackageManifest?> FetchSignedPackageManifestAsync(
         string manifestUrl, CancellationToken ct)
     {
-        if (!UpdateSource.IsAllowed(manifestUrl))
+        if (!UpdateSource.TryResolve(manifestUrl, out var resolvedUrl))
         {
             _logger.LogWarning(
                 "Rejected per-package manifest URL not on the allowed update source: {Url}", manifestUrl);
@@ -51,17 +50,17 @@ public class UpdateManifestClient : IUpdateManifestClient
         byte[] manifestBytes;
         try
         {
-            var response = await _httpClient.GetAsync(manifestUrl, ct);
+            var response = await _httpClient.GetAsync(resolvedUrl, ct);
             response.EnsureSuccessStatusCode();
             manifestBytes = await response.Content.ReadAsByteArrayAsync(ct);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to fetch per-package manifest from {Url}", manifestUrl);
+            _logger.LogWarning(ex, "Failed to fetch per-package manifest from {Url}", resolvedUrl);
             return null;
         }
 
-        var sigUrl = manifestUrl + ".sig";
+        var sigUrl = resolvedUrl + ".sig";
         SignedManifestEnvelope? envelope;
         try
         {
@@ -92,11 +91,12 @@ public class UpdateManifestClient : IUpdateManifestClient
         }
         catch (JsonException ex)
         {
-            _logger.LogWarning(ex, "Per-package manifest at {Url} is not valid JSON", manifestUrl);
+            _logger.LogWarning(ex, "Per-package manifest at {Url} is not valid JSON", resolvedUrl);
             return null;
         }
 
         if (parsed == null) return null;
-        return new SignedPackageManifest(manifestBytes, envelope, parsed);
+        return new SignedPackageManifest(
+            manifestBytes, envelope, parsed, UpdateSource.BaseUrlOf(resolvedUrl));
     }
 }
