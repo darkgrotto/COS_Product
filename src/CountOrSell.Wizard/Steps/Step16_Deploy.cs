@@ -864,6 +864,10 @@ public static class Step16_Deploy
         return (proc.ExitCode, output.Trim());
     }
 
+    // False when the instance already had users, so the closing summary does not report
+    // a clean setup when the credentials the operator entered were never created.
+    public static bool AccountsCreated { get; private set; } = true;
+
     private static async Task<bool> InitializeAccountsAsync(WizardConfig config)
     {
         bool skipSsl = config.DeploymentType == DeploymentType.Docker;
@@ -942,7 +946,32 @@ public static class Step16_Deploy
             var errorBody = await initResp.Content.ReadAsStringAsync();
             if (initResp.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
-                Console.WriteLine("Note: accounts already exist - skipping account creation.");
+                // The deployment is genuinely up, so this is not a failure - but it is not
+                // the outcome the operator asked for either. They entered an admin username
+                // and password that were never created, and would discover it only when
+                // those credentials did not work. Say so plainly rather than in passing.
+                Console.WriteLine();
+                Console.WriteLine("========================================================================");
+                Console.WriteLine("WARNING: The accounts you entered were NOT created.");
+                Console.WriteLine("========================================================================");
+                Console.WriteLine();
+                Console.WriteLine("This instance already has users, so first-run setup is closed. That");
+                Console.WriteLine("normally means an existing database was reused: Docker named volumes");
+                Console.WriteLine("survive 'docker compose down' and container deletion, and CountOrSell's");
+                Console.WriteLine("volume names are fixed, so a new deployment on this host attaches to the");
+                Console.WriteLine("same database.");
+                Console.WriteLine();
+                Console.WriteLine($"  These credentials are NOT active: '{config.ProductAdminUsername}', '{config.GeneralUserUsername}'");
+                Console.WriteLine();
+                Console.WriteLine("To continue, either:");
+                Console.WriteLine("  - sign in with the credentials from the existing database, or");
+                Console.WriteLine("  - start genuinely fresh, DESTROYING the existing collection data:");
+                Console.WriteLine("      docker compose -f docker/compose/docker-compose.yml down -v");
+                Console.WriteLine("    then re-run this wizard.");
+                Console.WriteLine();
+                Console.WriteLine("The deployment itself is running and healthy.");
+                Console.WriteLine("========================================================================");
+                AccountsCreated = false;
                 return true;
             }
 

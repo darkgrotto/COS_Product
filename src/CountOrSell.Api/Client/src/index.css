@@ -4,6 +4,11 @@
 
 @layer base {
   :root {
+    /* Declared so a browser cannot decide for itself. Without it, user-agent auto-dark
+       (Chrome's "Auto Dark Mode for Web Contents", and the equivalent on mobile) may
+       force-darken a page that has not opted in, which looks like the app ignoring the
+       light-mode preference. Theme is class-driven: .dark below opts into dark. */
+    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -27,6 +32,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
