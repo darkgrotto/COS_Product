@@ -25,6 +25,10 @@ jobs:
       - name: Install (locked tree, engine-strict)
         working-directory: src/CountOrSell.Api/Client
         run: npm ci
+      - name: Test
+        working-directory: src/CountOrSell.Api/Client
+        run: npm test
+
       - name: Build
         working-directory: src/CountOrSell.Api/Client
         run: npm run build

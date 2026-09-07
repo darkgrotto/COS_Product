@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import {
   CardDetailDialog, QuickAddDialog, SortTh, AddableCard,
-  sortTreatments,
+  sortTreatments, availableTreatmentsFor,
 } from '@/components/cards/CardDialogs'
 import type { SortDir } from '@/components/cards/CardDialogs'
 import { Button } from '@/components/ui/button'
@@ -356,9 +356,7 @@ function EntryDialog({
     } finally { setSaving(false) }
   }
 
-  const availableTreatments = validTreatments.length > 0
-    ? sortTreatments(treatments.filter(t => validTreatments.includes(t.key)))
-    : sortTreatments(treatments)
+  const availableTreatments = availableTreatmentsFor(validTreatments, treatments)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

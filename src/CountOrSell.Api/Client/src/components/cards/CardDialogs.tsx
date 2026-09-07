@@ -72,6 +72,22 @@ export function sortTreatments<T extends { key: string; displayName: string; sor
     (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.displayName.localeCompare(b.displayName))
 }
 
+// The treatments a card may be recorded in: the card's own associations from the update
+// package, resolved through the reference table so they carry display names and sort order.
+//
+// Falls back to the full reference table when the card has no associations - an unknown card
+// or one whose canonical data predates per-card treatments must not be left unpickable - and
+// again if none of its associations are in the reference table yet.
+export function availableTreatmentsFor<T extends { key: string; displayName: string; sortOrder?: number }>(
+  validTreatments: string[] | null | undefined,
+  treatments: T[],
+): T[] {
+  const restricted = validTreatments && validTreatments.length > 0
+    ? treatments.filter(t => validTreatments.includes(t.key))
+    : treatments
+  return sortTreatments(restricted.length > 0 ? restricted : treatments)
+}
+
 // ---- Filter chip ------------------------------------------------------------
 
 export function ToggleChip({
@@ -433,11 +449,7 @@ export function QuickAddDialog({
   onClose: () => void
   onAdded: (mode: 'collection' | 'wishlist') => void
 }) {
-  // Restrict to card's valid treatments if provided; fall back to all treatments.
-  const available = card.validTreatments && card.validTreatments.length > 0
-    ? treatments.filter(t => card.validTreatments!.includes(t.key))
-    : treatments
-  const sorted = sortTreatments(available.length > 0 ? available : treatments)
+  const sorted = availableTreatmentsFor(card.validTreatments, treatments)
   const defaultTreatment = sorted[0]?.key ?? ''
   const defaultPrice = (card.prices?.[defaultTreatment] ?? card.currentMarketValue)
   const [mode, setMode] = useState<'collection' | 'wishlist'>('collection')

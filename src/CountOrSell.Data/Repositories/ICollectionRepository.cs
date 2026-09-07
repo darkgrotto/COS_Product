@@ -16,6 +16,10 @@ public interface ICollectionRepository
     Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default);
     Task<int> BulkDeleteAsync(IEnumerable<Guid> ids, Guid userId, CancellationToken ct = default);
     Task<int> BulkSetTreatmentAsync(IEnumerable<Guid> ids, Guid userId, string treatment, CancellationToken ct = default);
+
+    // Card identifiers behind a set of the user's entry ids, for validating a bulk change
+    // against what each card is actually printed in.
+    Task<List<string>> GetCardIdentifiersByIdsAsync(IEnumerable<Guid> ids, Guid userId, CancellationToken ct = default);
     Task<int> BulkSetAcquisitionDateAsync(IEnumerable<Guid> ids, Guid userId, DateOnly date, CancellationToken ct = default);
     Task<HashSet<string>> GetOwnedIdentifiersBySetAsync(Guid userId, string setCode, CancellationToken ct = default);
 }

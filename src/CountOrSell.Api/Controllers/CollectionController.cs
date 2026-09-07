@@ -111,6 +111,10 @@ public class CollectionController : ControllerBase
             return BadRequest(new { error = $"Invalid card identifier: {request.CardIdentifier.ToUpperInvariant()}. Expected format: set code (3-4 alphanumeric) followed by card number (3 digits, or 4 digits >= 1000)." });
         if (!await _treatments.IsValidAsync(request.Treatment, ct))
             return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
+
+        var pairing = await CheckPairingAsync(cardId, request.Treatment, ct);
+        if (pairing != null) return BadRequest(pairing);
+
         var entry = new CollectionEntry
         {
             Id = Guid.NewGuid(),
@@ -152,6 +156,15 @@ public class CollectionController : ControllerBase
 
         if (!await _treatments.IsValidAsync(request.Treatment, ct))
             return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
+
+        // Only check the pairing when the treatment is actually being changed. An entry
+        // recorded before its card gained treatment data - or before the card lost one
+        // upstream - must stay editable for quantity, condition and price.
+        if (!string.Equals(request.Treatment, entry.TreatmentKey, StringComparison.OrdinalIgnoreCase))
+        {
+            var pairing = await CheckPairingAsync(entry.CardIdentifier, request.Treatment, ct);
+            if (pairing != null) return BadRequest(pairing);
+        }
 
         entry.TreatmentKey = request.Treatment;
         entry.Quantity = request.Quantity;
@@ -292,6 +305,25 @@ public class CollectionController : ControllerBase
             return BadRequest(new { error = "Treatment is required." });
         if (!await _treatments.IsValidAsync(request.Treatment, ct))
             return BadRequest(new { error = $"Unknown treatment: {request.Treatment}" });
+
+        // The user picked these entries deliberately, so applying to some and quietly
+        // dropping the rest would misreport what happened. Refuse and name the cards.
+        var identifiers = await _collection.GetCardIdentifiersByIdsAsync(request.Ids, CurrentUserId, ct);
+        var valid = await _cards.GetValidTreatmentsByIdentifiersAsync(identifiers, ct);
+        var rejected = identifiers
+            .Where(id => valid.TryGetValue(id, out var v) && !CardTreatmentRule.Accepts(v, request.Treatment))
+            .ToList();
+
+        if (rejected.Count > 0)
+        {
+            var examples = string.Join(", ", rejected.Take(3).Select(i => i.ToUpperInvariant()));
+            var more = rejected.Count > 3 ? $" and {rejected.Count - 3} more" : string.Empty;
+            return BadRequest(new
+            {
+                error = $"{rejected.Count} of the selected cards are not printed in {request.Treatment}: {examples}{more}."
+            });
+        }
+
         var updated = await _collection.BulkSetTreatmentAsync(request.Ids, CurrentUserId, request.Treatment, ct);
         return Ok(new { updated });
     }
@@ -322,7 +354,9 @@ public class CollectionController : ControllerBase
         var ownedIdentifiers = await _collection.GetOwnedIdentifiersBySetAsync(CurrentUserId, setCode, ct);
 
         var now = DateTime.UtcNow;
-        var toAdd = cards
+        var eligible = cards.Where(c => CardTreatmentRule.Accepts(c.ValidTreatments, request.Treatment)).ToList();
+        var notPrinted = cards.Count - eligible.Count;
+        var toAdd = eligible
             .Where(c => !ownedIdentifiers.Contains(c.Identifier))
             .Select(c => new CollectionEntry
             {
@@ -344,7 +378,7 @@ public class CollectionController : ControllerBase
         if (toAdd.Count > 0)
             await _collection.BulkCreateAsync(toAdd, ct);
 
-        return Ok(new { added = toAdd.Count, skipped = ownedIdentifiers.Count });
+        return Ok(new { added = toAdd.Count, skipped = ownedIdentifiers.Count + notPrinted, notPrinted });
     }
 
     [HttpPost("bulk-add-sets")]
@@ -375,7 +409,11 @@ public class CollectionController : ControllerBase
             }
 
             var ownedIdentifiers = await _collection.GetOwnedIdentifiersBySetAsync(CurrentUserId, setCode, ct);
-            var toAdd = cards
+            // Adding a whole set in a premium treatment only makes sense for the printings
+            // that exist in it, so cards without it are skipped rather than failing the run.
+            var eligible = cards.Where(c => CardTreatmentRule.Accepts(c.ValidTreatments, request.Treatment)).ToList();
+            var notPrinted = cards.Count - eligible.Count;
+            var toAdd = eligible
                 .Where(c => !ownedIdentifiers.Contains(c.Identifier))
                 .Select(c => new CollectionEntry
                 {
@@ -397,7 +435,14 @@ public class CollectionController : ControllerBase
             if (toAdd.Count > 0)
                 await _collection.BulkCreateAsync(toAdd, ct);
 
-            bySet.Add(new { setCode = rawCode.ToUpperInvariant(), added = toAdd.Count, skipped = ownedIdentifiers.Count, notFound = false });
+            bySet.Add(new
+            {
+                setCode = rawCode.ToUpperInvariant(),
+                added = toAdd.Count,
+                skipped = ownedIdentifiers.Count + notPrinted,
+                notPrinted,
+                notFound = false
+            });
             totalAdded += toAdd.Count;
             totalSkipped += ownedIdentifiers.Count;
         }
@@ -509,4 +554,19 @@ public class CollectionController : ControllerBase
         e.UpdatedAt,
         OracleRulingUrl = oracleRulingUrl
     };
+    // Null when the card may be recorded in this treatment; a BadRequest body when it may not.
+    // Only cards whose treatments arrived in an update package are constrained - see
+    // CardTreatmentRule for why an unknown card is allowed through.
+    private async Task<object?> CheckPairingAsync(string cardIdentifier, string treatment, CancellationToken ct)
+    {
+        var card = await _cards.GetByIdentifierAsync(cardIdentifier, ct);
+        if (card == null || CardTreatmentRule.Accepts(card.ValidTreatments, treatment)) return null;
+
+        var offered = CardTreatmentRule.Offered(card.ValidTreatments);
+        return new
+        {
+            error = $"{cardIdentifier.ToUpperInvariant()} is not printed in {treatment}.",
+            validTreatments = offered
+        };
+    }
 }
