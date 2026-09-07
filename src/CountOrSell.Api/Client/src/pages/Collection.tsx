@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import {
   CardDetailDialog, QuickAddDialog, SortTh, AddableCard,
+  sortTreatments,
 } from '@/components/cards/CardDialogs'
 import type { SortDir } from '@/components/cards/CardDialogs'
 import { Button } from '@/components/ui/button'
@@ -86,16 +87,6 @@ interface Filters {
   hasHybridMana: boolean
 }
 
-// Regular first, Foil second, then alphabetical by display name.
-function sortTreatments<T extends { key: string; displayName: string }>(ts: T[]): T[] {
-  return [...ts].sort((a, b) => {
-    if (a.key === 'regular') return -1
-    if (b.key === 'regular') return 1
-    if (a.key === 'foil') return -1
-    if (b.key === 'foil') return 1
-    return a.displayName.localeCompare(b.displayName)
-  })
-}
 
 const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'DMG'] as const
 const CONDITION_LABELS: Record<string, string> = {
@@ -248,12 +239,12 @@ function EntryDialog({
   onSave: () => void
 }) {
   const isEdit = !!initial
-  const regularKey = treatments.find(t => t.key === 'regular')?.key ?? treatments[0]?.key ?? 'regular'
+  const defaultTreatmentKey = sortTreatments(treatments)[0]?.key ?? ''
   const { prefs } = usePreferences()
 
   function blankForm(): EntryForm {
     return {
-      cardIdentifier: '', cardName: '', treatment: regularKey,
+      cardIdentifier: '', cardName: '', treatment: defaultTreatmentKey,
       quantity: 1, condition: 'NM', autographed: false,
       acquisitionDate: today(), acquisitionPrice: '', notes: '',
     }
@@ -276,7 +267,20 @@ function EntryDialog({
       const res = await fetch(`/api/cards/${identifier.toLowerCase()}`)
       if (res.ok) {
         const data = await res.json()
-        setValidTreatments(data.validTreatments ?? [])
+        const valid: string[] = data.validTreatments ?? []
+        setValidTreatments(valid)
+
+        // A card need not offer the default treatment at all - a foil-only serialized
+        // printing carries {Foil, Serialized} and no Regular - so move the form onto a
+        // treatment this card actually has. Without this the picker shows the card's
+        // treatments while the form still holds one the card does not have, and saving
+        // stores a combination that does not exist (the API only checks the treatment
+        // is a known one, not that this card has it).
+        if (valid.length > 0) {
+          setForm(f => valid.includes(f.treatment)
+            ? f
+            : { ...f, treatment: sortTreatments(treatments.filter(t => valid.includes(t.key)))[0]?.key ?? valid[0] })
+        }
       }
     } catch {
       setValidTreatments([])
@@ -496,10 +500,10 @@ function BulkAddDialog({
   treatments: Treatment[]
   onSave: () => void
 }) {
-  const regularKey = treatments.find(t => t.key === 'regular')?.key ?? treatments[0]?.key ?? 'regular'
+  const defaultTreatmentKey = sortTreatments(treatments)[0]?.key ?? ''
   const [setSearch, setSetSearch] = useState('')
   const [setCode, setSetCode] = useState('')
-  const [treatment, setTreatment] = useState(regularKey)
+  const [treatment, setTreatment] = useState(defaultTreatmentKey)
   const [condition, setCondition] = useState('NM')
   const [acquisitionDate, setAcquisitionDate] = useState(today())
   const [acquisitionPrice, setAcquisitionPrice] = useState('')
@@ -511,13 +515,13 @@ function BulkAddDialog({
     if (!open) return
     setSetSearch('')
     setSetCode('')
-    setTreatment(regularKey)
+    setTreatment(defaultTreatmentKey)
     setCondition('NM')
     setAcquisitionDate(today())
     setAcquisitionPrice('')
     setError('')
     setResult(null)
-  }, [open, regularKey])
+  }, [open, defaultTreatmentKey])
 
   const filteredSets = setSearch.trim()
     ? sets.filter(s =>

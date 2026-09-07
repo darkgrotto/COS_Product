@@ -64,15 +64,12 @@ export function fmt(v: number | null | undefined) {
   return `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-// Regular first, Foil second, then alphabetical by displayName.
-export function sortTreatments<T extends { key: string; displayName: string }>(ts: T[]): T[] {
-  return [...ts].sort((a, b) => {
-    if (a.key === 'regular') return -1
-    if (b.key === 'regular') return 1
-    if (a.key === 'foil') return -1
-    if (b.key === 'foil') return 1
-    return a.displayName.localeCompare(b.displayName)
-  })
+// Ordered by the sort_order shipped in the treatments reference table, so a treatment
+// added upstream lands where the Backend intends without a Product release. Display name
+// only breaks ties; no treatment key is ever inspected here.
+export function sortTreatments<T extends { key: string; displayName: string; sortOrder?: number }>(ts: T[]): T[] {
+  return [...ts].sort((a, b) =>
+    (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.displayName.localeCompare(b.displayName))
 }
 
 // ---- Filter chip ------------------------------------------------------------
@@ -441,7 +438,7 @@ export function QuickAddDialog({
     ? treatments.filter(t => card.validTreatments!.includes(t.key))
     : treatments
   const sorted = sortTreatments(available.length > 0 ? available : treatments)
-  const defaultTreatment = sorted[0]?.key ?? 'regular'
+  const defaultTreatment = sorted[0]?.key ?? ''
   const defaultPrice = (card.prices?.[defaultTreatment] ?? card.currentMarketValue)
   const [mode, setMode] = useState<'collection' | 'wishlist'>('collection')
   const [form, setForm] = useState<AddForm>({

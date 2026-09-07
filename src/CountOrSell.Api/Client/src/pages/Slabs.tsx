@@ -144,7 +144,7 @@ function EntryDialog({ open, onOpenChange, treatments, agencies, initial, onSave
   const activeAgencies = agencies.filter(a => a.active)
   const blank = (): EntryForm => ({
     cardIdentifier: '', cardName: '',
-    treatment: treatments[0]?.key ?? 'regular',
+    treatment: treatments[0]?.key ?? '',
     gradingAgency: activeAgencies[0]?.code ?? '',
     grade: '', certificateNumber: '',
     serialNumber: '', printRunTotal: '',
