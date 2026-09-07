@@ -3,7 +3,10 @@
 #
 # Values come from the .env file in the deployment root. This file is safe to commit:
 # it contains no credentials.
-name: CountOrSell
+# Every globally-unique name derives from this, so two CountOrSell deployments can run
+# side by side on one Docker host. Defaults to countorsell, which keeps the volume names
+# byte-identical to what single-instance deployments already have - the data lives there.
+name: ${COS_PROJECT_NAME:-countorsell}
 
 services:
   app:
@@ -11,13 +14,15 @@ services:
     # double the name, because the wizard prompt collects the full repository path.
     # Defaulted so an unset value cannot produce an invalid reference.
     image: ${APP_IMAGE:-ghcr.io/darkgrotto/countorsell:latest}
-    container_name: cos-app
+    container_name: ${COS_PROJECT_NAME:-countorsell}-app
     environment:
       # Kestrel's listen port, which nginx proxies to. Pinned rather than inherited:
       # PORT in .env is the published HTTPS port, a different thing with the same name,
       # and letting that reach the app would leave nginx proxying to the wrong port.
       - PORT=3000
-      - DB_HOST=cos-postgres
+      # Service name, not container name: Compose resolves it on the project network, so
+       # it stays correct however the containers end up named.
+      - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:-countorsell}
       - DB_USER=${DB_USER}
@@ -31,7 +36,7 @@ services:
       - ImageStore__BasePath=/app/data/images
       - BACKUP_LOCAL_PATH=/app/data/backups
     volumes:
-      - countorsell_app_data:/app/data
+      - app_data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,13 +44,13 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: cos-postgres
+    container_name: ${COS_PROJECT_NAME:-countorsell}-postgres
     environment:
       - POSTGRES_DB=${DB_NAME:-countorsell}
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
-      - countorsell_postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       # $$ escapes the $ so the shell inside the container expands these, not Compose.
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
@@ -56,7 +61,7 @@ services:
 
   reverse-proxy:
     image: nginx:alpine
-    container_name: cos-reverse-proxy
+    container_name: ${COS_PROJECT_NAME:-countorsell}-reverse-proxy
     ports:
       # Defaulted so an unset PORT cannot produce ":443", which Compose rejects.
       - "${PORT:-443}:443"
@@ -68,7 +73,9 @@ services:
     restart: unless-stopped
 
 volumes:
-  countorsell_postgres_data:
-    name: countorsell_postgres_data
-  countorsell_app_data:
-    name: countorsell_app_data
+  # Deliberately unnamed: Compose prefixes the project, giving countorsell_postgres_data
+  # by default - the name existing deployments already use - and a distinct volume per
+  # project for any other instance. A pinned name would be global, so every deployment on
+  # the host would silently share one database.
+  postgres_data:
+  app_data:

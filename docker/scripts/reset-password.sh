@@ -6,12 +6,14 @@
 #   ./reset-password.sh <username>
 #
 # Override defaults with environment variables:
-#   POSTGRES_CONTAINER=cos-postgres ./reset-password.sh <username>
+#   POSTGRES_CONTAINER=countorsell-postgres ./reset-password.sh <username>
 #   DB_USER=admin DB_NAME=countorsell ./reset-password.sh <username>
 
 set -e
 
-POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-cos-postgres}"
+# Container names are scoped by COS_PROJECT_NAME so instances can coexist;
+# override POSTGRES_CONTAINER when running against a non-default project.
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-${COS_PROJECT_NAME:-countorsell}-postgres}"
 DB_USER="${DB_USER:-admin}"
 DB_NAME="${DB_NAME:-countorsell}"
 
