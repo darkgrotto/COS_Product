@@ -16,11 +16,15 @@ scripts/
 **/.env.*
 **/*.env
 
-# Build artifacts - rebuilt inside Docker
+# Build artifacts - rebuilt inside Docker.
+# node_modules must never enter the context: it lands after the npm ci layer and
+# would overwrite the container's install with a host-architecture tree.
+# Matched by wildcard rather than a fixed path so a project move cannot silently
+# stop excluding it (the previous src/Client/... paths matched nothing).
 src/**/bin/
 src/**/obj/
-src/Client/dist/
-src/Client/node_modules/
+**/node_modules/
+src/CountOrSell.Api/Client/dist/
 
 # Local test and developer files
 docker/test/
