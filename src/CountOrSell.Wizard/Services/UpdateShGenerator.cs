@@ -15,14 +15,31 @@ set -euo pipefail
 
 SCRIPT_DIR=""$(cd ""$(dirname ""${BASH_SOURCE[0]}"")""  && pwd)""
 COMPOSE_FILE=""$SCRIPT_DIR/../compose/docker-compose.yml""
+ENV_FILE=""$SCRIPT_DIR/../../.env""
+
+# docker compose resolves .env relative to the Compose file's own directory, but the
+# wizard writes .env to the deployment root - two levels up from this script. Without
+# pointing at it explicitly every variable expands blank, which breaks the image
+# reference and would recreate the containers with an empty database password.
+#
+# Wrapped in a function rather than an args array: an empty array under `set -u` is an
+# unbound variable on bash 3.2, which macOS still ships.
+compose() {
+  if [ -f ""$ENV_FILE"" ]; then
+    docker compose --env-file ""$ENV_FILE"" -f ""$COMPOSE_FILE"" ""$@""
+  else
+    echo ""Warning: $ENV_FILE not found; using Compose file defaults."" >&2
+    docker compose -f ""$COMPOSE_FILE"" ""$@""
+  fi
+}
 
 echo ""Pulling latest CountOrSell images...""
 # Pull the latest versions of all images defined in the Compose file
-docker compose -f ""$COMPOSE_FILE"" pull
+compose pull
 
 echo ""Restarting services with updated images...""
 # Recreate containers with the new images (zero-downtime where possible)
-docker compose -f ""$COMPOSE_FILE"" up -d
+compose up -d
 
 echo ""Update complete.""
 ";
