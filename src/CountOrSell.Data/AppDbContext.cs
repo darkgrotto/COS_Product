@@ -157,6 +157,7 @@ public class AppDbContext : DbContext
             });
             e.HasKey(s => s.Code);
             e.Property(s => s.Code).HasColumnName("code").HasMaxLength(4);
+            e.Property(s => s.RetiredAt).HasColumnName("retired_at");
             e.Property(s => s.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
             e.Property(s => s.TotalCards).HasColumnName("total_cards").IsRequired();
             e.Property(s => s.SetType).HasColumnName("set_type").HasMaxLength(50);
@@ -201,6 +202,7 @@ public class AppDbContext : DbContext
             });
             e.HasKey(s => s.Identifier);
             e.Property(s => s.Identifier).HasColumnName("identifier").HasMaxLength(100);
+            e.Property(s => s.RetiredAt).HasColumnName("retired_at");
             e.Property(s => s.SetCode).HasColumnName("set_code").HasMaxLength(4).IsRequired();
             e.Property(s => s.Name).HasColumnName("name").HasMaxLength(300).IsRequired();
             e.Property(s => s.CategorySlug).HasColumnName("category_slug").HasMaxLength(100);
@@ -253,6 +255,8 @@ public class AppDbContext : DbContext
             e.Property(c => c.Rarity).HasColumnName("rarity").HasMaxLength(20);
             e.Property(c => c.FlavorText).HasColumnName("flavor_text").HasMaxLength(1000);
             e.Property(c => c.ValidTreatments).HasColumnName("valid_treatments").HasMaxLength(500);
+            e.Property(c => c.RetiredAt).HasColumnName("retired_at");
+            e.HasIndex(c => c.RetiredAt);
             e.HasOne<Set>().WithMany().HasForeignKey(c => c.SetCode);
             e.HasIndex(c => c.SetCode);
         });

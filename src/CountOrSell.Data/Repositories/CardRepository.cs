@@ -17,8 +17,13 @@ public class CardRepository : ICardRepository
     private static readonly Regex IdentifierQueryRegex =
         new(@"^[a-z0-9]{3,4}\d+[a-z]?$", RegexOptions.Compiled);
 
+    // Catalog surfaces exclude retired cards - a card a full package no longer lists is not
+    // part of the canonical catalog any more. Resolution paths (GetByIdentifier, the
+    // by-identifier lookups feeding collection/slab/wishlist views) deliberately do NOT
+    // filter, so a user's holding of a pruned card still resolves its name, set and prices.
     public Task<List<Card>> SearchByNameAsync(string query, CancellationToken ct = default) =>
         _db.Cards
+            .Where(c => c.RetiredAt == null)
             .Where(c => EF.Functions.ILike(c.Name, $"%{query}%"))
             .OrderBy(c => c.Name)
             .Take(20)
@@ -29,7 +34,7 @@ public class CardRepository : ICardRepository
         var q = query.Trim().ToLowerInvariant();
         var setFilter = setCode?.ToLowerInvariant();
 
-        IQueryable<Card> baseQuery = _db.Cards;
+        IQueryable<Card> baseQuery = _db.Cards.Where(c => c.RetiredAt == null);
         if (!string.IsNullOrEmpty(setFilter))
             baseQuery = baseQuery.Where(c => c.SetCode == setFilter);
 
@@ -61,11 +66,11 @@ public class CardRepository : ICardRepository
     }
 
     public Task<List<Card>> GetBySetCodeAsync(string setCode, CancellationToken ct = default) =>
-        _db.Cards.Where(c => c.SetCode == setCode).ToListAsync(ct);
+        _db.Cards.Where(c => c.SetCode == setCode && c.RetiredAt == null).ToListAsync(ct);
 
     public Task<List<string>> GetReservedIdentifiersAsync(CancellationToken ct = default) =>
         _db.Cards
-            .Where(c => c.IsReserved)
+            .Where(c => c.IsReserved && c.RetiredAt == null)
             .Select(c => c.Identifier)
             .ToListAsync(ct);
 
@@ -80,11 +85,11 @@ public class CardRepository : ICardRepository
     {
         var list = await _db.Cards
             .Where(c => identifiers.Contains(c.Identifier))
-            .Select(c => new { c.Identifier, c.Name, c.CurrentMarketValue, c.SetCode, c.OracleRulingUrl })
+            .Select(c => new { c.Identifier, c.Name, c.CurrentMarketValue, c.SetCode, c.OracleRulingUrl, c.RetiredAt })
             .ToListAsync(ct);
         return list.ToDictionary(
             c => c.Identifier,
-            c => new CardSummary(c.Name, c.CurrentMarketValue, c.SetCode, c.OracleRulingUrl));
+            c => new CardSummary(c.Name, c.CurrentMarketValue, c.SetCode, c.OracleRulingUrl, c.RetiredAt != null));
     }
 
     public async Task<Dictionary<string, string>> GetValidTreatmentsByIdentifiersAsync(
@@ -99,6 +104,7 @@ public class CardRepository : ICardRepository
 
     public Task<Card?> GetRandomWithFlavorTextAsync(CancellationToken ct = default) =>
         _db.Cards
+            .Where(c => c.RetiredAt == null)
             .Where(c => c.FlavorText != null)
             .OrderBy(_ => EF.Functions.Random())
             .FirstOrDefaultAsync(ct);

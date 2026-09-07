@@ -148,6 +148,13 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             if (allSealedProducts.Count > 0)
                 await UpsertSealedProductsAsync(allSealedProducts, ct);
 
+            // A full package is the complete canonical dataset, so records missing from it
+            // have been deleted upstream. The package format carries no tombstone - nothing
+            // announces "these ids are gone" - so absence from a full is the only deletion
+            // signal there is. Deltas carry only what changed and must never prune.
+            if (string.Equals(packageManifest.PackageType, "full", StringComparison.OrdinalIgnoreCase))
+                await ReconcileDeletionsAsync(allSets, allCards, allSealedProducts, ct);
+
             _db.UpdateVersions.Add(new UpdateVersion
             {
                 ContentVersion = contentVersion,
@@ -155,17 +162,22 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             });
 
             // Store per-component versions for UI display
-            var versionsJson = JsonSerializer.Serialize(packageManifest.ContentVersions);
-            var versionsSetting = await _db.AppSettings.FindAsync(
-                new object[] { "content_component_versions" }, ct);
-            if (versionsSetting != null)
-                versionsSetting.Value = versionsJson;
-            else
-                _db.AppSettings.Add(new AppSetting
-                {
-                    Key = "content_component_versions",
-                    Value = versionsJson
-                });
+            await UpsertSettingAsync("content_component_versions",
+                JsonSerializer.Serialize(packageManifest.ContentVersions), ct);
+
+            // The package's own version, so the applied version can be reported without
+            // re-deriving it from the per-content versions.
+            var packageVersion = PackageVersion.For(packageManifest);
+            if (packageVersion != null)
+                await UpsertSettingAsync("content_package_version", packageVersion, ct);
+
+            // Assets bundled with the package rather than published as content. Read through
+            // PackageVersion so a package predating bundled_assets still resolves them from
+            // content_versions, where keyrune used to live.
+            var keyrune = PackageVersion.BundledAssetVersion(packageManifest, "keyrune");
+            if (keyrune != null)
+                await UpsertSettingAsync("bundled_asset_versions",
+                    JsonSerializer.Serialize(new Dictionary<string, string> { ["keyrune"] = keyrune }), ct);
 
             await _db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
@@ -618,5 +630,152 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             RejectedPath: rejected,
             Failed: failed,
             RateLimited: rateLimited);
+    }
+
+    // Reconciles the local catalog against a full package: anything the package does not list
+    // has been removed upstream.
+    //
+    // Deleting outright would take a user's holdings with it - a collection entry, slab or
+    // wishlist row referencing a pruned card is the user's data, not canonical data, and
+    // there is no foreign key to stop the reference dangling. So a record still referenced by
+    // user data is retired rather than deleted: it leaves catalog surfaces but stays
+    // resolvable, which is what keeps the user's entry showing a name and set instead of a
+    // bare identifier. Records nothing references are deleted outright.
+    private async Task ReconcileDeletionsAsync(
+        List<SetDto> sets, List<CardDto> cards, List<SealedProductDto> sealedProducts, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+
+        // Guard: a full package that arrived without card data would otherwise read as
+        // "every card was deleted". Reconcile only the content types the package carries.
+        if (cards.Count > 0)
+        {
+            var packageCardIds = cards.Select(c => c.Identifier).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var localCardIds = await _db.Cards.Select(c => c.Identifier).ToListAsync(ct);
+            var absent = localCardIds.Where(id => !packageCardIds.Contains(id)).ToList();
+
+            if (absent.Count > 0)
+            {
+                var held = await HeldCardIdentifiersAsync(absent, ct);
+                var deletable = absent.Where(id => !held.Contains(id)).ToList();
+
+                if (deletable.Count > 0)
+                {
+                    // Prices are canonical and cascade with the card.
+                    await _db.Cards.Where(c => deletable.Contains(c.Identifier)).ExecuteDeleteAsync(ct);
+                }
+
+                if (held.Count > 0)
+                {
+                    await _db.Cards
+                        .Where(c => held.Contains(c.Identifier) && c.RetiredAt == null)
+                        .ExecuteUpdateAsync(u => u.SetProperty(c => c.RetiredAt, now), ct);
+                }
+
+                _logger.LogInformation(
+                    "Full package reconciliation: {Deleted} cards deleted, {Retired} retained as retired (still held by a user)",
+                    deletable.Count, held.Count);
+            }
+
+            // A card that reappears in a later full is canonical again.
+            await _db.Cards
+                .Where(c => c.RetiredAt != null && packageCardIds.Contains(c.Identifier))
+                .ExecuteUpdateAsync(u => u.SetProperty(c => c.RetiredAt, (DateTime?)null), ct);
+        }
+
+        if (sets.Count > 0)
+        {
+            var packageSetCodes = sets.Select(s => s.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var localSetCodes = await _db.Sets.Select(s => s.Code).ToListAsync(ct);
+            var absentSets = localSetCodes.Where(c => !packageSetCodes.Contains(c)).ToList();
+
+            if (absentSets.Count > 0)
+            {
+                // Cards hold a foreign key to their set, so a set keeping any card - including
+                // one retired because a user owns it - cannot be deleted.
+                var stillReferenced = await _db.Cards
+                    .Where(c => absentSets.Contains(c.SetCode))
+                    .Select(c => c.SetCode)
+                    .Distinct()
+                    .ToListAsync(ct);
+
+                var deletableSets = absentSets.Where(c => !stillReferenced.Contains(c)).ToList();
+                if (deletableSets.Count > 0)
+                    await _db.Sets.Where(s => deletableSets.Contains(s.Code)).ExecuteDeleteAsync(ct);
+
+                if (stillReferenced.Count > 0)
+                    await _db.Sets
+                        .Where(s => stillReferenced.Contains(s.Code) && s.RetiredAt == null)
+                        .ExecuteUpdateAsync(u => u.SetProperty(s => s.RetiredAt, now), ct);
+
+                _logger.LogInformation(
+                    "Full package reconciliation: {Deleted} sets deleted, {Retired} retained as retired",
+                    deletableSets.Count, stillReferenced.Count);
+            }
+
+            await _db.Sets
+                .Where(s => s.RetiredAt != null && packageSetCodes.Contains(s.Code))
+                .ExecuteUpdateAsync(u => u.SetProperty(s => s.RetiredAt, (DateTime?)null), ct);
+        }
+
+        if (sealedProducts.Count > 0)
+        {
+            var packageIds = sealedProducts.Select(p => p.Identifier).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var localIds = await _db.SealedProducts.Select(p => p.Identifier).ToListAsync(ct);
+            var absentProducts = localIds.Where(id => !packageIds.Contains(id)).ToList();
+
+            if (absentProducts.Count > 0)
+            {
+                var heldProducts = await _db.SealedInventoryEntries
+                    .Where(i => absentProducts.Contains(i.ProductIdentifier))
+                    .Select(i => i.ProductIdentifier)
+                    .Distinct()
+                    .ToListAsync(ct);
+
+                var deletableProducts = absentProducts.Where(id => !heldProducts.Contains(id)).ToList();
+                if (deletableProducts.Count > 0)
+                    await _db.SealedProducts
+                        .Where(p => deletableProducts.Contains(p.Identifier))
+                        .ExecuteDeleteAsync(ct);
+
+                if (heldProducts.Count > 0)
+                    await _db.SealedProducts
+                        .Where(p => heldProducts.Contains(p.Identifier) && p.RetiredAt == null)
+                        .ExecuteUpdateAsync(u => u.SetProperty(p => p.RetiredAt, now), ct);
+
+                _logger.LogInformation(
+                    "Full package reconciliation: {Deleted} sealed products deleted, {Retired} retained as retired",
+                    deletableProducts.Count, heldProducts.Count);
+            }
+
+            await _db.SealedProducts
+                .Where(p => p.RetiredAt != null && packageIds.Contains(p.Identifier))
+                .ExecuteUpdateAsync(u => u.SetProperty(p => p.RetiredAt, (DateTime?)null), ct);
+        }
+    }
+
+    // Card identifiers out of the candidate list that a user still holds anywhere.
+    private async Task<List<string>> HeldCardIdentifiersAsync(List<string> candidates, CancellationToken ct)
+    {
+        var held = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        held.UnionWith(await _db.CollectionEntries
+            .Where(e => candidates.Contains(e.CardIdentifier)).Select(e => e.CardIdentifier).Distinct().ToListAsync(ct));
+        held.UnionWith(await _db.SerializedEntries
+            .Where(e => candidates.Contains(e.CardIdentifier)).Select(e => e.CardIdentifier).Distinct().ToListAsync(ct));
+        held.UnionWith(await _db.SlabEntries
+            .Where(e => candidates.Contains(e.CardIdentifier)).Select(e => e.CardIdentifier).Distinct().ToListAsync(ct));
+        held.UnionWith(await _db.WishlistEntries
+            .Where(e => candidates.Contains(e.CardIdentifier)).Select(e => e.CardIdentifier).Distinct().ToListAsync(ct));
+
+        return held.ToList();
+    }
+
+    // Writes an app_settings row, inserting when it does not exist yet.
+    private async Task UpsertSettingAsync(string key, string value, CancellationToken ct)
+    {
+        var setting = await _db.AppSettings.FindAsync(new object[] { key }, ct);
+        if (setting != null) setting.Value = value;
+        else _db.AppSettings.Add(new AppSetting { Key = key, Value = value });
     }
 }

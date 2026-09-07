@@ -99,7 +99,7 @@ function RedownloadDialog({
   const confirmDescription = [
     `Content: ${CONTENT_TYPE_LABELS[contentType]}`,
     `Scope: ${SCOPE_LABELS[scope]}`,
-    `Package: ${useFullPackage ? 'Full package only' : 'Latest available (full or delta)'}`,
+    `Package: ${useFullPackage ? 'Full Update only' : 'Latest available (Full or Incremental Update)'}`,
     imageWillBeCleared
       ? 'Existing images in the selected scope will be deleted before redownloading.'
       : null,
@@ -177,12 +177,12 @@ function RedownloadDialog({
                 <RadioOption
                   selected={!useFullPackage}
                   label="Latest available"
-                  description="Use the most recent package (delta or full)"
+                  description="Use the most recent package (Incremental or Full Update)"
                   onSelect={() => setUseFullPackage(false)}
                 />
                 <RadioOption
                   selected={useFullPackage}
-                  label="Full package only"
+                  label="Full Update only"
                   description="Require a full content package - slower but complete"
                   onSelect={() => setUseFullPackage(true)}
                 />

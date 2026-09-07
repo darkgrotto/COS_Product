@@ -513,19 +513,42 @@ public sealed class CollectionImportExportService : ICollectionImportExportServi
         if (toAdd.Count == 0)
             return new ImportResult(0, 0, failures.Count, failures);
 
-        // Verify card identifiers exist in DB - batch check
+        // Verify card identifiers exist in DB, and pull each card's treatments in the same
+        // pass so the pairing can be checked without a second round trip.
         var requestedIds = toAdd.Select(e => e.CardIdentifier).ToHashSet();
-        var existingIdsList = await _db.Cards
+        var existing = await _db.Cards
             .Where(c => requestedIds.Contains(c.Identifier))
-            .Select(c => c.Identifier)
+            .Select(c => new { c.Identifier, c.ValidTreatments })
             .ToListAsync(ct);
-        var existingIds = existingIdsList.ToHashSet();
+        var existingIds = existing.Select(c => c.Identifier).ToHashSet();
+        var cardTreatments = existing.ToDictionary(c => c.Identifier, c => c.ValidTreatments);
 
-        var valid = toAdd.Where(e => existingIds.Contains(e.CardIdentifier)).ToList();
+        var found = toAdd.Where(e => existingIds.Contains(e.CardIdentifier)).ToList();
         var notFound = toAdd.Where(e => !existingIds.Contains(e.CardIdentifier)).ToList();
 
         foreach (var e in notFound)
             failures.Add($"Card not found in database: {e.CardIdentifier.ToUpperInvariant()}");
+
+        // Same rule the API enforces: a row may only claim a treatment the card is printed
+        // in. Cards whose package data does not say are accepted unchanged, so imports of
+        // pre-re-sync content are never wrongly rejected. A rejected row is reported rather
+        // than silently rewritten - guessing a different treatment would invent the user's
+        // data for them.
+        var valid = new List<CollectionEntry>();
+        foreach (var e in found)
+        {
+            cardTreatments.TryGetValue(e.CardIdentifier, out var cardValid);
+            if (CardTreatmentRule.Accepts(cardValid, e.TreatmentKey))
+            {
+                valid.Add(e);
+                continue;
+            }
+
+            var offered = CardTreatmentRule.Offered(cardValid);
+            failures.Add(
+                $"{e.CardIdentifier.ToUpperInvariant()} is not printed in '{e.TreatmentKey}'"
+                + (offered.Length > 0 ? $" (available: {string.Join(", ", offered)})" : string.Empty));
+        }
 
         if (valid.Count > 0)
             await _collection.BulkCreateAsync(valid, ct);

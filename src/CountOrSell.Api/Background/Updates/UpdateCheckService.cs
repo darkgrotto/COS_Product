@@ -219,6 +219,8 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             var appliedDate = packageManifest.GeneratedAt.UtcDateTime
                 .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            var version = PackageVersion.For(packageManifest);
+            var versionSuffix = version != null ? $" (version {version})" : string.Empty;
 
             // Images are best-effort, so a shortfall does not fail the update - but it must not
             // pass silently either. Reporting success while thousands of card images are missing
@@ -238,12 +240,14 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                     "updates", CancellationToken.None);
 
                 result = new UpdateCheckResult(true,
-                    $"Content updated (package from {appliedDate}), but {images.Missing:N0} of "
-                    + $"{images.Listed:N0} images are missing - {images.Explain()}.");
+                    $"Content updated: {PackageTypeLabel.For(packageManifest.PackageType)} from {appliedDate}"
+                    + $"{versionSuffix} - but {images.Missing:N0} of {images.Listed:N0} images are missing "
+                    + $"- {images.Explain()}.");
                 return result;
             }
 
-            result = new UpdateCheckResult(true, $"Content updated (package from {appliedDate}).");
+            result = new UpdateCheckResult(true,
+                $"Content updated: {PackageTypeLabel.For(packageManifest.PackageType)} from {appliedDate}{versionSuffix}.");
             return result;
         }
         catch (Exception ex)
@@ -369,6 +373,8 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             var appliedDate = packageManifest.GeneratedAt.UtcDateTime
                 .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            var version = PackageVersion.For(packageManifest);
+            var versionSuffix = version != null ? $" (version {version})" : string.Empty;
             var what = options.ContentType == "all" ? "metadata and images"
                 : options.ContentType == "metadata" ? "metadata"
                 : "images";
@@ -385,12 +391,12 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                     images.Saved, images.Listed);
 
                 return new UpdateCheckResult(true,
-                    $"Redownload complete: {what} for {scopeLabel} (package from {appliedDate}), but "
+                    $"Redownload complete: {what} for {scopeLabel} ({PackageTypeLabel.For(packageManifest.PackageType)} from {appliedDate}{versionSuffix}), but "
                     + $"{images.Missing:N0} of {images.Listed:N0} images are still missing - {images.Explain()}.");
             }
 
             return new UpdateCheckResult(true,
-                $"Redownload complete: {what} for {scopeLabel} (package from {appliedDate}).");
+                $"Redownload complete: {what} for {scopeLabel} ({PackageTypeLabel.For(packageManifest.PackageType)} from {appliedDate}{versionSuffix}).");
         }
         catch (Exception ex)
         {

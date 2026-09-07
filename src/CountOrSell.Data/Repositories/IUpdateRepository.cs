@@ -18,4 +18,10 @@ public interface IUpdateRepository
     Task<DateTime?> GetLastUpdateCheckedAtAsync(CancellationToken ct);
     Task SetLastUpdateCheckedAtAsync(DateTime checkedAt, CancellationToken ct);
     Task<Dictionary<string, ContentVersionEntry>?> GetComponentVersionsAsync(CancellationToken ct);
+
+    // The overall version of the applied package, as published in its manifest.
+    Task<string?> GetContentPackageVersionAsync(CancellationToken ct);
+
+    // Versions of assets shipped with the package rather than published as content.
+    Task<Dictionary<string, string>?> GetBundledAssetVersionsAsync(CancellationToken ct);
 }

@@ -51,10 +51,17 @@ public class UpdatesController : ControllerBase
         var latestAppVersion = await _updateRepo.GetLatestApplicationVersionAsync(ct);
         var appUpdatePending = latestAppVersion != null && latestAppVersion != ProductVersion.Current;
         var componentVersions = await _updateRepo.GetComponentVersionsAsync(ct);
+        var packageVersion = await _updateRepo.GetContentPackageVersionAsync(ct);
+        var bundledAssets = await _updateRepo.GetBundledAssetVersionsAsync(ct);
 
         return Ok(new
         {
             currentContentVersion = contentVersion,
+            // The applied package's own version, distinct from the per-content versions.
+            contentPackageVersion = packageVersion,
+            // Keyrune and anything else bundled rather than published; kept separate from
+            // content versions because these track their own upstream.
+            bundledAssets,
             componentVersions = componentVersions == null ? null :
                 componentVersions.ToDictionary(
                     kv => kv.Key,
