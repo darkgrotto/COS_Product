@@ -6,13 +6,13 @@
 # Backups are stored by the cos-backup container in a named Docker volume
 # (cos_backup_data, mounted at /backups). This script reads the volume
 # through the cos-backup container, copies the selected file into the
-# cos-postgres container, and runs pg_restore there.
+# postgres container, and runs pg_restore there.
 #
 # Usage:
 #   bash scripts/restore.sh
 #
 # Override defaults with environment variables:
-#   POSTGRES_CONTAINER=cos-postgres BACKUP_CONTAINER=cos-backup \
+#   POSTGRES_CONTAINER=countorsell-postgres BACKUP_CONTAINER=cos-backup \
 #     DB_USER=admin DB_NAME=countorsell bash scripts/restore.sh
 #
 # What happens during a restore:
@@ -23,7 +23,9 @@
 
 set -e
 
-POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-cos-postgres}"
+# Container names are scoped by COS_PROJECT_NAME so instances can coexist;
+# override POSTGRES_CONTAINER when running against a non-default project.
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-${COS_PROJECT_NAME:-countorsell}-postgres}"
 BACKUP_CONTAINER="${BACKUP_CONTAINER:-cos-backup}"
 DB_USER="${DB_USER:-admin}"
 DB_NAME="${DB_NAME:-countorsell}"

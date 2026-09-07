@@ -115,6 +115,59 @@ public class DockerComposeGeneratorTests
         Assert.Equal(appPort, upstream);
     }
 
+    [Fact]
+    public void Scopes_Everything_Globally_Unique_To_The_Project()
+    {
+        // Two deployments on one host must not collide. Container names are global to the
+        // Docker daemon and a pinned volume name ignores the project prefix, so both have
+        // to derive from the project rather than being fixed.
+        var yaml = DockerComposeGenerator.Generate(Config());
+
+        Assert.Contains("name: ${COS_PROJECT_NAME:-countorsell}", yaml);
+        Assert.Contains("container_name: ${COS_PROJECT_NAME:-countorsell}-app", yaml);
+        Assert.Contains("container_name: ${COS_PROJECT_NAME:-countorsell}-postgres", yaml);
+        Assert.Contains("container_name: ${COS_PROJECT_NAME:-countorsell}-reverse-proxy", yaml);
+    }
+
+    [Fact]
+    public void Leaves_Volumes_Unnamed_So_Compose_Scopes_Them()
+    {
+        // A pinned volume name is global: every deployment on the host would attach to the
+        // same database, which is how a "fresh" install came up holding five-month-old data.
+        var yaml = DockerComposeGenerator.Generate(Config());
+        var volumesSection = yaml[yaml.LastIndexOf("volumes:", StringComparison.Ordinal)..];
+
+        Assert.DoesNotContain("name: countorsell_postgres_data", volumesSection);
+        Assert.DoesNotContain("name: countorsell_app_data", volumesSection);
+        Assert.Contains("postgres_data:", volumesSection);
+        Assert.Contains("app_data:", volumesSection);
+    }
+
+    [Fact]
+    public void Default_Project_Reproduces_The_Volume_Names_Deployments_Already_Have()
+    {
+        // Compose names a volume <project>_<key>. With the project defaulting to
+        // countorsell and the keys stripped of their prefix, the result is byte-identical
+        // to the previously pinned names - so an existing deployment keeps its data instead
+        // of silently coming up against an empty database.
+        var yaml = DockerComposeGenerator.Generate(Config());
+
+        Assert.Contains("name: ${COS_PROJECT_NAME:-countorsell}", yaml);
+        Assert.Contains("postgres_data:", yaml);   // -> countorsell_postgres_data
+        Assert.Contains("app_data:", yaml);        // -> countorsell_app_data
+    }
+
+    [Fact]
+    public void Resolves_The_Database_Host_By_Service_Name()
+    {
+        // Pointing DB_HOST at a container name breaks the moment container names are
+        // scoped. Compose resolves service names on the project network regardless.
+        var yaml = DockerComposeGenerator.Generate(Config());
+
+        Assert.Contains("DB_HOST=postgres", yaml);
+        Assert.DoesNotContain("DB_HOST=cos-postgres", yaml);
+    }
+
     internal static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
