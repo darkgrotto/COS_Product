@@ -31,7 +31,19 @@ if (deployed)
 {
     await Step17_UpdateCheckTime.RunAsync(config);
     Console.WriteLine();
-    Console.WriteLine("Setup complete. CountOrSell is ready.");
+    if (Step16_Deploy.AccountsCreated)
+    {
+        Console.WriteLine("Setup complete. CountOrSell is ready.");
+    }
+    else
+    {
+        // The deployment succeeded, but the accounts the operator entered were not created
+        // because the instance already had users. Saying "setup complete" here would send
+        // them to a sign-in page that rejects the credentials they just chose.
+        Console.WriteLine("Deployment complete, but setup did NOT finish: the accounts you");
+        Console.WriteLine("entered were not created, because this instance already has users.");
+        Console.WriteLine("See the warning above for how to proceed.");
+    }
 }
 else
 {

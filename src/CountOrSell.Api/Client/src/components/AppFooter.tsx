@@ -7,7 +7,9 @@ const buildLabel = hash
 
 export function AppFooter() {
   return (
-    <footer className="fixed bottom-0 left-0 right-0 border-t bg-background z-50 px-4 py-1.5 flex items-center justify-between flex-wrap gap-2 text-xs text-muted-foreground">
+    // Sits at the end of the scrolling content rather than pinned across the viewport:
+    // as a fixed bar it overlapped the nav and pushed the user menu off the top bar.
+    <footer className="border-t mt-8 pt-3 flex items-center justify-between flex-wrap gap-2 text-xs text-muted-foreground">
       <span>
         CountOrSell is not affiliated with, endorsed by, or sponsored by Wizards of the Coast LLC or
         Hasbro, Inc. Magic: The Gathering is a trademark of Wizards of the Coast LLC.
