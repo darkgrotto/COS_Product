@@ -4,10 +4,22 @@ using Xunit;
 
 namespace CountOrSell.Tests.Unit.Services;
 
-// A manifest carries a version per content type, not one for the package. These cover
-// picking the value that actually describes the package.
+// Manifests now publish an authoritative top-level version. Packages signed before that
+// are never rewritten, so both shapes are in circulation until the old ones age out of
+// retention - these cover reading each.
 public class PackageVersionTests
 {
+    private static PackageManifest Manifest(
+        string? version = null,
+        Dictionary<string, ContentVersionEntry>? contentVersions = null,
+        Dictionary<string, ContentVersionEntry>? bundledAssets = null)
+        => new()
+        {
+            Version = version,
+            ContentVersions = contentVersions ?? new(),
+            BundledAssets = bundledAssets ?? new(),
+        };
+
     private static Dictionary<string, ContentVersionEntry> Versions(params (string Key, string Version)[] entries)
         => entries.ToDictionary(e => e.Key, e => new ContentVersionEntry { Version = e.Version });
 
@@ -56,5 +68,116 @@ public class PackageVersionTests
         Assert.Null(PackageVersion.Resolve(null));
         Assert.Null(PackageVersion.Resolve(new Dictionary<string, ContentVersionEntry>()));
         Assert.Null(PackageVersion.Resolve(Versions(("cards", ""), ("sets", "   "))));
+    }
+}
+
+public class PackageVersionForTests
+{
+    private static ContentVersionEntry V(string version) => new() { Version = version };
+
+    [Fact]
+    public void Reads_The_Published_Version_Directly()
+    {
+        var manifest = new PackageManifest
+        {
+            Version = "1.5.1",
+            // Deliberately inconsistent: if the top-level value were ignored and the
+            // per-content versions consulted instead, this would resolve to 9.9.9.
+            ContentVersions = new()
+            {
+                ["cards"] = V("9.9.9"), ["sets"] = V("9.9.9"), ["images"] = V("9.9.9"),
+            },
+        };
+
+        Assert.Equal("1.5.1", PackageVersion.For(manifest));
+    }
+
+    [Fact]
+    public void Falls_Back_To_Reconstruction_For_A_Package_Published_Before_The_Field_Existed()
+    {
+        // The old shape: no top-level version, keyrune still inside content_versions.
+        var manifest = new PackageManifest
+        {
+            Version = null,
+            ContentVersions = new()
+            {
+                ["cards"] = V("1.4.0"), ["sets"] = V("1.4.0"), ["images"] = V("1.4.0"),
+                ["slabs"] = V("0.0.0"), ["keyrune"] = V("3.19.0"),
+            },
+        };
+
+        Assert.Equal("1.4.0", PackageVersion.For(manifest));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Treats_A_Blank_Published_Version_As_Absent(string version)
+    {
+        var manifest = new PackageManifest
+        {
+            Version = version,
+            ContentVersions = new() { ["cards"] = V("1.4.0"), ["sets"] = V("1.4.0") },
+        };
+
+        Assert.Equal("1.4.0", PackageVersion.For(manifest));
+    }
+
+    [Fact]
+    public void Reads_A_Bundled_Asset_From_Its_Own_Section()
+    {
+        var manifest = new PackageManifest
+        {
+            Version = "1.5.1",
+            ContentVersions = new() { ["cards"] = V("1.5.1") },
+            BundledAssets = new() { ["keyrune"] = V("3.19.0") },
+        };
+
+        Assert.Equal("3.19.0", PackageVersion.BundledAssetVersion(manifest, "keyrune"));
+        // The font tracks its own upstream and must never become the package version.
+        Assert.Equal("1.5.1", PackageVersion.For(manifest));
+    }
+
+    [Fact]
+    public void Falls_Back_To_Content_Versions_For_A_Bundled_Asset_On_An_Older_Package()
+    {
+        var manifest = new PackageManifest
+        {
+            ContentVersions = new() { ["cards"] = V("1.4.0"), ["keyrune"] = V("3.18.0") },
+        };
+
+        Assert.Equal("3.18.0", PackageVersion.BundledAssetVersion(manifest, "keyrune"));
+    }
+
+    [Fact]
+    public void A_Missing_Bundled_Asset_Is_Absence_Not_An_Error()
+    {
+        var manifest = new PackageManifest { Version = "1.5.1", ContentVersions = new() { ["cards"] = V("1.5.1") } };
+
+        Assert.Null(PackageVersion.BundledAssetVersion(manifest, "keyrune"));
+        Assert.Null(PackageVersion.BundledAssetVersion(null, "keyrune"));
+    }
+
+    [Fact]
+    public void Reads_The_Current_Published_Manifest_Shape()
+    {
+        // Exactly the shape the Backend now emits, slabs still pinned and keyrune moved out.
+        var manifest = new PackageManifest
+        {
+            Version = "1.5.1",
+            PackageType = "delta",
+            BaseFullVersion = "1.5.0",
+            SchemaVersion = "1.5.0",
+            ContentVersions = new()
+            {
+                ["cards"] = V("1.5.1"), ["sets"] = V("1.5.1"), ["sealed_products"] = V("1.5.1"),
+                ["treatments"] = V("1.5.1"), ["taxonomy"] = V("1.5.1"), ["prices"] = V("1.5.1"),
+                ["slabs"] = V("0.0.0"), ["images"] = V("1.5.1"),
+            },
+            BundledAssets = new() { ["keyrune"] = V("3.19.0") },
+        };
+
+        Assert.Equal("1.5.1", PackageVersion.For(manifest));
+        Assert.Equal("3.19.0", PackageVersion.BundledAssetVersion(manifest, "keyrune"));
     }
 }

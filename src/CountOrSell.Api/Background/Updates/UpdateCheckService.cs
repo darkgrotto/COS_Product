@@ -219,7 +219,7 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             var appliedDate = packageManifest.GeneratedAt.UtcDateTime
                 .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
-            var version = PackageVersion.Resolve(packageManifest.ContentVersions);
+            var version = PackageVersion.For(packageManifest);
             var versionSuffix = version != null ? $" (version {version})" : string.Empty;
 
             // Images are best-effort, so a shortfall does not fail the update - but it must not
@@ -373,7 +373,7 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             var appliedDate = packageManifest.GeneratedAt.UtcDateTime
                 .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
-            var version = PackageVersion.Resolve(packageManifest.ContentVersions);
+            var version = PackageVersion.For(packageManifest);
             var versionSuffix = version != null ? $" (version {version})" : string.Empty;
             var what = options.ContentType == "all" ? "metadata and images"
                 : options.ContentType == "metadata" ? "metadata"

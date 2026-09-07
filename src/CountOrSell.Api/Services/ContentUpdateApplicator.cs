@@ -162,17 +162,22 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             });
 
             // Store per-component versions for UI display
-            var versionsJson = JsonSerializer.Serialize(packageManifest.ContentVersions);
-            var versionsSetting = await _db.AppSettings.FindAsync(
-                new object[] { "content_component_versions" }, ct);
-            if (versionsSetting != null)
-                versionsSetting.Value = versionsJson;
-            else
-                _db.AppSettings.Add(new AppSetting
-                {
-                    Key = "content_component_versions",
-                    Value = versionsJson
-                });
+            await UpsertSettingAsync("content_component_versions",
+                JsonSerializer.Serialize(packageManifest.ContentVersions), ct);
+
+            // The package's own version, so the applied version can be reported without
+            // re-deriving it from the per-content versions.
+            var packageVersion = PackageVersion.For(packageManifest);
+            if (packageVersion != null)
+                await UpsertSettingAsync("content_package_version", packageVersion, ct);
+
+            // Assets bundled with the package rather than published as content. Read through
+            // PackageVersion so a package predating bundled_assets still resolves them from
+            // content_versions, where keyrune used to live.
+            var keyrune = PackageVersion.BundledAssetVersion(packageManifest, "keyrune");
+            if (keyrune != null)
+                await UpsertSettingAsync("bundled_asset_versions",
+                    JsonSerializer.Serialize(new Dictionary<string, string> { ["keyrune"] = keyrune }), ct);
 
             await _db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
@@ -764,5 +769,13 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             .Where(e => candidates.Contains(e.CardIdentifier)).Select(e => e.CardIdentifier).Distinct().ToListAsync(ct));
 
         return held.ToList();
+    }
+
+    // Writes an app_settings row, inserting when it does not exist yet.
+    private async Task UpsertSettingAsync(string key, string value, CancellationToken ct)
+    {
+        var setting = await _db.AppSettings.FindAsync(new object[] { key }, ct);
+        if (setting != null) setting.Value = value;
+        else _db.AppSettings.Add(new AppSetting { Key = key, Value = value });
     }
 }

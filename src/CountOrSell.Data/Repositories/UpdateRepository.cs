@@ -120,4 +120,19 @@ public class UpdateRepository : IUpdateRepository
         if (string.IsNullOrEmpty(setting?.Value)) return null;
         return JsonSerializer.Deserialize<Dictionary<string, ContentVersionEntry>>(setting.Value);
     }
+
+    public async Task<string?> GetContentPackageVersionAsync(CancellationToken ct)
+    {
+        var setting = await _db.AppSettings.FindAsync(new object[] { "content_package_version" }, ct);
+        return string.IsNullOrEmpty(setting?.Value) ? null : setting.Value;
+    }
+
+    // Versions of assets shipped with the package rather than published as content - the
+    // Keyrune set-symbol font today.
+    public async Task<Dictionary<string, string>?> GetBundledAssetVersionsAsync(CancellationToken ct)
+    {
+        var setting = await _db.AppSettings.FindAsync(new object[] { "bundled_asset_versions" }, ct);
+        if (string.IsNullOrEmpty(setting?.Value)) return null;
+        return JsonSerializer.Deserialize<Dictionary<string, string>>(setting.Value);
+    }
 }
