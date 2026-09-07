@@ -76,7 +76,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         _logger = logger;
     }
 
-    public async Task ApplyContentUpdateAsync(
+    public async Task<ImageSyncOutcome> ApplyContentUpdateAsync(
         Stream packageStream, PackageManifest packageManifest, string packageBaseUrl, CancellationToken ct)
     {
         if (packageStream.CanSeek) packageStream.Position = 0;
@@ -178,8 +178,9 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
 
         if (treatments != null) _treatmentValidator.Invalidate();
 
-        // Fetch and save images outside the transaction - best effort, non-fatal
-        await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
+        // Fetch and save images outside the transaction - best effort, non-fatal. The outcome
+        // is returned so an incomplete image set can be surfaced instead of passing silently.
+        return await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
     }
 
     private T? ReadAndVerifyJson<T>(
@@ -409,10 +410,10 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task ApplyImagesOnlyAsync(
+    public async Task<ImageSyncOutcome> ApplyImagesOnlyAsync(
         string packageBaseUrl, PackageManifest packageManifest, CancellationToken ct)
     {
-        await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
+        return await FetchAndSaveImagesAsync(packageBaseUrl, packageManifest.Checksums, ct);
     }
 
     public async Task ApplyMetadataOnlyAsync(
@@ -497,7 +498,7 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         }
     }
 
-    public async Task ApplyScopedImagesOnlyAsync(
+    public async Task<ImageSyncOutcome> ApplyScopedImagesOnlyAsync(
         string packageBaseUrl, PackageManifest packageManifest, string scope, CancellationToken ct)
     {
         var prefix = scope switch
@@ -511,12 +512,12 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             .Where(kv => kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .ToDictionary(kv => kv.Key, kv => kv.Value);
 
-        await FetchAndSaveImagesAsync(packageBaseUrl, scopedChecksums, ct);
+        return await FetchAndSaveImagesAsync(packageBaseUrl, scopedChecksums, ct);
     }
 
     // Fetches image blobs individually from the package base URL and saves them to the image store.
     // Images are listed as manifest checksum keys (prefix "images/"). Up to 10 concurrent fetches.
-    private async Task FetchAndSaveImagesAsync(
+    private async Task<ImageSyncOutcome> FetchAndSaveImagesAsync(
         string packageBaseUrl, Dictionary<string, string> checksums, CancellationToken ct)
     {
         var imagePaths = checksums.Keys
@@ -528,13 +529,13 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
         if (imagePaths.Count == 0)
         {
             _logger.LogInformation("FetchAndSaveImagesAsync: no image paths in manifest checksums");
-            return;
+            return ImageSyncOutcome.None;
         }
 
         var baseUrl = packageBaseUrl.TrimEnd('/') + "/";
         var http = _httpClientFactory.CreateClient("ImageFetch");
         var semaphore = new SemaphoreSlim(10, 10);
-        int saved = 0, skippedChecksum = 0, failed = 0, rejected = 0;
+        int saved = 0, skippedChecksum = 0, failed = 0, rejected = 0, rateLimited = 0;
         var savedLock = new object();
 
         var tasks = imagePaths.Select(async imagePath =>
@@ -560,6 +561,15 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
                 try
                 {
                     bytes = await http.GetByteArrayAsync(imageUrl, ct);
+                }
+                catch (HttpRequestException ex)
+                    when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    // The package origin is rate limiting us. Distinguished from a generic
+                    // failure because the fix is external (request budget), not a bad package.
+                    _logger.LogError(ex, "Rate limited fetching image {Url}", imageUrl);
+                    lock (savedLock) { rateLimited++; failed++; }
+                    return;
                 }
                 catch (Exception ex)
                 {
@@ -600,5 +610,13 @@ public class ContentUpdateApplicator : IContentUpdateApplicator
             saved, skippedChecksum, rejected, failed);
 
         if (saved > 0) _imageStats?.Invalidate();
+
+        return new ImageSyncOutcome(
+            Listed: imagePaths.Count,
+            Saved: saved,
+            SkippedChecksum: skippedChecksum,
+            RejectedPath: rejected,
+            Failed: failed,
+            RateLimited: rateLimited);
     }
 }

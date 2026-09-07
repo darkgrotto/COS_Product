@@ -1,4 +1,5 @@
 using CountOrSell.Data.Images;
+using CountOrSell.Domain.Dtos;
 using CountOrSell.Data.Repositories;
 using CountOrSell.Domain.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -175,7 +176,8 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             // Apply the content update. Use CancellationToken.None so that an HTTP request
             // timeout cancelling ct cannot interrupt the transaction mid-apply; the DB
             // operations must complete atomically regardless of the caller's lifetime.
-            await applicator.ApplyContentUpdateAsync(packageStream, packageManifest, packageBaseUrl, CancellationToken.None);
+            var images = await applicator.ApplyContentUpdateAsync(
+                packageStream, packageManifest, packageBaseUrl, CancellationToken.None);
 
             // Delta packages only contain images that changed since the base full package.
             // If the applied package has no images AND the image store is empty (e.g. fresh
@@ -206,7 +208,9 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                         }
                         else
                         {
-                            await applicator.ApplyImagesOnlyAsync(
+                            // This fetch, not the delta, is where a fresh install's images
+                            // come from, so its outcome is the one worth reporting.
+                            images = await applicator.ApplyImagesOnlyAsync(
                                 fullSigned.BaseUrl, fullSigned.Parsed, CancellationToken.None);
                         }
                     }
@@ -215,6 +219,30 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             var appliedDate = packageManifest.GeneratedAt.UtcDateTime
                 .ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
+
+            // Images are best-effort, so a shortfall does not fail the update - but it must not
+            // pass silently either. Reporting success while thousands of card images are missing
+            // leaves an admin with a visibly broken collection and no indication why.
+            if (!images.IsComplete)
+            {
+                _logger.LogWarning(
+                    "Content update applied with an incomplete image set: {Saved} of {Listed} stored "
+                    + "({Failed} failed, {RateLimited} rate limited, {Checksum} checksum, {Path} bad path)",
+                    images.Saved, images.Listed, images.Failed, images.RateLimited,
+                    images.SkippedChecksum, images.RejectedPath);
+
+                await notificationService.NotifyAsync(
+                    $"Content updated, but {images.Missing:N0} of {images.Listed:N0} card images "
+                    + $"could not be stored - {images.Explain()}. Card data is up to date; the missing "
+                    + "images can be retrieved with a targeted image redownload.",
+                    "updates", CancellationToken.None);
+
+                result = new UpdateCheckResult(true,
+                    $"Content updated (package from {appliedDate}), but {images.Missing:N0} of "
+                    + $"{images.Listed:N0} images are missing - {images.Explain()}.");
+                return result;
+            }
+
             result = new UpdateCheckResult(true, $"Content updated (package from {appliedDate}).");
             return result;
         }
@@ -288,6 +316,7 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
 
             var packageBaseUrl = signed.BaseUrl;
 
+            var images = ImageSyncOutcome.None;
             var includesImages = options.ContentType == "all" || options.ContentType == "images";
             var includesMetadata = options.ContentType == "all" || options.ContentType == "metadata";
 
@@ -334,7 +363,8 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
                 _logger.LogInformation(
                     "Targeted redownload: fetching images (scope={Scope}, package={PackageId})",
                     options.Scope, packageRef.PackageId);
-                await applicator.ApplyScopedImagesOnlyAsync(packageBaseUrl, packageManifest, options.Scope, CancellationToken.None);
+                images = await applicator.ApplyScopedImagesOnlyAsync(
+                    packageBaseUrl, packageManifest, options.Scope, CancellationToken.None);
             }
 
             var appliedDate = packageManifest.GeneratedAt.UtcDateTime
@@ -345,6 +375,20 @@ public class UpdateCheckService : BackgroundService, IUpdateCheckTrigger
             var scopeLabel = options.Scope == "all" ? "all content"
                 : options.Scope == "cards-sets" ? "cards and sets"
                 : "sealed products";
+            // This is the recovery path an admin is pointed at when images are missing, so a
+            // partial result here has to be visible too - otherwise the fix reports success
+            // while leaving the same gap it was run to close.
+            if (!images.IsComplete)
+            {
+                _logger.LogWarning(
+                    "Targeted redownload finished with an incomplete image set: {Saved} of {Listed} stored",
+                    images.Saved, images.Listed);
+
+                return new UpdateCheckResult(true,
+                    $"Redownload complete: {what} for {scopeLabel} (package from {appliedDate}), but "
+                    + $"{images.Missing:N0} of {images.Listed:N0} images are still missing - {images.Explain()}.");
+            }
+
             return new UpdateCheckResult(true,
                 $"Redownload complete: {what} for {scopeLabel} (package from {appliedDate}).");
         }
