@@ -6,7 +6,7 @@ public static class Step13_BackupRetention
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 13 of 17: Backup Retention");
+        Console.WriteLine("Step 13 of 16: Backup Retention");
         Console.WriteLine("---------------------------------");
         Console.WriteLine("Number of backups to retain (applies separately to scheduled and pre-update backups).");
         Console.WriteLine("Default: 4");

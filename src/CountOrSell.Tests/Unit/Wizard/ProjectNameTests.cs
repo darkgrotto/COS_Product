@@ -9,7 +9,7 @@ public class ProjectNameTests
 {
     private static readonly MethodInfo Method =
         Assembly.Load("CountOrSell.Wizard")
-            .GetType("CountOrSell.Wizard.Steps.Step15_GenerateFiles")!
+            .GetType("CountOrSell.Wizard.Steps.Step14_GenerateFiles")!
             .GetMethod("ProjectNameFrom", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static string Slug(string? instanceName) => (string)Method.Invoke(null, [instanceName])!;

@@ -3,11 +3,11 @@ using CountOrSell.Wizard.Services;
 
 namespace CountOrSell.Wizard.Steps;
 
-public static class Step15_GenerateFiles
+public static class Step14_GenerateFiles
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 15 of 17: Generate Configuration Files");
+        Console.WriteLine("Step 14 of 16: Generate Configuration Files");
         Console.WriteLine("--------------------------------------------");
 
         // Generate a one-time setup token before any files are written.

@@ -7,7 +7,7 @@ public static class Step10_GeneralUserAccount
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 10 of 17: General User Account");
+        Console.WriteLine("Step 10 of 16: General User Account");
         Console.WriteLine("-------------------------------------");
         Console.WriteLine("Create one general user account (local account).");
         Console.WriteLine("Additional users and OAuth configuration are set up post-setup.");

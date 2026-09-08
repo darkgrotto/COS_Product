@@ -20,7 +20,6 @@ public class WizardConfig
     public string BackupConnectionString { get; set; } = string.Empty;
     public string BackupSchedule { get; set; } = "0 0 * * 0";
     public int BackupRetention { get; set; } = 4;
-    public bool DownloadInitialUpdate { get; set; } = true;
     public string UpdateCheckTime { get; set; } = string.Empty;
     // Cloud-specific
     public string? CloudRegion { get; set; }

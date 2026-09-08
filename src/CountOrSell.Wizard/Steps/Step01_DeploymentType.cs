@@ -6,7 +6,7 @@ public static class Step01_DeploymentType
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 1 of 17: Deployment Type");
+        Console.WriteLine("Step 1 of 16: Deployment Type");
         Console.WriteLine("------------------------------");
         Console.WriteLine("Select your deployment target:");
         Console.WriteLine("  1) Azure (App Service)");

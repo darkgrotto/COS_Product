@@ -6,11 +6,11 @@ using System.Text.RegularExpressions;
 
 namespace CountOrSell.Wizard.Steps;
 
-public static class Step16_Deploy
+public static class Step15_Deploy
 {
     public static async Task<bool> RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 16 of 17: Deployment");
+        Console.WriteLine("Step 15 of 16: Deployment");
         Console.WriteLine("--------------------------");
 
         bool success = config.DeploymentType switch

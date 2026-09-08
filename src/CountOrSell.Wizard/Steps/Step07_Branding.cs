@@ -6,7 +6,7 @@ public static class Step07_Branding
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 7 of 17: Instance Branding");
+        Console.WriteLine("Step 7 of 16: Instance Branding");
         Console.WriteLine("--------------------------------");
         Console.WriteLine("The instance name appears in the page title, header, and browser tab.");
         Console.WriteLine();

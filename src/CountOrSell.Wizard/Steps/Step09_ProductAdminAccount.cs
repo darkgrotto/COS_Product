@@ -7,7 +7,7 @@ public static class Step09_ProductAdminAccount
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 9 of 17: Product Admin Account");
+        Console.WriteLine("Step 9 of 16: Product Admin Account");
         Console.WriteLine("-------------------------------------");
         Console.WriteLine("Create the CountOrSell product administrator account.");
         Console.WriteLine("This is always a local account. OAuth is configured post-setup.");

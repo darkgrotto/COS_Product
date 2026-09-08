@@ -13,7 +13,7 @@ public static class Step04_EnvironmentConfig
             return;
         }
 
-        Console.WriteLine("Step 4 of 17: Environment Configuration");
+        Console.WriteLine("Step 4 of 16: Environment Configuration");
         Console.WriteLine("----------------------------------------");
 
         switch (config.DeploymentType)
