@@ -8,7 +8,7 @@ function fmtContentVersion(v: string | null | undefined): string {
   if (isNaN(d.getTime())) return v
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
-import { RefreshCw, AlertTriangle, CheckCircle, Info, X, RotateCcw, ChevronRight } from 'lucide-react'
+import { RefreshCw, AlertTriangle, CheckCircle, Info, X, RotateCcw, ChevronRight, Download, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -226,10 +226,15 @@ export function UpdatesPage() {
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [checking, setChecking] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [metadataUpdating, setMetadataUpdating] = useState(false)
   const [redownloading, setRedownloading] = useState(false)
   const [approving, setApproving] = useState(false)
   const [schemaConfirmOpen, setSchemaConfirmOpen] = useState(false)
   const [redownloadOpen, setRedownloadOpen] = useState(false)
+  // Every action either mutates content or re-reads it; running two at once would
+  // report against stale state.
+  const busy = checking || refreshing || metadataUpdating || redownloading
   const [error, setError] = useState('')
   const [checkMessage, setCheckMessage] = useState<{ text: string; applied: boolean } | null>(null)
 
@@ -244,7 +249,25 @@ export function UpdatesPage() {
 
   useEffect(() => { load() }, [load])
 
-  async function handleCheck() {
+  // Reads the current state and downloads nothing. Previously the only refresh-looking
+  // control on this page applied content, so an operator wanting to re-read the status
+  // could start a 100,000-image download by accident.
+  async function handleRefreshStatus() {
+    setRefreshing(true)
+    setError('')
+    setCheckMessage(null)
+    try {
+      await load()
+    } catch {
+      setError('Could not refresh status. Check the application logs.')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  // Applies the newest package's metadata and images. Content updates apply
+  // automatically by design, so this both checks and applies - the label says so.
+  async function handleUpdateAll() {
     setChecking(true)
     setError('')
     setCheckMessage(null)
@@ -255,9 +278,34 @@ export function UpdatesPage() {
       setCheckMessage({ text: data.message, applied: data.packagesAvailable })
       await load()
     } catch {
-      setError('Update check failed. Check the application logs.')
+      setError('Update failed. Check the application logs.')
     } finally {
       setChecking(false)
+    }
+  }
+
+  // Metadata without images. A full package lists over 100,000 images fetched one request
+  // each, so skipping them is the difference between seconds and a very long run when only
+  // card data has changed.
+  async function handleUpdateMetadata() {
+    setMetadataUpdating(true)
+    setError('')
+    setCheckMessage(null)
+    try {
+      const res = await fetch('/api/updates/redownload-targeted', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentType: 'metadata', scope: 'all', useFullPackage: false }),
+      })
+      if (!res.ok) throw new Error('Metadata update failed')
+      const data = await res.json()
+      setCheckMessage({ text: data.message ?? 'Metadata update started.', applied: true })
+      await load()
+    } catch {
+      setError('Metadata update failed. Check the application logs.')
+    } finally {
+      setMetadataUpdating(false)
     }
   }
 
@@ -298,20 +346,30 @@ export function UpdatesPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div className="flex items-center justify-between">
+      {/* Wraps rather than overflowing: as a single non-wrapping row the later buttons
+          were pushed off-screen on a narrow window, which made them look absent. */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-semibold">Updates</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={handleRefreshStatus} disabled={busy}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh Status'}
+          </Button>
+          <Button variant="outline" onClick={handleUpdateMetadata} disabled={busy}>
+            <FileText className={`h-4 w-4 mr-2 ${metadataUpdating ? 'animate-pulse' : ''}`} />
+            {metadataUpdating ? 'Updating...' : 'Update Metadata Only'}
+          </Button>
+          <Button onClick={handleUpdateAll} disabled={busy}>
+            <Download className={`h-4 w-4 mr-2 ${checking ? 'animate-pulse' : ''}`} />
+            {checking ? 'Updating...' : 'Update Metadata & Images'}
+          </Button>
           <Button
             variant="outline"
             onClick={() => { setRedownloadOpen(true); setRedownloading(true) }}
-            disabled={redownloading || checking}
+            disabled={busy}
           >
             <RotateCcw className={`h-4 w-4 mr-2 ${redownloading ? 'animate-spin' : ''}`} />
             {redownloading ? 'Running...' : 'Force Redownload...'}
-          </Button>
-          <Button onClick={handleCheck} disabled={checking || redownloading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${checking ? 'animate-spin' : ''}`} />
-            {checking ? 'Checking...' : 'Check for Updates'}
           </Button>
         </div>
       </div>
