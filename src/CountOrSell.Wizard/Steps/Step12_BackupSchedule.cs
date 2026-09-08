@@ -13,7 +13,7 @@ public static class Step12_BackupSchedule
 
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 12 of 17: Backup Schedule");
+        Console.WriteLine("Step 12 of 16: Backup Schedule");
         Console.WriteLine("--------------------------------");
         Console.WriteLine("Configure how often backups run.");
         Console.WriteLine("Accepted values: daily, weekly, monthly, or a cron expression.");

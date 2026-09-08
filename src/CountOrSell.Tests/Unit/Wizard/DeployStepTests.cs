@@ -15,7 +15,7 @@ public class DeployStepTests
         while (dir != null && !File.Exists(Path.Combine(dir.FullName, "CLAUDE.md")))
             dir = dir.Parent;
         return File.ReadAllText(Path.Combine(
-            dir!.FullName, "src", "CountOrSell.Wizard", "Steps", "Step16_Deploy.cs"));
+            dir!.FullName, "src", "CountOrSell.Wizard", "Steps", "Step15_Deploy.cs"));
     }
 
     [Fact]

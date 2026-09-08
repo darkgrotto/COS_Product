@@ -3,11 +3,11 @@ using CountOrSell.Wizard.Services;
 
 namespace CountOrSell.Wizard.Steps;
 
-public static class Step17_UpdateCheckTime
+public static class Step16_UpdateCheckTime
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 17 of 17: Daily Update Check Time");
+        Console.WriteLine("Step 16 of 16: Daily Update Check Time");
         Console.WriteLine("---------------------------------------");
 
         config.UpdateCheckTime = UpdateCheckTimeGenerator.Generate();

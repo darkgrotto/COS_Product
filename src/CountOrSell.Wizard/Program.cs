@@ -23,15 +23,14 @@ await Step10_GeneralUserAccount.RunAsync(config);
 await Step11_BackupDestination.RunAsync(config);
 await Step12_BackupSchedule.RunAsync(config);
 await Step13_BackupRetention.RunAsync(config);
-await Step14_InitialUpdate.RunAsync(config);
-await Step15_GenerateFiles.RunAsync(config);
-bool deployed = await Step16_Deploy.RunAsync(config);
+await Step14_GenerateFiles.RunAsync(config);
+bool deployed = await Step15_Deploy.RunAsync(config);
 
 if (deployed)
 {
-    await Step17_UpdateCheckTime.RunAsync(config);
+    await Step16_UpdateCheckTime.RunAsync(config);
     Console.WriteLine();
-    if (Step16_Deploy.AccountsCreated)
+    if (Step15_Deploy.AccountsCreated)
     {
         Console.WriteLine("Setup complete. CountOrSell is ready.");
     }

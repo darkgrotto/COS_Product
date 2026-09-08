@@ -7,7 +7,7 @@ public static class Step02_Prerequisites
 {
     public static Task RunAsync(WizardConfig config, PrerequisiteChecker checker)
     {
-        Console.WriteLine("Step 2 of 17: Prerequisite Detection");
+        Console.WriteLine("Step 2 of 16: Prerequisite Detection");
         Console.WriteLine("--------------------------------------");
 
         PrerequisiteResult result = config.DeploymentType switch

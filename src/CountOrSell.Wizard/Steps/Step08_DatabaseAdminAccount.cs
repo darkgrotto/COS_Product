@@ -7,7 +7,7 @@ public static class Step08_DatabaseAdminAccount
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 8 of 17: Database Admin Account");
+        Console.WriteLine("Step 8 of 16: Database Admin Account");
         Console.WriteLine("--------------------------------------");
         Console.WriteLine("Create the database administrator account.");
         Console.WriteLine("Minimum password length: 15 characters.");

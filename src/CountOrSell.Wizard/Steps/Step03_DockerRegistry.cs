@@ -8,7 +8,7 @@ public static class Step03_DockerRegistry
 
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 3 of 17: Docker Image");
+        Console.WriteLine("Step 3 of 16: Docker Image");
         Console.WriteLine("--------------------------");
 
         config.ConfigValues.TryGetValue("docker_registry", out var cfgRegistry);

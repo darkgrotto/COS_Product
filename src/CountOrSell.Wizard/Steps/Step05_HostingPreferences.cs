@@ -6,7 +6,7 @@ public static class Step05_HostingPreferences
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 5 of 17: Hosting Preferences");
+        Console.WriteLine("Step 5 of 16: Hosting Preferences");
         Console.WriteLine("-----------------------------------");
 
         config.ConfigValues.TryGetValue("hostname", out var cfgHostname);

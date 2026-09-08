@@ -9,7 +9,7 @@ public static class Step06_SslCertificate
 {
     public static Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 6 of 17: SSL Certificate");
+        Console.WriteLine("Step 6 of 16: SSL Certificate");
         Console.WriteLine("------------------------------");
 
         if (config.DeploymentType != DeploymentType.Docker)

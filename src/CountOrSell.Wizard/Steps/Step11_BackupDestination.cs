@@ -7,7 +7,7 @@ public static class Step11_BackupDestination
 {
     public static async Task RunAsync(WizardConfig config)
     {
-        Console.WriteLine("Step 11 of 17: Backup Destination");
+        Console.WriteLine("Step 11 of 16: Backup Destination");
         Console.WriteLine("-----------------------------------");
         Console.WriteLine("Select the primary backup destination.");
         Console.WriteLine("Additional destinations can be configured after setup.");
