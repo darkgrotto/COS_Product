@@ -50,6 +50,20 @@ public static class Step16_Deploy
         var envPath = Path.Combine(FindRepoRoot(), ".env");
         var envArg = File.Exists(envPath) ? $"--env-file \"{envPath}\" " : string.Empty;
 
+        // Compose's default pull policy is "missing": an image already cached locally is
+        // reused however old it is. On a first run that silently deploys whatever happens
+        // to be on the machine - a stale :dev or :latest pulled days earlier - and the only
+        // symptom is the running app reporting an older version than the tag implies.
+        Console.WriteLine("Pulling images...");
+        var pullCode = await RunCommandAsync("docker", $"compose {envArg}-f \"{composePath}\" pull");
+        if (pullCode != 0)
+        {
+            // Not fatal: a cached image is still deployable offline, and `up` below fails
+            // clearly if the image is genuinely absent.
+            Console.WriteLine("WARNING: could not pull the latest images. Continuing with");
+            Console.WriteLine("         whatever is cached locally, which may be out of date.");
+        }
+
         var exitCode = await RunCommandAsync("docker", $"compose {envArg}-f \"{composePath}\" up -d");
 
         if (exitCode == 0)
