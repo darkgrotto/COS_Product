@@ -14,4 +14,8 @@ public interface IImageStore
     Task<int> PurgeAllImagesAsync(CancellationToken ct);
     Task<Dictionary<string, int>> GetImageCountsBySetAsync(CancellationToken ct);
     Task<int> GetSealedImageCountAsync(CancellationToken ct);
+
+    // Image count per sealed product identifier. Sealed products store a front image
+    // and an optional supplemental one ({id}_s), so a product can have one or two.
+    Task<Dictionary<string, int>> GetSealedImageCountsByProductAsync(CancellationToken ct);
 }
