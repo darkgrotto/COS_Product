@@ -38,7 +38,7 @@ public class AboutController : ControllerBase
 
         var currentContentVersion = await _updateRepo.GetCurrentContentVersionAsync(ct);
         var latestAppVersion = await _updateRepo.GetLatestApplicationVersionAsync(ct);
-        var isPending = latestAppVersion != null && latestAppVersion != ProductVersion.Current;
+        var isPending = AppVersionComparison.IsUpdateAvailable(ProductVersion.Current, latestAppVersion);
         var lastCheckedAt = await _updateRepo.GetLastUpdateCheckedAtAsync(ct);
 
         var totalCards = await _db.Cards.CountAsync(ct);
