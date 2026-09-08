@@ -49,7 +49,7 @@ public class UpdatesController : ControllerBase
         var contentVersion = await _updateRepo.GetCurrentContentVersionAsync(ct);
         var pendingSchema = await _updateRepo.GetPendingSchemaUpdateAsync(ct);
         var latestAppVersion = await _updateRepo.GetLatestApplicationVersionAsync(ct);
-        var appUpdatePending = latestAppVersion != null && latestAppVersion != ProductVersion.Current;
+        var appUpdatePending = AppVersionComparison.IsUpdateAvailable(ProductVersion.Current, latestAppVersion);
         var componentVersions = await _updateRepo.GetComponentVersionsAsync(ct);
         var packageVersion = await _updateRepo.GetContentPackageVersionAsync(ct);
         var bundledAssets = await _updateRepo.GetBundledAssetVersionsAsync(ct);
