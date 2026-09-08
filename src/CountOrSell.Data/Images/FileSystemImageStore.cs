@@ -120,4 +120,24 @@ public class FileSystemImageStore : IImageStore
         if (!Directory.Exists(sealedPath)) return Task.FromResult(0);
         return Task.FromResult(Directory.GetFiles(sealedPath, "*.jpg").Length);
     }
+
+    public Task<Dictionary<string, int>> GetSealedImageCountsByProductAsync(CancellationToken ct)
+    {
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var sealedPath = Path.Combine(_basePath, "sealed");
+        if (!Directory.Exists(sealedPath)) return Task.FromResult(result);
+
+        foreach (var file in Directory.GetFiles(sealedPath, "*.jpg"))
+        {
+            // "{id}.jpg" is the front image and "{id}_s.jpg" the supplemental one; both
+            // belong to the same product, so the suffix is stripped before counting.
+            var id = Path.GetFileNameWithoutExtension(file);
+            if (id.EndsWith("_s", StringComparison.OrdinalIgnoreCase))
+                id = id[..^2];
+            if (id.Length == 0) continue;
+
+            result[id] = result.TryGetValue(id, out var n) ? n + 1 : 1;
+        }
+        return Task.FromResult(result);
+    }
 }

@@ -123,4 +123,7 @@ internal sealed class NoOpImageStore : IImageStore
 
     public Task<int> GetSealedImageCountAsync(CancellationToken ct)
         => Task.FromResult(0);
+
+    public Task<Dictionary<string, int>> GetSealedImageCountsByProductAsync(CancellationToken ct)
+        => Task.FromResult(new Dictionary<string, int>());
 }

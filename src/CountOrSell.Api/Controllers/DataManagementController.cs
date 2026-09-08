@@ -47,7 +47,42 @@ public class DataManagementController : ControllerBase
 
         var imagesBySet = await _imageStore.GetImageCountsBySetAsync(ct);
         var sealedImageCount = await _imageStore.GetSealedImageCountAsync(ct);
+        var sealedImagesByProduct = await _imageStore.GetSealedImageCountsByProductAsync(ct);
         var totalImageCount = imagesBySet.Values.Sum() + sealedImageCount;
+
+        // One row per set, carrying metadata and image state together: a set with metadata
+        // and no images, and a set with images whose metadata was purged, are both real
+        // states an admin needs to see and neither shows up in a per-content-type list.
+        var setRows = await _db.Sets
+            .Select(x => new { x.Code, x.Name, CardCount = _db.Cards.Count(c => c.SetCode == x.Code) })
+            .ToListAsync(ct);
+
+        var known = setRows.Select(r => r.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var sets = setRows
+            .Select(r => new
+            {
+                setCode = r.Code,
+                name = (string?)r.Name,
+                cardCount = r.CardCount,
+                imageCount = imagesBySet.TryGetValue(r.Code, out var n) ? n : 0
+            })
+            // Image directories with no surviving set row - orphaned by a metadata purge.
+            // Listing them is the only way an admin can find and clear them.
+            .Concat(imagesBySet
+                .Where(kv => !known.Contains(kv.Key))
+                .Select(kv => new
+                {
+                    setCode = kv.Key.ToLowerInvariant(),
+                    name = (string?)null,
+                    cardCount = 0,
+                    imageCount = kv.Value
+                }))
+            .OrderBy(r => r.setCode, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var sealedProducts = await _db.SealedProducts
+            .Select(p => new { p.Identifier, p.Name, p.SetCode })
+            .ToListAsync(ct);
 
         return Ok(new
         {
@@ -64,7 +99,18 @@ public class DataManagementController : ControllerBase
                 sealedCount = sealedImageCount,
                 bySet = imagesBySet.OrderBy(kv => kv.Key)
                     .Select(kv => new { setCode = kv.Key, count = kv.Value })
-            }
+            },
+            sets,
+            sealedProducts = sealedProducts
+                .Select(p => new
+                {
+                    identifier = p.Identifier,
+                    name = p.Name,
+                    setCode = p.SetCode,
+                    imageCount = sealedImagesByProduct.TryGetValue(p.Identifier, out var n) ? n : 0
+                })
+                .OrderBy(p => p.name, StringComparer.OrdinalIgnoreCase)
+                .ToList()
         });
     }
 
