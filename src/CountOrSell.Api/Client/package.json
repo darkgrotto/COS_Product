@@ -40,7 +40,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^6.0.5",
-    "@vitest/ui": "^5.0.0",
+    "@vitest/ui": "^5.0.5",
     "autoprefixer": "^10.4.27",
     "jsdom": "^30.0.1",
     "postcss": "^8.5.25",
